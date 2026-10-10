@@ -94,7 +94,7 @@ export class DownloadStore {
   }
 
   static suggestedName(url: string, description: string, index: number): string {
-    let path: string = url.split('?')[0].split('#')[0];
+    const path: string = url.split('?')[0].split('#')[0];
     let leaf: string = path.substring(path.lastIndexOf('/') + 1);
     try { leaf = decodeURIComponent(leaf); } catch (error) {}
     const fallback: string = DownloadStore.cleanName(description, '图片_' + index.toString());
@@ -155,6 +155,7 @@ export class DownloadStore {
       DownloadStore.batches.unshift(batch);
       DownloadStore.ensureDirectory(DownloadStore.context.filesDir + '/staging/' + batchId);
     }
+    const filesDir: string = DownloadStore.context.filesDir;
     for (let i: number = 0; i < selected.length; i++) {
       const source: PictureItem = selected[i];
       const item: DownloadItem = new DownloadItem();
@@ -166,7 +167,7 @@ export class DownloadStore {
       item.sourcePage = pageUrl;
       item.batchId = batchId;
       item.createdAt = Date.now();
-      const dir: string = zipMode ? DownloadStore.context.filesDir + '/staging/' + batchId : DownloadStore.context.filesDir + '/images';
+      const dir: string = zipMode ? filesDir + '/staging/' + batchId : filesDir + '/images';
       item.name = DownloadStore.uniqueName(item.name, dir);
       item.path = dir + '/' + item.name;
       DownloadStore.downloads.unshift(item);
@@ -182,7 +183,8 @@ export class DownloadStore {
   }
 
   static pump(): void {
-    while (DownloadStore.downloads.filter((item: DownloadItem): boolean => item.status === 'running' || item.status === 'starting').length < DownloadStore.concurrency) {
+    const limit: number = DownloadStore.concurrency;
+    while (DownloadStore.downloads.filter((item: DownloadItem): boolean => item.status === 'running' || item.status === 'starting').length < limit) {
       const next: DownloadItem | undefined = DownloadStore.downloads.find((item: DownloadItem): boolean => item.status === 'queued');
       if (next === undefined) { break; }
       next.status = 'starting';
@@ -252,7 +254,7 @@ export class DownloadStore {
       }
       const values: string[] | undefined = response.headers.get('content-disposition') ?? response.headers.get('Content-Disposition');
       if (!item.userNamed && values !== undefined && values.length > 0) {
-        const match: RegExpMatchArray | null = values[0].match(new RegExp("filename\\*?=(?:UTF-8'')?\\\"?([^\\\";]+)", 'i'));
+        const match: RegExpExecArray | null = new RegExp("filename\\*?=(?:UTF-8'')?\\\"?([^\\\";]+)", 'i').exec(values[0]);
         if (match !== null && match.length > 1) {
           let proposed: string = match[1];
           try { proposed = decodeURIComponent(proposed); } catch (error) {}
@@ -264,8 +266,8 @@ export class DownloadStore {
         if (extension.length > 0) { item.name = DownloadStore.withExtension(item.name, extension); }
       }
     });
-    task.on('completed', (_progress: request.agent.Progress): void => { DownloadStore.complete(item); });
-    task.on('failed', (_progress: request.agent.Progress): void => { DownloadStore.fail(item, '下载失败，请检查链接或登录状态'); });
+    task.on('completed', (): void => { DownloadStore.complete(item); });
+    task.on('failed', (): void => { DownloadStore.fail(item, '下载失败，请检查链接或登录状态'); });
   }
 
   static async complete(item: DownloadItem): Promise<void> {
@@ -441,7 +443,7 @@ export class DownloadStore {
     const dir: string = item.path.substring(0, item.path.lastIndexOf('/'));
     const destination: string = dir + '/' + name;
     if (destination !== item.path && DownloadStore.exists(destination)) { return false; }
-    if (item.status === 'completed' && destination !== item.path) { DownloadStore.moveFile(item.path, destination); }
+    if (destination !== item.path) { DownloadStore.moveFile(item.path, destination); }
     item.name = name; item.path = destination;
     DownloadStore.notify();
     return true;

@@ -223,12 +223,16 @@ struct Index {
               Image(item.url).width(48).height(48).objectFit(ImageFit.Cover).borderRadius(6)
               Column() {
                 Text(item.description.length > 0 ? item.description : item.url).fontSize(12).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                TextInput({ text: item.name }).onChange((value: string): void => { item.name = value; item.userNamed = true; })
+                TextInput({ text: item.name }).onChange((value: string): void => {
+                  // TextInput 初始化时也会回调 onChange，只有内容真的变了才算用户改名，
+                  // 否则会误标 userNamed 并让服务器返回的文件名（content-disposition）失效
+                  if (value !== item.name) { item.name = value; item.userNamed = true; }
+                })
               }.layoutWeight(1)
             }.padding(8).backgroundColor('#F4F7FB').borderRadius(10)
           }
         }, (item: PictureItem): string => item.id + '|' + item.selected.toString())
-      }.layoutWeight(1).padding({ left: 16, right: 16 })
+      }.layoutWeight(1).width('100%').padding({ left: 16, right: 16 })
       Button(this.zipMode ? '打包下载所选图片' : '下载所选图片').width('90%').onClick((): void => { this.enqueue(); })
     }.layoutWeight(1).width('100%')
   }
@@ -257,7 +261,7 @@ struct Index {
           }.width('100%').padding(12).backgroundColor('#EAF2FF').borderRadius(12)
         }
       }, (batch: BatchItem): string => batch.id + '|' + batch.status + '|' + batch.name + '|' + batch.error)
-    }.layoutWeight(1).padding({ left: 16, right: 16 }).id('tasks-' + this.revision.toString())
+    }.layoutWeight(1).width('100%').padding({ left: 16, right: 16 }).id('tasks-' + this.revision.toString())
   }
 
   @Builder private gallery(): void {
@@ -283,7 +287,7 @@ struct Index {
             }.width('100%').padding(10).backgroundColor('#F4F7FB').borderRadius(12)
           }
         }, (item: DownloadItem): string => item.id + '|' + item.name + '|' + item.path)
-      }.layoutWeight(1).padding({ left: 16, right: 16 }).id('gallery-' + this.revision.toString())
+      }.layoutWeight(1).width('100%').padding({ left: 16, right: 16 }).id('gallery-' + this.revision.toString())
     }.layoutWeight(1)
   }
 
@@ -303,7 +307,7 @@ struct Index {
           }.width('100%').alignItems(HorizontalAlign.Start).padding(12).backgroundColor('#F4F7FB').borderRadius(12)
         }
       }, (item: ZipItem): string => item.id + '|' + item.name + '|' + item.imageCount.toString() + '|' + item.failedCount.toString())
-    }.layoutWeight(1).padding({ left: 16, right: 16 }).id('archives-' + this.revision.toString())
+    }.layoutWeight(1).width('100%').padding({ left: 16, right: 16 }).id('archives-' + this.revision.toString())
   }
 
   @Builder private settings(): void {
