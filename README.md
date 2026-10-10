@@ -12,6 +12,27 @@
 
 折叠屏 / 阔折叠 / 三折叠 / 平板 / 2in1 的适配与验证**挂起**：需要先扩展 `deviceTypes`，并补充分栏、折叠态重排等布局验证。在此之前不纳入验收范围。
 
+## 测试
+
+单元测试在 `entry/src/ohosTest`（hypium），覆盖 `DownloadStore` 的纯函数：文件名清洗、下载命名、扩展名归一、Content-Type 映射、同名去重。这些函数不依赖 `UIAbilityContext`，也不写真实文件系统。
+
+```bash
+DEVECO=/Applications/DevEco-Studio.app
+
+# 1. 构建测试包
+node "$DEVECO/Contents/tools/hvigor/bin/hvigorw.js" assembleHap \
+  --mode module -p module=entry@ohosTest -p buildMode=debug
+
+# 2. 安装测试包（主包需已安装）
+hdc install entry/build/default/outputs/ohosTest/entry-ohosTest-signed.hap
+
+# 3. 运行
+hdc shell "aa test -b com.example.imagedownloader -m entry_test \
+  -s unittest OpenHarmonyTestRunner -s timeout 60000"
+```
+
+结果看 `OHOS_REPORT_RESULT` 一行，例如 `Tests run: 25, Failure: 0, Error: 0, Pass: 25`。
+
 ## 使用边界
 
 - 网页扫描读取当前页面 `img` 元素及常见懒加载地址；滚动页面后可以重新扫描。
