@@ -1,36 +1,30 @@
-# OpenHarmony Application Template Guide
+# 图片下载管理 — 工程结构
 
-This is an OpenHarmony (stage-model) application template. **Only read the 3 files listed below** — do NOT glob, search, or read any other files unless you need to modify labels/icons.
+鸿蒙 stage 模型应用，界面按原型 `designs/image-downloader-ui/` 实现。**改动界面时先读下面三个文件**。
 
-## Must-read files (1 batch read)
+## Must-read files
 
 | File | Why |
 |------|-----|
-| `entry/src/main/resources/base/profile/main_pages.json` | Page routing list — must update when adding pages |
-| `entry/src/main/ets/pages/Index.ets` | @Entry @Component — rewrite this for the user's feature |
-| `entry/src/main/ets/entryability/EntryAbility.ets` | `windowStage.loadContent('pages/Index')` — must stay in sync with main_pages.json |
+| `entry/src/main/ets/pages/Index.ets` | `@Entry @Component`，持有全部状态与五个页面 |
+| `entry/src/main/ets/theme/Tokens.ets` | 设计令牌；颜色在 `resources/{base,dark}/element/color.json` |
+| `entry/src/main/resources/base/profile/main_pages.json` | 页面路由，新增页面时必须同步更新 |
 
-## On-demand files (only read when needed)
+## 分层
 
-- `AppScope/resources/base/element/string.json` — key `"app_name"` → `"value": "MyApplication"`; only when renaming display name
-- `entry/src/main/resources/base/element/string.json` — keys `"EntryAbility_label"` / `"EntryAbility_desc"`; only when changing ability label/description
-- `AppScope/app.json5` — key `bundleName` under `app`; only when changing bundle ID
+- `view/` — 纯展示组件。`Icons.ets` 由 `designs/image-downloader-ui/tools/gen-icons.cjs` 生成，不要手改。
+- `service/DownloadStore.ets` — 下载队列、打包、持久化；界面只通过它改数据。
+- `model/Models.ets` — `@Observed` 模型，卡片用 `@ObjectLink` 绑定。
+- `EntryAbility.ets` — 开全屏布局并读取系统栏高度，写入 `AppStorage` 的 `safeTop` / `safeBottom`。
 
-## Skip entirely
+## 两个容易踩的坑
 
-`EntryBackupAbility.ets`, `build-profile.json5`, `code-linter.json5`, `hvigor*`, `oh-package.json5`, `obfuscation-rules.txt`, `.gitignore`, `module.json5`, all media/color/float resources
-
-## What to modify
-
-1. `Index.ets` — rewrite page content; keep `@Entry @Component struct Index`
-2. `main_pages.json` — add page paths as pages are created
-3. `EntryAbility.ets` — update `loadContent()` if first page changes; must match main_pages.json first entry
-4. `app_name` in `AppScope/resources/base/element/string.json` — if user wants a different display name
-5. `bundleName` in `AppScope/app.json5` — if user wants a different bundle ID
+1. `Path.commands` 单位是 **px**，`Shape.viewPort` 是 **vp**；`Glyph` 已按密度换算，改图标时别丢。
+2. ArkUI `Scroll` 在内容比视口短时会把内容居中，所以每个页面的滚动内容都加了
+   `.constraintSize({ minHeight: this.screenHeight })`。
 
 ## Invariants (do NOT change)
 
-- `module.json5`: `module.type` = `"entry"`, `module.mainElement` = `"EntryAbility"` — no need to read this file, it rarely changes
-- `module.json5`: `abilities[0].skills` must keep `entity.system.home` + `ohos.want.action.home`
-- `EntryAbility.ets` must extend `UIAbility`
-- `entry/build-profile.json5`: `apiType` must remain `"stageMode"`
+- `module.json5`: `module.type` = `"entry"`, `module.mainElement` = `"EntryAbility"`
+- `module.json5`: `abilities[0].skills` 保留 `entity.system.home` + `ohos.want.action.home`
+- `EntryAbility.ets` 继承 `UIAbility`；`entry/build-profile.json5`: `apiType` = `"stageMode"`

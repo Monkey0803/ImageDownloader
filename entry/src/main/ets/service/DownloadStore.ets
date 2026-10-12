@@ -2,7 +2,9 @@ import { common } from '@kit.AbilityKit';
 import { request, zlib } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { webview } from '@kit.ArkWeb';
-import { BatchItem, DownloadItem, PictureItem, SavedState, ZipItem } from '../model/Models';
+import {
+  BatchItem, DownloadItem, orBoolean, orNumber, orString, PictureItem, SavedState, ZipItem
+} from '../model/Models';
 
 export class DownloadStore {
   static context: common.UIAbilityContext;
@@ -10,6 +12,12 @@ export class DownloadStore {
   static zips: ZipItem[] = [];
   static batches: BatchItem[] = [];
   static concurrency: number = 3;
+  /** 'system' | 'light' | 'dark' — see applyTheme(). */
+  static themeMode: string = 'system';
+  /** 'adaptive' | 'immersive'. */
+  static materialType: string = 'adaptive';
+  /** Whether the immersive material lights up under touch. */
+  static lightEffect: boolean = true;
   static active: Map<string, request.agent.Task> = new Map<string, request.agent.Task>();
   static listener: (() => void) | undefined = undefined;
   static serial: number = 0;
@@ -37,10 +45,7 @@ export class DownloadStore {
     if (DownloadStore.exists(statePath)) {
       try {
         const state: SavedState = JSON.parse(fs.readTextSync(statePath)) as SavedState;
-        DownloadStore.downloads = state.downloads ?? [];
-        DownloadStore.zips = state.zips ?? [];
-        DownloadStore.batches = state.batches ?? [];
-        DownloadStore.concurrency = Math.max(1, Math.min(10, state.concurrency ?? 3));
+        DownloadStore.adopt(state);
       } catch (error) {
         DownloadStore.downloads = [];
         DownloadStore.zips = [];
@@ -48,6 +53,63 @@ export class DownloadStore {
       }
     }
     DownloadStore.recover();
+  }
+
+  /**
+   * Load a persisted state into the live lists.
+   *
+   * Records are rebuilt as real model instances rather than kept as the plain
+   * objects JSON.parse returns: the UI binds to them with @ObjectLink, which
+   * only tracks @Observed instances. A state file written by an older build is
+   * also missing fields added since, so every value is defaulted here instead
+   * of being guarded at each use site.
+   */
+  static adopt(state: SavedState): void {
+    DownloadStore.downloads = (state.downloads ?? []).map((entry: DownloadItem): DownloadItem => {
+      const item: DownloadItem = new DownloadItem();
+      item.id = orString(entry.id, '');
+      item.url = orString(entry.url, '');
+      item.name = orString(entry.name, '');
+      item.userNamed = orBoolean(entry.userNamed, false);
+      item.path = orString(entry.path, '');
+      item.sourcePage = orString(entry.sourcePage, '');
+      item.batchId = orString(entry.batchId, '');
+      item.taskId = orString(entry.taskId, '');
+      item.status = orString(entry.status, 'queued');
+      item.processed = orNumber(entry.processed, 0);
+      item.total = orNumber(entry.total, 0);
+      item.size = orNumber(entry.size, 0);
+      item.error = orString(entry.error, '');
+      item.createdAt = orNumber(entry.createdAt, 0);
+      item.finishedAt = orNumber(entry.finishedAt, item.createdAt);
+      return item;
+    });
+    DownloadStore.zips = (state.zips ?? []).map((entry: ZipItem): ZipItem => {
+      const zip: ZipItem = new ZipItem();
+      zip.id = orString(entry.id, '');
+      zip.name = orString(entry.name, '');
+      zip.path = orString(entry.path, '');
+      zip.batchId = orString(entry.batchId, '');
+      zip.imageCount = orNumber(entry.imageCount, 0);
+      zip.failedCount = orNumber(entry.failedCount, 0);
+      zip.size = orNumber(entry.size, 0);
+      zip.createdAt = orNumber(entry.createdAt, 0);
+      zip.thumbs = entry.thumbs === undefined ? [] : entry.thumbs;
+      return zip;
+    });
+    DownloadStore.batches = (state.batches ?? []).map((entry: BatchItem): BatchItem => {
+      const batch: BatchItem = new BatchItem();
+      batch.id = orString(entry.id, '');
+      batch.name = orString(entry.name, '');
+      batch.sourcePage = orString(entry.sourcePage, '');
+      batch.status = orString(entry.status, 'downloading');
+      batch.error = orString(entry.error, '');
+      return batch;
+    });
+    DownloadStore.concurrency = Math.max(1, Math.min(10, orNumber(state.concurrency, 3)));
+    DownloadStore.themeMode = orString(state.themeMode, 'system');
+    DownloadStore.materialType = orString(state.materialType, 'adaptive');
+    DownloadStore.lightEffect = orBoolean(state.lightEffect, true);
   }
 
   static ensureDirectory(path: string): void {
@@ -69,6 +131,9 @@ export class DownloadStore {
     state.zips = DownloadStore.zips;
     state.batches = DownloadStore.batches;
     state.concurrency = DownloadStore.concurrency;
+    state.themeMode = DownloadStore.themeMode;
+    state.materialType = DownloadStore.materialType;
+    state.lightEffect = DownloadStore.lightEffect;
     const path: string = DownloadStore.context.filesDir + '/download-state.json';
     const temp: string = path + '.tmp';
     try {
@@ -182,6 +247,101 @@ export class DownloadStore {
     DownloadStore.pump();
   }
 
+  static setThemeMode(value: string): void {
+    DownloadStore.themeMode = value;
+    DownloadStore.notify();
+  }
+
+  static setMaterialType(value: string): void {
+    DownloadStore.materialType = value;
+    DownloadStore.notify();
+  }
+
+  static setLightEffect(value: boolean): void {
+    DownloadStore.lightEffect = value;
+    DownloadStore.notify();
+  }
+
+  /** Bytes currently held by downloaded images and archives. */
+  static usedBytes(): number {
+    let total: number = 0;
+    for (const item of DownloadStore.downloads) {
+      total += orNumber(item.size, 0);
+    }
+    for (const zip of DownloadStore.zips) {
+      total += orNumber(zip.size, 0);
+    }
+    return total;
+  }
+
+  /**
+   * Delete every downloaded file and every record.
+   *
+   * Staging directories of batches that are still downloading or packing are
+   * left alone: their files are inputs to a pack that has not finished yet.
+   */
+  static clearAll(): void {
+    for (const item of DownloadStore.downloads) {
+      DownloadStore.removeFile(item.path);
+    }
+    for (const zip of DownloadStore.zips) {
+      DownloadStore.removeFile(zip.path);
+    }
+    for (const batch of DownloadStore.batches) {
+      if (batch.status === 'downloading' || batch.status === 'packing') {
+        continue;
+      }
+      DownloadStore.removeDirectory(DownloadStore.context.filesDir + '/staging/' + batch.id);
+    }
+    DownloadStore.downloads = [];
+    DownloadStore.zips = [];
+    DownloadStore.batches = [];
+    DownloadStore.notify();
+  }
+
+  /**
+   * Remove staging leftovers from interrupted packs and report the bytes freed.
+   * Batches that are still in flight keep their staging directory.
+   */
+  static cleanStaging(): number {
+    const root: string = DownloadStore.context.filesDir + '/staging';
+    const busy: string[] = DownloadStore.batches
+      .filter((batch: BatchItem): boolean => batch.status === 'downloading' || batch.status === 'packing')
+      .map((batch: BatchItem): string => batch.id);
+    let freed: number = 0;
+    try {
+      for (const entry of fs.listFileSync(root)) {
+        if (busy.includes(entry)) {
+          continue;
+        }
+        const directory: string = root + '/' + entry;
+        try {
+          for (const file of fs.listFileSync(directory)) {
+            const path: string = directory + '/' + file;
+            try {
+              freed += fs.statSync(path).size;
+            } catch (error) {
+            }
+            DownloadStore.removeFile(path);
+          }
+        } catch (error) {
+        }
+        DownloadStore.removeDirectory(directory);
+      }
+    } catch (error) {
+    }
+    return freed;
+  }
+
+  static removeDirectory(path: string): void {
+    try {
+      if (fs.accessSync(path)) {
+        fs.rmdirSync(path);
+      }
+    } catch (error) {
+    }
+  }
+
   static pump(): void {
     const limit: number = DownloadStore.concurrency;
     while (DownloadStore.downloads.filter((item: DownloadItem): boolean => item.status === 'running' || item.status === 'starting').length < limit) {
@@ -287,6 +447,12 @@ export class DownloadStore {
       const finalPath: string = dir + '/' + item.name;
       if (finalPath !== item.path) { fs.renameSync(item.path, finalPath); item.path = finalPath; }
       item.status = 'completed';
+      item.finishedAt = Date.now();
+      try {
+        item.size = fs.statSync(finalPath).size;
+      } catch (error) {
+        item.size = item.total;
+      }
       DownloadStore.active.delete(item.id);
       DownloadStore.notify();
       if (canIUse('SystemCapability.Request.FileTransferAgent')) {
@@ -423,6 +589,10 @@ export class DownloadStore {
       archive.id = DownloadStore.nextId(); archive.name = name; archive.path = path;
       archive.batchId = batch.id; archive.imageCount = members.length;
       archive.failedCount = failedCount; archive.createdAt = Date.now();
+      try { archive.size = fs.statSync(path).size; } catch (error) { archive.size = 0; }
+      // keep a few source URLs so the list can draw a stacked thumbnail; the
+      // packed image files themselves are deleted right below
+      archive.thumbs = members.slice(0, 3).map((item: DownloadItem): string => item.url);
       DownloadStore.zips.unshift(archive);
       batch.status = 'completed'; batch.name = name;
       for (const member of DownloadStore.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id)) {

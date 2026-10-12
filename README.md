@@ -2,9 +2,51 @@
 
 鸿蒙手机应用，可在内置浏览器中扫描当前网页图片，选择单张保存或打包为 ZIP。支持 1–10 个同时下载任务、失败重试、图片与 ZIP 重命名、图库预览、分享和导出。
 
+## 界面
+
+界面按高保真原型 `designs/image-downloader-ui/` 实现，五个页签：**发现 / 任务 / 图库 / 打包 / 设置**。
+配色、间距、圆角、字号等设计令牌集中在 `entry/src/main/ets/theme/Tokens.ets`，颜色以资源形式落在
+`resources/base/element/color.json` 与 `resources/dark/element/color.json`，深浅色随系统或设置页切换。
+
+```
+entry/src/main/ets/
+├─ theme/Tokens.ets      设计令牌：调色板、间距、圆角、字号、格式化工具
+├─ view/Icons.ets        线性图标集（由原型 icons.jsx 生成，见下）
+├─ view/Widgets.ets      标题栏、底部页签、分段控件、按钮、卡片、开关行、重命名弹窗
+├─ view/Cards.ets        图片格子、任务卡、打包卡、压缩包卡、图片预览
+├─ pages/Index.ets       @Entry：状态、五个页面、浮层
+├─ model/Models.ets      @Observed 数据模型
+└─ service/DownloadStore.ets  下载队列、打包、持久化
+```
+
+### 图标
+
+`view/Icons.ets` 里的路径数据由原型的 SVG 图标集生成，两边形状完全一致：
+
+```bash
+node designs/image-downloader-ui/tools/gen-icons.cjs \
+  designs/image-downloader-ui/icons.jsx entry/src/main/ets/view/Icons.ets
+```
+
+> 注意：ArkUI `Path.commands` 的单位是 **px**，而 `Shape.viewPort` 是 **vp**，所以 `Glyph` 把 24 单位的
+> 视口按屏幕密度换算成 vp 声明，形状再自行放大到目标尺寸。
+
 ## 构建
 
 工程使用 DevEco Studio SDK 26。`build-profile.json5` 是本机文件，包含调试签名配置，已被 Git 忽略；在新机器上复制 `build-profile.example.json5` 为 `build-profile.json5`，再通过 DevEco Studio 的 **Project Structure → Signing Configs** 配置调试签名。
+
+命令行构建用 `scripts/build.sh`（它把 `JAVA_HOME` 指向 DevEco 自带的 JBR，hvigor 的打包步骤需要 JDK）：
+
+```bash
+./scripts/build.sh assembleHap --mode module -p module=entry@default -p buildMode=debug
+```
+
+在真机/模拟器上跑一遍并截图，用 `scripts/device.sh`：
+
+```bash
+./scripts/device.sh launch <serial>
+./scripts/device.sh shot discover <serial>
+```
 
 ## 设备与验证范围
 

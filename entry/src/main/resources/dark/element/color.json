@@ -1,8 +1,51 @@
 {
   "color": [
-    {
-      "name": "start_window_background",
-      "value": "#000000"
-    }
+    { "name": "start_window_background", "value": "#191A1C" },
+
+    { "name": "brand", "value": "#317AF7" },
+    { "name": "brand_soft", "value": "#3D317AF7" },
+    { "name": "brand_faint", "value": "#1F317AF7" },
+    { "name": "confirm", "value": "#5BA854" },
+    { "name": "alert", "value": "#DB6B42" },
+    { "name": "warning", "value": "#D94838" },
+
+    { "name": "font_primary", "value": "#E5FFFFFF" },
+    { "name": "font_secondary", "value": "#99FFFFFF" },
+    { "name": "font_tertiary", "value": "#66FFFFFF" },
+    { "name": "font_fourth", "value": "#42FFFFFF" },
+    { "name": "font_on_primary", "value": "#FFFFFFFF" },
+
+    { "name": "bg", "value": "#191A1C" },
+    { "name": "bg_canvas", "value": "#0E0F10" },
+    { "name": "card", "value": "#202224" },
+    { "name": "card_sunken", "value": "#0DFFFFFF" },
+    { "name": "divider", "value": "#1AFFFFFF" },
+    { "name": "switch_off", "value": "#2EFFFFFF" },
+    { "name": "hover", "value": "#0CFFFFFF" },
+    { "name": "pressed", "value": "#19FFFFFF" },
+    { "name": "scrim", "value": "#99000000" },
+    { "name": "glass", "value": "#1AFFFFFF" },
+    { "name": "glass_strong", "value": "#29FFFFFF" },
+
+    { "name": "chip_ok_bg", "value": "#245BA854" },
+    { "name": "chip_warn_bg", "value": "#1FD94838" },
+    { "name": "chip_alert_bg", "value": "#24DB6B42" },
+    { "name": "danger_bg", "value": "#1FD94838" },
+    { "name": "danger_bg_press", "value": "#33D94838" },
+    { "name": "toast_bg", "value": "#E6000000" },
+    { "name": "viewer_bg", "value": "#F0000000" },
+
+    { "name": "seg_on", "value": "#24FFFFFF" },
+
+    { "name": "sheen", "value": "#33FFFFFF" },
+
+    { "name": "shadow_card", "value": "#33000000" },
+    { "name": "shadow_float", "value": "#73000000" },
+    { "name": "shadow_action", "value": "#59000000" },
+
+    { "name": "fade_solid", "value": "#F0191A1C" },
+    { "name": "fade_strong", "value": "#BD191A1C" },
+    { "name": "fade_soft", "value": "#3D191A1C" },
+    { "name": "fade_none", "value": "#00191A1C" }
   ]
 }

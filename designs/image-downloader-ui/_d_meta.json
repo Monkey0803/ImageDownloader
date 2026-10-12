@@ -1,0 +1,24 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "图片下载管理 · HarmonyOS 高保真原型": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-12T02:26:37.998Z",
+          "status": "needs-review",
+          "subtitle": "发现 / 任务 / 图库 / 打包 / 设置 五页可点击原型，HarmonyOS Design Token 驱动，含浅色与深色主题",
+          "viewport": {
+            "width": 360,
+            "height": 780
+          },
+          "section": "App"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-12T02:26:37.999Z",
+  "updatedAt": "2026-10-12T08:27:27.324Z"
+}

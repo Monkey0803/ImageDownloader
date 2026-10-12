@@ -15,7 +15,7 @@
 
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window } from '@kit.ArkUI';
+import { display, window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 
 const DOMAIN = 0x0000;
@@ -54,6 +54,46 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
+    EntryAbility.publishInsets(windowStage);
+  }
+
+  /**
+   * Let the page draw under the system bars, then publish the inset heights.
+   *
+   * The insets are read from the live window instead of being hard-coded, so
+   * the layout adapts to any device. Full-screen layout is what the design
+   * assumes: the floating title bar owns the top edge and pads itself by
+   * `safeTop`, and the tab bar pads itself by `safeBottom`.
+   */
+  private static publishInsets(windowStage: window.WindowStage): void {
+    try {
+      const main: window.Window = windowStage.getMainWindowSync();
+      EntryAbility.applyFullScreen(main);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to read the main window. Cause: %{public}s', JSON.stringify(err));
+    }
+  }
+
+  private static async applyFullScreen(main: window.Window): Promise<void> {
+    try {
+      await main.setWindowLayoutFullScreen(true);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to enable full-screen layout. Cause: %{public}s', JSON.stringify(err));
+    }
+    EntryAbility.storeInsets(main);
+  }
+
+  private static storeInsets(main: window.Window): void {
+    try {
+      const density: number = display.getDefaultDisplaySync().densityPixels;
+      const top: number = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM).topRect.height / density;
+      const bottom: number =
+        main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR).bottomRect.height / density;
+      AppStorage.setOrCreate('safeTop', top);
+      AppStorage.setOrCreate('safeBottom', bottom);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to read the window insets. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onWindowStageDestroy(): void {
