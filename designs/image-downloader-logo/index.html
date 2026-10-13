@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图片下载管理 · App 图标与文字标</title>
+<style>
+  :root {
+    --brand: #0A59F7;
+    --brand-faint: rgba(10, 89, 247, 0.10);
+    --page: #EEF0F3;
+    --card: #FFFFFF;
+    --sunken: rgba(0, 0, 0, 0.03);
+    --t1: rgba(0, 0, 0, 0.90);
+    --t2: rgba(0, 0, 0, 0.60);
+    --t3: rgba(0, 0, 0, 0.38);
+    --line: rgba(0, 0, 0, 0.08);
+    --shadow: 0 8px 48px rgba(0, 0, 0, 0.08);
+    --r-lg: 20px;
+    --r-sm: 12px;
+    --font: "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "Noto Sans SC",
+            -apple-system, "SF Pro Text", sans-serif;
+    --mono: "SF Mono", ui-monospace, "HarmonyOS Sans SC", monospace;
+  }
+  [data-theme="dark"] {
+    --page: #0E0F10;
+    --card: #202224;
+    --sunken: rgba(255, 255, 255, 0.04);
+    --t1: rgba(255, 255, 255, 0.90);
+    --t2: rgba(255, 255, 255, 0.60);
+    --t3: rgba(255, 255, 255, 0.38);
+    --line: rgba(255, 255, 255, 0.10);
+    --shadow: 0 8px 48px rgba(0, 0, 0, 0.35);
+    --brand-faint: rgba(49, 122, 247, 0.16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--t1);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+  .page { max-width: 1160px; margin: 0 auto; padding: 64px 40px 160px; }
+
+  /* ---------- 页头 ---------- */
+  .masthead { display: flex; align-items: center; gap: 20px; }
+  .masthead-mark {
+    width: 72px; height: 72px; border-radius: 24%;
+    overflow: hidden; flex: none;
+  }
+  .masthead-mark img { display: block; width: 100%; height: 100%; }
+  h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.4px; }
+  .masthead p { margin: 4px 0 0; font-size: 13px; color: var(--t2); }
+  .masthead code { font-family: var(--mono); font-size: 12.5px; }
+
+  /* ---------- 分节 ---------- */
+  section { margin-top: 72px; }
+  h2 {
+    margin: 0 0 8px; font-size: 17px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--brand); flex: none;
+  }
+  .lede { margin: 0 0 24px; font-size: 14px; color: var(--t2); max-width: 76ch; }
+  .lede strong { color: var(--t1); font-weight: 600; }
+
+  /* ---------- 方案卡 ---------- */
+  .concepts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .concept {
+    background: var(--card); border-radius: var(--r-lg);
+    padding: 24px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .concept.pick { outline: 2px solid var(--brand); outline-offset: -2px; }
+  .stage {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--sunken); border-radius: var(--r-sm);
+    padding: 16px 0; min-height: 232px;
+  }
+  /* 遮罩：默认圆角方形（24%），可由控制面板换成超椭圆 / 圆形 / 方形。 */
+  .icon, .masthead-mark { overflow: hidden; flex: none; border-radius: 24%; }
+  .icon img { display: block; width: 100%; height: 100%; }
+  img.masked { border-radius: 24%; }
+  .mask-roundsquare, img.masked.mask-roundsquare { border-radius: 24%; }
+  .mask-circle, img.masked.mask-circle { border-radius: 50%; }
+  .mask-square, img.masked.mask-square { border-radius: 0; }
+  .mask-superellipse, img.masked.mask-superellipse { clip-path: var(--squircle); }
+
+  .concept h3 { margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .tag {
+    font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 7px;
+    border-radius: 6px; background: var(--brand-faint); color: var(--brand);
+    letter-spacing: 0.3px;
+  }
+  .tag-quiet { background: var(--sunken); color: var(--t2); }
+  .concept-sub { margin: 2px 0 8px; font-size: 13px; color: var(--t3); }
+  .concept-copy { margin: 0; font-size: 13.5px; color: var(--t2); }
+
+  .ladder { display: flex; align-items: flex-end; gap: 14px; }
+  .rung { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .rung span { font-size: 10px; color: var(--t3); font-variant-numeric: tabular-nums; }
+
+  .facts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .facts li { font-size: 12.5px; color: var(--t3); display: flex; gap: 8px; }
+  .facts li b { color: var(--t2); font-weight: 500; flex: none; width: 52px; }
+
+  /* ---------- 详查 ---------- */
+  .detail { display: grid; grid-template-columns: 380px 1fr; gap: 32px; align-items: start; }
+  .canvas-box {
+    background: var(--card); border-radius: var(--r-lg); padding: 24px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px;
+  }
+  .canvas-wrap { position: relative; width: 320px; height: 320px; margin: 0 auto; }
+  .canvas-wrap .icon { width: 320px; height: 320px; border-radius: 0; }
+  .guides { position: absolute; inset: 0; display: none; pointer-events: none; }
+  .show-guides .guides { display: block; }
+  .guides i {
+    position: absolute; display: block; font-style: normal;
+    font-size: 10px; color: var(--t3); white-space: nowrap;
+  }
+  .guide-edge { inset: 0; border: 1px dashed var(--line); }
+  .guide-glyph {
+    inset: 27%; border: 1px dashed var(--brand);
+  }
+  .guide-cross-h { left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .guide-cross-v { top: 50%; left: 0; right: 0; height: 1px; background: var(--line); }
+  .guide-label-glyph { left: 27%; top: 23%; }
+  .guide-label-edge { left: 4px; top: 4px; }
+
+  .mask-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .mask-cell {
+    background: var(--card); border-radius: var(--r-sm); padding: 16px 12px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+  }
+  .mask-cell .icon { width: 120px; height: 120px; }
+  .mask-cell span { font-size: 12px; color: var(--t2); }
+
+  /* ---------- 分层 ---------- */
+  .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .layer {
+    background: var(--card); border-radius: var(--r-lg); padding: 20px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px;
+  }
+  .layer-plate {
+    border-radius: var(--r-sm); min-height: 200px; display: flex;
+    align-items: center; justify-content: center; padding: 16px;
+    background: var(--sunken);
+  }
+  .layer-plate img { width: 168px; height: 168px; display: block; }
+  .layer-plate.checker {
+    background-image:
+      linear-gradient(45deg, var(--sunken) 25%, transparent 25%, transparent 75%, var(--sunken) 75%),
+      linear-gradient(45deg, var(--sunken) 25%, transparent 25%, transparent 75%, var(--sunken) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+  }
+  .layer h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .layer p { margin: 0; font-size: 12.5px; color: var(--t3); }
+
+  /* ---------- 文字标 ---------- */
+  .marks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .mark-card {
+    background: var(--card); border-radius: var(--r-lg); padding: 28px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 18px;
+  }
+  .mark-card.dark { background: #191A1C; }
+  /* 浅色底锁定在深色主题下也要留在白底上，否则黑字消失。 */
+  .mark-card.plate-light { background: #FFFFFF; }
+  .mark-card.plate-light h4 { color: rgba(0, 0, 0, 0.9); }
+  .mark-card.plate-light p { color: rgba(0, 0, 0, 0.38); }
+  .mark-card img { display: block; width: 100%; height: auto; }
+  .mark-card h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mark-card.dark h4 { color: rgba(255, 255, 255, 0.9); }
+  .mark-card p { margin: 0; font-size: 12.5px; color: var(--t3); }
+  .mark-card.dark p { color: rgba(255, 255, 255, 0.45); }
+
+  /* ---------- 规则表 ---------- */
+  .rules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 32px; margin: 0; padding: 0; }
+  .rules div {
+    display: grid; grid-template-columns: 132px 1fr; gap: 16px;
+    padding: 12px 0; border-bottom: 1px solid var(--line); align-items: baseline;
+  }
+  .rules dt { font-size: 13px; color: var(--t3); }
+  .rules dd { margin: 0; font-size: 13.5px; color: var(--t2); }
+  .rules dd b { color: var(--t1); font-weight: 600; }
+  code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--sunken); padding: 2px 6px; border-radius: 6px;
+  }
+
+  /* ---------- 控制面板 ---------- */
+  .tweaks-toggle {
+    position: fixed; right: 24px; bottom: 24px; z-index: 20;
+    border: 0; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600;
+    color: #fff; background: var(--brand); padding: 10px 16px; border-radius: 100px;
+    box-shadow: 0 8px 32px rgba(10, 89, 247, 0.32);
+  }
+  .tweaks {
+    position: fixed; right: 24px; bottom: 74px; z-index: 20; width: 236px;
+    background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow);
+    padding: 18px; display: none; flex-direction: column; gap: 16px;
+  }
+  .tweaks.open { display: flex; }
+  .tweaks h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--t3); letter-spacing: 0.5px; }
+  .tweaks label { font-size: 13px; color: var(--t2); display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .seg button {
+    font-family: inherit; font-size: 12.5px; color: var(--t2); cursor: pointer;
+    background: var(--sunken); border: 0; border-radius: 8px; padding: 7px 4px;
+  }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+
+  @media (max-width: 900px) {
+    .concepts, .layers, .marks, .rules { grid-template-columns: 1fr; }
+    .detail { grid-template-columns: 1fr; }
+    .mask-grid { grid-template-columns: repeat(2, 1fr); }
+    .page { padding: 40px 20px 120px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="masthead-mark mask-roundsquare">
+      <img src="concepts/concept-a-photo-card.svg" alt="图片下载管理图标">
+    </div>
+    <div>
+      <h1>图片下载管理 · App 图标与文字标</h1>
+      <p>HarmonyOS 手机应用 · <code>com.example.imagedownloader</code> · 品牌蓝 <code>#0A59F7</code> · 画布 1024 × 1024</p>
+    </div>
+  </header>
+
+  <section>
+    <h2>三个方案</h2>
+    <p class="lede">
+      同一套品牌蓝 + 白色单色图形，三种结构。三个方案的图形都按 <strong>外接框 ≈ 画布 46%</strong>
+      居中放置 —— 与 DevEco 模板前景层的 45%（1024 上 456px）同档，桌面上不会显得挤或小。
+    </p>
+
+    <div class="concepts">
+
+      <article class="concept pick">
+        <div class="stage"><div class="icon" style="width:200px;height:200px"><img src="concepts/concept-a-photo-card.svg" alt="方案 A"></div></div>
+        <div>
+          <h3>方案 A <span class="tag">推荐</span></h3>
+          <p class="concept-sub">相片卡 + 镂空下载箭头</p>
+          <p class="concept-copy">
+            一张相片卡，左上角一颗镜头圆点，卡中间挖出一支向下的箭头 —— 洞透出品牌蓝。
+            一张图、一次下载，最直白；缩到 24px 仍是一块实的相片加一支箭头。
+          </p>
+        </div>
+        <div class="ladder">
+          <div class="rung"><img src="concepts/concept-a-photo-card.svg" width="96" height="96" class="masked" alt=""><span>96</span></div>
+          <div class="rung"><img src="concepts/concept-a-photo-card.svg" width="64" height="64" class="masked" alt=""><span>64</span></div>
+          <div class="rung"><img src="concepts/concept-a-photo-card.svg" width="48" height="48" class="masked" alt=""><span>48</span></div>
+          <div class="rung"><img src="concepts/concept-a-photo-card.svg" width="32" height="32" class="masked" alt=""><span>32</span></div>
+          <div class="rung"><img src="concepts/concept-a-photo-card.svg" width="24" height="24" class="masked" alt=""><span>24</span></div>
+        </div>
+        <ul class="facts">
+          <li><b>实现</b><span>evenodd 单路径，两层零依赖</span></li>
+          <li><b>风险</b><span>与系统「下载」类图标同为箭头，靠相片卡区分</span></li>
+        </ul>
+      </article>
+
+      <article class="concept">
+        <div class="stage"><div class="icon" style="width:200px;height:200px"><img src="concepts/concept-b-photo-stack.svg" alt="方案 B"></div></div>
+        <div>
+          <h3>方案 B</h3>
+          <p class="concept-sub">相片叠放 + 镂空下载箭头</p>
+          <p class="concept-copy">
+            后一张相片从右上露出，前一张压住它并挖出箭头；两张之间留 28 的蓝色缝。
+            强调「多张图一起收」的批量语义，代价是叠形在 32px 以下开始糊。
+          </p>
+        </div>
+        <div class="ladder">
+          <div class="rung"><img src="concepts/concept-b-photo-stack.svg" width="96" height="96" class="masked" alt=""><span>96</span></div>
+          <div class="rung"><img src="concepts/concept-b-photo-stack.svg" width="64" height="64" class="masked" alt=""><span>64</span></div>
+          <div class="rung"><img src="concepts/concept-b-photo-stack.svg" width="48" height="48" class="masked" alt=""><span>48</span></div>
+          <div class="rung"><img src="concepts/concept-b-photo-stack.svg" width="32" height="32" class="masked" alt=""><span>32</span></div>
+          <div class="rung"><img src="concepts/concept-b-photo-stack.svg" width="24" height="24" class="masked" alt=""><span>24</span></div>
+        </div>
+        <ul class="facts">
+          <li><b>实现</b><span>后卡用 mask 抠缝，前景层仍是纯白单色</span></li>
+          <li><b>风险</b><span>结构比 A 复杂，小尺寸层次会并成一块</span></li>
+        </ul>
+      </article>
+
+      <article class="concept">
+        <div class="stage"><div class="icon" style="width:200px;height:200px"><img src="concepts/concept-c-arrow-tray.svg" alt="方案 C"></div></div>
+        <div>
+          <h3>方案 C</h3>
+          <p class="concept-sub">箭头落入收纳托盘</p>
+          <p class="concept-copy">
+            不画相片，只用一支箭头落进 U 形托盘 —— 「收进来」的抽象写法，和打包、图库两个页签的语气一致。
+            最像品牌符号，也最不像「图片」。
+          </p>
+        </div>
+        <div class="ladder">
+          <div class="rung"><img src="concepts/concept-c-arrow-tray.svg" width="96" height="96" class="masked" alt=""><span>96</span></div>
+          <div class="rung"><img src="concepts/concept-c-arrow-tray.svg" width="64" height="64" class="masked" alt=""><span>64</span></div>
+          <div class="rung"><img src="concepts/concept-c-arrow-tray.svg" width="48" height="48" class="masked" alt=""><span>48</span></div>
+          <div class="rung"><img src="concepts/concept-c-arrow-tray.svg" width="32" height="32" class="masked" alt=""><span>32</span></div>
+          <div class="rung"><img src="concepts/concept-c-arrow-tray.svg" width="24" height="24" class="masked" alt=""><span>24</span></div>
+        </div>
+        <ul class="facts">
+          <li><b>实现</b><span>托盘 evenodd 挖腔 + 独立箭头，两层</span></li>
+          <li><b>风险</b><span>托盘壁 88（24px 上约 2px），小尺寸偏细</span></li>
+        </ul>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>推荐方案 A · 规格与遮罩</h2>
+    <p class="lede">
+      鸿蒙桌面会用系统遮罩裁切分层图标，资源里不自己切圆角。下面是同一张图在四种遮罩下的样子。
+      打开「显示安全区」可以看到 46% 的图形框和画布中心线。
+    </p>
+    <div class="detail">
+
+      <div class="canvas-box">
+        <div class="canvas-wrap">
+          <div class="icon"><img src="concepts/concept-a-photo-card.svg" alt="方案 A 画布"></div>
+          <div class="guides">
+            <i class="guide-edge"></i>
+            <i class="guide-cross-h"></i>
+            <i class="guide-cross-v"></i>
+            <i class="guide-glyph"></i>
+            <i class="guide-label-edge">画布 1024 × 1024</i>
+            <i class="guide-label-glyph">图形框 46%（470px）</i>
+          </div>
+        </div>
+        <p class="concept-copy" style="text-align:center;margin:0">
+          前景层外接框 470 × 436 px，居中；画布四周留白不低于 277 px。
+        </p>
+      </div>
+
+      <div class="mask-grid">
+        <div class="mask-cell"><div class="icon mask-roundsquare"><img src="concepts/concept-a-photo-card.svg" alt=""></div><span>圆角方形</span></div>
+        <div class="mask-cell"><div class="icon mask-superellipse"><img src="concepts/concept-a-photo-card.svg" alt=""></div><span>超椭圆</span></div>
+        <div class="mask-cell"><div class="icon mask-circle"><img src="concepts/concept-a-photo-card.svg" alt=""></div><span>圆形</span></div>
+        <div class="mask-cell"><div class="icon mask-square"><img src="concepts/concept-a-photo-card.svg" alt=""></div><span>方形</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>分层图标（鸿蒙上架要求）</h2>
+    <p class="lede">
+      前景层与背景层各自 1024 × 1024，由系统叠加后套遮罩。前景层是白色图形 + 透明底，
+      镂空处透出的正是背景层的蓝 —— 所以两层的图形边界必须严丝合缝。
+    </p>
+    <div class="layers">
+      <div class="layer">
+        <div class="layer-plate"><img src="app-icon/background.svg" alt="背景层"></div>
+        <h4>背景层 background</h4>
+        <p>品牌蓝 #0A59F7 纯色满幅，不含任何图形或文字。RGB，无透明通道。</p>
+      </div>
+      <div class="layer">
+        <div class="layer-plate checker"><img src="app-icon/foreground.svg" alt="前景层"></div>
+        <h4>前景层 foreground</h4>
+        <p>只有白色图形，其余全透明。母版路径用 evenodd，镜头圆点与箭头本身就是洞。</p>
+      </div>
+      <div class="layer">
+        <div class="layer-plate"><img src="app-icon/icon-composite.png" alt="合成"></div>
+        <h4>合成 icon-composite</h4>
+        <p>两层叠加的直角版本，供应用市场 216 × 216 直角图标、文档与宣传位使用。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>文字标</h2>
+    <p class="lede">
+      图形取自方案 A。中文名用系统 CJK 字重 600，英文副名拉开字距；
+      单色版把蓝底收掉，整枚锁定一个颜色，用于压印、水印和深色底反白。
+    </p>
+    <div class="marks">
+      <div class="mark-card plate-light">
+        <img src="wordmark-horizontal.svg" alt="横版文字标">
+        <h4>横版 · 浅色底</h4>
+        <p>用于设置页、关于页、启动过渡与应用市场详情页头图。</p>
+      </div>
+      <div class="mark-card dark">
+        <img src="wordmark-horizontal-dark.svg" alt="横版文字标 深色底">
+        <h4>横版 · 深色底</h4>
+        <p>深色主题下自动换用；文字转白，蓝底不动。</p>
+      </div>
+      <div class="mark-card plate-light">
+        <img src="wordmark-stacked.svg" alt="竖版文字标">
+        <h4>竖版</h4>
+        <p>方形版面、启动页、分享卡片。</p>
+      </div>
+      <div class="mark-card plate-light">
+        <img src="wordmark-monochrome.svg" alt="单色文字标">
+        <h4>单色</h4>
+        <p>一个颜色走到底，改 <code>fill</code> 即可反白。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>落地与约束</h2>
+    <dl class="rules">
+      <div><dt>尺寸</dt><dd>前景层与背景层都是 <b>1024 × 1024</b> 的 PNG</dd></div>
+      <div><dt>圆角</dt><dd>资源里<b>不自己切圆角</b>，遮罩交给系统</dd></div>
+      <div><dt>内边距</dt><dd>不额外加内边距；图形按 46% 居中，靠图形本身留白</dd></div>
+      <div><dt>背景层</dt><dd>只允许纯色或渐变，不能出现图形与文字</dd></div>
+      <div><dt>格式</dt><dd>前景层 RGBA 透明底；背景层去掉 alpha 通道</dd></div>
+      <div><dt>启动图标</dt><dd>startIcon 复用合成图，套 24% 圆角，1024 尺寸</dd></div>
+      <div><dt>引用</dt><dd><code>module.json5</code> / <code>app.json5</code> 的 <code>icon</code> 指向 <code>$media:layered_image</code></dd></div>
+      <div><dt>市场图标</dt><dd>AGC 另需 216 × 216 直角图标</dd></div>
+    </dl>
+  </section>
+
+</div>
+
+<button class="tweaks-toggle" id="tweaks-toggle" type="button">显示控制</button>
+<div class="tweaks" id="tweaks">
+  <h4>遮罩</h4>
+  <div class="seg" id="seg-mask">
+    <button type="button" data-mask="mask-roundsquare" aria-pressed="true">圆角方形</button>
+    <button type="button" data-mask="mask-superellipse" aria-pressed="false">超椭圆</button>
+    <button type="button" data-mask="mask-circle" aria-pressed="false">圆形</button>
+    <button type="button" data-mask="mask-square" aria-pressed="false">方形</button>
+  </div>
+  <h4>版式</h4>
+  <label><input type="checkbox" id="toggle-guides"> 显示安全区</label>
+  <div class="seg" id="seg-theme">
+    <button type="button" data-theme="light" aria-pressed="true">浅色</button>
+    <button type="button" data-theme="dark" aria-pressed="false">深色</button>
+  </div>
+</div>
+
+<script>
+  // 超椭圆遮罩：|x|^n + |y|^n = 1，n ≈ 4，采样成 polygon 交给 CSS。
+  const squircle = (n = 4, steps = 96) => {
+    const points = [];
+    for (let i = 0; i < steps; i += 1) {
+      const t = (i / steps) * Math.PI * 2;
+      const c = Math.cos(t);
+      const s = Math.sin(t);
+      const x = Math.sign(c) * Math.pow(Math.abs(c), 2 / n);
+      const y = Math.sign(s) * Math.pow(Math.abs(s), 2 / n);
+      points.push(`${((x + 1) / 2 * 100).toFixed(2)}% ${((y + 1) / 2 * 100).toFixed(2)}%`);
+    }
+    return `polygon(${points.join(',')})`;
+  };
+  document.documentElement.style.setProperty('--squircle', squircle());
+
+  const toggle = document.getElementById('tweaks-toggle');
+  const panel = document.getElementById('tweaks');
+  toggle.addEventListener('click', () => {
+    const open = panel.classList.toggle('open');
+    toggle.textContent = open ? '收起控制' : '显示控制';
+  });
+
+  const MASKES = ['mask-roundsquare', 'mask-superellipse', 'mask-circle', 'mask-square'];
+  const targets = () => [...document.querySelectorAll('.icon, .masthead-mark, img.masked')];
+
+  const applyMask = (name) => {
+    targets().forEach((el) => {
+      MASKES.forEach((mask) => el.classList.remove(mask));
+      el.classList.add(name);
+    });
+    [...document.getElementById('seg-mask').children].forEach((el) => {
+      el.setAttribute('aria-pressed', String(el.dataset.mask === name));
+    });
+  };
+
+  const applyTheme = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    [...document.getElementById('seg-theme').children].forEach((el) => {
+      el.setAttribute('aria-pressed', String(el.dataset.theme === theme));
+    });
+  };
+
+  const applyGuides = (on) => {
+    document.body.classList.toggle('show-guides', on);
+    document.getElementById('toggle-guides').checked = on;
+  };
+
+  document.getElementById('seg-mask').addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (button) applyMask(button.dataset.mask);
+  });
+  document.getElementById('seg-theme').addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (button) applyTheme(button.dataset.theme);
+  });
+  document.getElementById('toggle-guides').addEventListener('change', (event) => {
+    applyGuides(event.target.checked);
+  });
+
+  // 允许用查询串直接定住某个视图，方便截图与分享：
+  //   index.html?theme=dark&mask=mask-circle&guides=1
+  const params = new URLSearchParams(location.search);
+  const mask = params.get('mask');
+  if (mask && MASKES.includes(mask)) applyMask(mask);
+  if (params.get('theme') === 'dark') applyTheme('dark');
+  if (params.get('guides') === '1') applyGuides(true);
+
+</script>
+</body>
+</html>

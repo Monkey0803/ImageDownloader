@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title-c">
+  <title id="title-c">方案 C · 箭头落入收纳托盘</title>
+
+  <!-- 背景层：品牌蓝，不透明满幅。 -->
+  <g id="layer-background">
+    <rect x="0" y="0" width="1024" height="1024" fill="#0A59F7"/>
+  </g>
+
+  <!--
+    前景层：箭头落进一只 U 形托盘，穿过开口但不接触两壁。
+    托盘用 evenodd 挖内腔，壁厚 88、底厚 92。
+    原始外接框 232..792 × 236..792（560×556）；0.839 缩放后 470×466 ≈ 画布 45.9%。
+  -->
+  <g id="layer-foreground" fill="#FFFFFF" fill-rule="evenodd"
+     transform="translate(512 512) scale(0.839) translate(-512 -512)">
+    <path d="
+      M 232 588 H 792 V 688 A 104 104 0 0 1 688 792 H 336 A 104 104 0 0 1 232 688 Z
+      M 320 588 H 704 V 660 A 40 40 0 0 1 664 700 H 360 A 40 40 0 0 1 320 660 Z
+    "/>
+    <path d="M 448 236 H 576 V 452 H 688 L 512 604 L 336 452 H 448 Z"/>
+  </g>
+</svg>

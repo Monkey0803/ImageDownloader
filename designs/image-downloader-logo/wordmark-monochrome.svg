@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 320" width="980" height="320" role="img" aria-labelledby="title-wmm">
+  <title id="title-wmm">图片下载管理 · 单色文字标</title>
+  <!--
+    单色版：图形不带蓝底，整枚锁定统一一个颜色（这里 #0A0A0A）。
+    需要反白或压印时改这一处 fill，或把 currentColor 交给外层样式。
+  -->
+  <g id="mark" fill="#0A0A0A">
+    <g transform="translate(44 48) scale(0.4286) translate(-232 -252)">
+      <path d="
+        M 352 252 H 672 A 120 120 0 0 1 792 372 V 652 A 120 120 0 0 1 672 772 H 352
+        A 120 120 0 0 1 232 652 V 372 A 120 120 0 0 1 352 252 Z
+        M 384 356 A 48 48 0 1 0 384 452 A 48 48 0 1 0 384 356 Z
+        M 456 420 H 568 V 548 H 672 L 512 720 L 352 548 H 456 Z
+      " fill-rule="evenodd"/>
+    </g>
+  </g>
+  <g id="wordmark" font-family="&quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;PingFang SC&quot;, &quot;Noto Sans SC&quot;, -apple-system, sans-serif" fill="#0A0A0A">
+    <text x="336" y="152" font-size="96" font-weight="600" letter-spacing="2">图片下载管理</text>
+    <text x="338" y="216" font-size="28" font-weight="500" letter-spacing="6.4" fill-opacity="0.5">IMAGE DOWNLOADER</text>
+  </g>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title-b">
+  <title id="title-b">方案 B · 相片叠放 + 镂空下载箭头</title>
+
+  <!-- 背景层：品牌蓝，不透明满幅。 -->
+  <g id="layer-background">
+    <rect x="0" y="0" width="1024" height="1024" fill="#0A59F7"/>
+  </g>
+
+  <defs>
+    <!-- 分离缝：把前卡轮廓向外扩 28 的那块从后卡里抠掉。用 mask 而不是 evenodd，
+         因为 evenodd 遇到「超出后卡的挖空形状」会把多出来的部分反而填上。 -->
+    <mask id="bGap" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect x="0" y="0" width="1024" height="1024" fill="#FFFFFF"/>
+      <rect x="204" y="344" width="496" height="456" rx="124" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <!--
+    前景层：后面一张相片从右上露出 92 宽的一条 L 边，前面一张压住它，两张之间留 28 的蓝色缝；
+    前面那张再挖一支下载箭头。单调色叠形只能靠「留缝」分层次 —— 同色相叠会糊成一坨。
+    外接框 232..792 × 252..772（560×520，正中）；0.839 缩放后 470×436 ≈ 画布 45.9%。
+  -->
+  <g id="layer-foreground" fill="#FFFFFF" fill-rule="evenodd"
+     transform="translate(512 512) scale(0.839) translate(-512 -512)">
+    <!-- 后卡 -->
+    <rect x="352" y="252" width="440" height="400" rx="96" mask="url(#bGap)"/>
+    <!-- 前卡 + 挖空的下载箭头 -->
+    <path d="
+      M 328 372 H 576 A 96 96 0 0 1 672 468 V 676 A 96 96 0 0 1 576 772 H 328
+      A 96 96 0 0 1 232 676 V 468 A 96 96 0 0 1 328 372 Z
+      M 396 432 H 508 V 560 H 600 L 452 724 L 304 560 H 396 Z
+    "/>
+  </g>
+</svg>

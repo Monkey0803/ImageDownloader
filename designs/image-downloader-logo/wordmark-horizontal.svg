@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 320" width="980" height="320" role="img" aria-labelledby="title-wmh">
+  <title id="title-wmh">图片下载管理 · 横版文字标</title>
+  <!--
+    横版锁定：图形 + 中文名 + 英文副名。
+    字体走系统 CJK 栈，HarmonyOS 上落在 HarmonyOS Sans SC。
+  -->
+  <g id="mark">
+    <rect x="40" y="40" width="240" height="240" rx="56" fill="#0A59F7"/>
+    <g transform="translate(160 160) scale(0.27) translate(-512 -512)" fill="#FFFFFF" fill-rule="evenodd">
+      <path d="
+        M 352 252 H 672 A 120 120 0 0 1 792 372 V 652 A 120 120 0 0 1 672 772 H 352
+        A 120 120 0 0 1 232 652 V 372 A 120 120 0 0 1 352 252 Z
+        M 384 356 A 48 48 0 1 0 384 452 A 48 48 0 1 0 384 356 Z
+        M 456 420 H 568 V 548 H 672 L 512 720 L 352 548 H 456 Z
+      "/>
+    </g>
+  </g>
+  <g id="wordmark" font-family="&quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;PingFang SC&quot;, &quot;Noto Sans SC&quot;, -apple-system, sans-serif">
+    <text x="336" y="152" font-size="96" font-weight="600" letter-spacing="2" fill="#0A0A0A">图片下载管理</text>
+    <text x="338" y="216" font-size="28" font-weight="500" letter-spacing="6.4" fill="#8A8F99">IMAGE DOWNLOADER</text>
+  </g>
+</svg>

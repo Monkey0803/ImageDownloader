@@ -1,0 +1,20 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "图片下载管理 · App 图标与文字标": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-12T12:17:23.223Z",
+          "status": "needs-review",
+          "subtitle": "方案 A/B/C 三版图标、四种遮罩测试、分层拆解与文字标；方案 A 已落地为鸿蒙分层图标资源",
+          "section": "App"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-12T12:17:23.232Z",
+  "updatedAt": "2026-10-12T12:17:23.232Z"
+}

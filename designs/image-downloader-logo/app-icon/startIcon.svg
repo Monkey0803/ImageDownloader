@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="启动页图标"><defs><clipPath id="startClip"><rect x="0" y="0" width="1024" height="1024" rx="232"/></clipPath></defs><g clip-path="url(#startClip)">
+
+  <!-- 背景层：品牌蓝，不透明满幅。桌面圆角由系统遮罩裁剪，资源里不自己切圆角。 -->
+  <g id="layer-background">
+    <rect x="0" y="0" width="1024" height="1024" fill="#0A59F7"/>
+  </g>
+
+  <!--
+    前景层：白色图形，镂空处透出背景层。evenodd 让「镜头圆点」与「箭头」成为卡片上的洞。
+    原始外接框 232..792 × 252..772（560×520，正中）；外面套一层 0.839 缩放，
+    落到 470×436 —— 占画布 45.9%，与 DevEco 模板前景层的 45%（1024 画布上 456px）同档。
+  -->
+  <g id="layer-foreground" fill="#FFFFFF" fill-rule="evenodd"
+     transform="translate(512 512) scale(0.839) translate(-512 -512)">
+    <path d="
+      M 352 252 H 672 A 120 120 0 0 1 792 372 V 652 A 120 120 0 0 1 672 772 H 352
+      A 120 120 0 0 1 232 652 V 372 A 120 120 0 0 1 352 252 Z
+      M 384 356 A 48 48 0 1 0 384 452 A 48 48 0 1 0 384 356 Z
+      M 456 420 H 568 V 548 H 672 L 512 720 L 352 548 H 456 Z
+    "/>
+  </g>
+</g></svg>
