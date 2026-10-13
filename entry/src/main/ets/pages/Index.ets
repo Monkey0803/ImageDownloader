@@ -226,6 +226,18 @@ struct Index {
     this.pictures = this.pictures.slice();
   }
 
+  private invertSelection(): void {
+    if (this.pictures.length === 0) {
+      this.say('还没有扫描到图片');
+      return;
+    }
+    for (const item of this.pictures) {
+      item.selected = !item.selected;
+    }
+    this.pictures = this.pictures.slice();
+    this.say('已反选，选中 ' + this.selectedCount().toString() + ' 张');
+  }
+
   private enqueue(): void {
     if (this.selectedCount() === 0) {
       this.say('请先选择图片');
@@ -270,7 +282,8 @@ struct Index {
   private runningCount(): number {
     return this.downloads.filter((item: DownloadItem): boolean =>
       item.status === 'running' || item.status === 'starting' || item.status === 'queued').length
-      + this.batches.length;
+      + this.batches.filter((batch: BatchItem): boolean =>
+        batch.status === 'downloading' || batch.status === 'packing').length;
   }
 
   private cancelTask(task: DownloadItem): void {
@@ -281,6 +294,16 @@ struct Index {
   private retryTask(task: DownloadItem): void {
     DownloadStore.retry(task);
     this.say('重新加入队列');
+  }
+
+  private retryBatch(batch: BatchView): void {
+    DownloadStore.retryBatch(batch.id);
+    this.say('重新打包 ' + batch.name);
+  }
+
+  private dismissBatch(batch: BatchView): void {
+    DownloadStore.dismissBatch(batch.id);
+    this.say('已解散 ' + batch.name + '，图片回到任务列表');
   }
 
   private locate(task: DownloadItem): void {
@@ -688,11 +711,15 @@ struct Index {
                 ? '已选 ' + this.selectedCount().toString()
                 : this.pictures.length.toString() + ' 张',
               actionLabel: '全选',
-              secondLabel: '清空',
+              secondLabel: '反选',
+              thirdLabel: '清空',
               onAction: (): void => {
                 this.selectAll(true);
               },
               onSecond: (): void => {
+                this.invertSelection();
+              },
+              onThird: (): void => {
                 this.selectAll(false);
               }
             })
@@ -712,7 +739,7 @@ struct Index {
                         })
                       }
                       .layoutWeight(1)
-                    }, (cell: PictureItem) => cell.id)
+                    }, (cell: PictureItem) => cell.id + (cell.selected ? ':1' : ':0'))
 
                     ForEach(this.filler(row.length, 3), (pad: number) => {
                       Column().layoutWeight(1)
@@ -721,7 +748,8 @@ struct Index {
                   .width('100%')
                   .alignItems(VerticalAlign.Top)
                 }, (row: PictureItem[], rowIndex: number) => rowIndex.toString()
-                  + ':' + row.map((cell: PictureItem): string => cell.id).join(','))
+                  + ':' + row.map((cell: PictureItem): string =>
+                    cell.id + (cell.selected ? ':1' : ':0')).join(','))
               }
               .width('100%')
             } else {
@@ -885,7 +913,15 @@ struct Index {
               SectionHead({ heading: '打包任务', meta: 'ZIP' })
               Column({ space: Space.s12 }) {
                 ForEach(this.batchViews(), (view: BatchView) => {
-                  BatchCard({ view: view })
+                  BatchCard({
+                    view: view,
+                    onRetry: (batch: BatchView): void => {
+                      this.retryBatch(batch);
+                    },
+                    onDismiss: (batch: BatchView): void => {
+                      this.dismissBatch(batch);
+                    }
+                  })
                 }, (view: BatchView) => view.id + '|' + view.status + '|'
                   + view.done.toString() + '|' + view.failed.toString())
               }

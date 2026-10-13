@@ -61,7 +61,7 @@ function MiniBrowser(props) {
 function DiscoverScreen(props) {
   const {
     address, onAddressChange, onOpen,
-    images, selectedIds, onToggle, onSelectAll, onClearAll,
+    images, selectedIds, onToggle, onSelectAll, onInvert, onClearAll,
     mode, onModeChange, onDownload,
     scanning, onRescan, notice,
     grip, hand, onFlipHand,
@@ -100,6 +100,7 @@ function DiscoverScreen(props) {
         <div>
           <SectionHead title="选择要下载的图片" meta={selectedCount > 0 ? '已选 ' + selectedCount : images.length + ' 张'}>
             <button className="text-link" type="button" onClick={onSelectAll}>全选</button>
+            <button className="text-link" type="button" onClick={onInvert} disabled={images.length === 0}>反选</button>
             <button className="text-link" type="button" onClick={onClearAll} disabled={selectedCount === 0}>清空</button>
           </SectionHead>
           <div className="grid-images">

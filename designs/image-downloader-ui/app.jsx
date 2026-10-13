@@ -342,6 +342,9 @@ function App() {
           selectedIds={selectedIds}
           onToggle={toggleImage}
           onSelectAll={() => setSelectedIds(images.map((image) => image.id))}
+          onInvert={() => setSelectedIds(images
+            .filter((image) => selectedIds.indexOf(image.id) < 0)
+            .map((image) => image.id))}
           onClearAll={() => setSelectedIds([])}
           mode={mode}
           onModeChange={setMode}

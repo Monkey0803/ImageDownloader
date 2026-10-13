@@ -322,6 +322,7 @@ export class BatchView {
   total: number = 0;
   done: number = 0;
   failed: number = 0;
+  error: string = '';
   thumbs: string[] = [];
 }
 
@@ -329,8 +330,20 @@ export class BatchView {
 @Component
 export struct BatchCard {
   view: BatchView = new BatchView();
+  onRetry: (view: BatchView) => void = () => {
+  };
+  onDismiss: (view: BatchView) => void = () => {
+  };
+
+  /** A failed batch explains itself instead of showing a progress line. */
+  private failed(): boolean {
+    return this.view.status === 'failed' && this.view.error.length > 0;
+  }
 
   private meta(): string {
+    if (this.failed()) {
+      return this.view.error;
+    }
     if (this.view.status === 'packing') {
       return '正在压缩为 ZIP…';
     }
@@ -388,8 +401,10 @@ export struct BatchCard {
             Text(this.meta())
               .fontSize(Font.caption)
               .lineHeight(Font.captionLine)
-              .fontColor(Palette.fontTertiary)
-            if (this.view.failed > 0) {
+              .fontColor(this.failed() ? Palette.warning : Palette.fontTertiary)
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (this.view.failed > 0 && !this.failed()) {
               Text('·')
                 .fontSize(Font.caption)
                 .fontColor(Palette.fontTertiary)
@@ -402,14 +417,36 @@ export struct BatchCard {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+
+        // A failed batch is the only dead end in this list, so it carries its
+        // own way out: retry the whole batch, or dissolve it and let its
+        // images fall back to the task list.
+        if (this.view.status === 'failed') {
+          Row({ space: Space.s2 }) {
+            IconButton({
+              glyph: 'retry', glyphSize: 18, diameter: 34, plain: true,
+              onAction: () => {
+                this.onRetry(this.view);
+              }
+            })
+            IconButton({
+              glyph: 'close', glyphSize: 18, diameter: 34, plain: true,
+              onAction: () => {
+                this.onDismiss(this.view);
+              }
+            })
+          }
+        }
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
 
-      ProgressBar({
-        value: this.view.status === 'packing' ? 96 : Math.round((this.view.done / Math.max(1, this.view.total)) * 100),
-        striped: this.view.status === 'packing'
-      })
+      if (this.view.status !== 'failed') {
+        ProgressBar({
+          value: this.view.status === 'packing' ? 96 : Math.round((this.view.done / Math.max(1, this.view.total)) * 100),
+          striped: this.view.status === 'packing'
+        })
+      }
     }
     .width('100%')
     .padding(Space.s12)
@@ -636,7 +673,14 @@ export function batchViewOf(batch: BatchItem, members: DownloadItem[],
   view.total = members.length;
   view.done = done;
   view.failed = failed;
-  view.status = members.length > 0 && (done + failed) >= members.length ? 'packing' : 'downloading';
+  view.error = batch.error;
+  // Terminal states belong to the batch record: once it has packed, its
+  // members are gone, so member counts alone would read as "0/0 下载中".
+  if (batch.status === 'failed' || batch.status === 'completed') {
+    view.status = batch.status;
+  } else {
+    view.status = members.length > 0 && (done + failed) >= members.length ? 'packing' : 'downloading';
+  }
   view.thumbs = members.slice(0, 3).map((item: DownloadItem): string => item.url);
   return view;
 }

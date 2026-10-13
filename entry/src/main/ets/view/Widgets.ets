@@ -481,16 +481,19 @@ export struct Card {
   }
 }
 
-/** Section heading with up to two trailing text actions. */
+/** Section heading with up to three trailing text actions. */
 @Component
 export struct SectionHead {
   heading: string = '';
   meta: string = '';
   actionLabel: string = '';
   secondLabel: string = '';
+  thirdLabel: string = '';
   onAction: () => void = () => {
   };
   onSecond: () => void = () => {
+  };
+  onThird: () => void = () => {
   };
 
   build() {
@@ -527,6 +530,17 @@ export struct SectionHead {
           .borderRadius(Radius.r4)
           .onClick(() => {
             this.onSecond();
+          })
+      }
+      if (this.thirdLabel.length > 0) {
+        Text(this.thirdLabel)
+          .fontSize(Font.aux)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Palette.brand)
+          .padding({ left: Space.s4, right: Space.s4, top: Space.s2, bottom: Space.s2 })
+          .borderRadius(Radius.r4)
+          .onClick(() => {
+            this.onThird();
           })
       }
     }

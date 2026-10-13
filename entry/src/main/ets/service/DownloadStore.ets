@@ -524,6 +524,56 @@ export class DownloadStore {
     DownloadStore.pump();
   }
 
+  /**
+   * Retry a failed batch: re-queue its failed members, and if there are none
+   * left to fetch the batch is only re-packed (a compress failure leaves every
+   * member completed). Members keep their staging paths, so a retry that
+   * succeeds still packs into the same archive.
+   */
+  static retryBatch(batchId: string): void {
+    const batch: BatchItem | undefined = DownloadStore.batches.find((entry: BatchItem): boolean => entry.id === batchId);
+    if (batch === undefined) { return; }
+    for (const item of DownloadStore.downloads) {
+      if (item.batchId !== batchId) { continue; }
+      if (item.status !== 'failed' && item.status !== 'cancelled') { continue; }
+      DownloadStore.removeFile(item.path);
+      item.status = 'queued'; item.error = ''; item.processed = 0; item.total = 0; item.taskId = '';
+    }
+    batch.status = 'downloading'; batch.error = '';
+    DownloadStore.notify();
+    DownloadStore.pump();
+    DownloadStore.checkBatch(batchId);
+  }
+
+  /**
+   * Give up on a batch and hand its images back to the task list.
+   *
+   * Every member is re-homed: its path moves out of the batch's staging
+   * directory into the normal image directory and its batchId is cleared, so a
+   * released task behaves exactly like a plain one. Without that, a retried
+   * member would download into a staging directory that cleanStaging() is free
+   * to delete, and the record would end up pointing at a missing file.
+   */
+  static dismissBatch(batchId: string): void {
+    const batch: BatchItem | undefined = DownloadStore.batches.find((entry: BatchItem): boolean => entry.id === batchId);
+    if (batch === undefined) { return; }
+    const imagesDir: string = DownloadStore.context.filesDir + '/images';
+    DownloadStore.ensureDirectory(imagesDir);
+    for (const item of DownloadStore.downloads) {
+      if (item.batchId !== batchId) { continue; }
+      item.batchId = '';
+      const name: string = DownloadStore.uniqueName(item.name, imagesDir);
+      const target: string = imagesDir + '/' + name;
+      if (DownloadStore.exists(item.path)) { DownloadStore.moveFile(item.path, target); }
+      item.name = name;
+      item.path = target;
+    }
+    DownloadStore.batches = DownloadStore.batches.filter((entry: BatchItem): boolean => entry.id !== batchId);
+    DownloadStore.removeDirectory(DownloadStore.context.filesDir + '/staging/' + batchId);
+    DownloadStore.notify();
+    DownloadStore.pump();
+  }
+
   static async recover(): Promise<void> {
     for (const item of DownloadStore.downloads) {
       if (item.status === 'queued') { continue; }
@@ -595,10 +645,20 @@ export class DownloadStore {
       archive.thumbs = members.slice(0, 3).map((item: DownloadItem): string => item.url);
       DownloadStore.zips.unshift(archive);
       batch.status = 'completed'; batch.name = name;
-      for (const member of DownloadStore.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id)) {
+      // The batch has become an archive, so it leaves 任务 for 打包 — this
+      // mirrors the prototype, which drops the batch once it has packed. Its
+      // leftover members (the failed ones) go with it; the archive's
+      // failedCount is the record of them. Keeping either behind would strand
+      // a card that can never progress, since packing deletes the completed
+      // members and the counts would then read as "0/0 下载中".
+      for (const member of DownloadStore.downloads.filter((item: DownloadItem): boolean =>
+        item.batchId === batch.id)) {
         DownloadStore.removeFile(member.path);
       }
-      DownloadStore.downloads = DownloadStore.downloads.filter((item: DownloadItem): boolean => item.batchId !== batch.id || item.status !== 'completed');
+      DownloadStore.downloads = DownloadStore.downloads.filter((item: DownloadItem): boolean =>
+        item.batchId !== batch.id);
+      DownloadStore.batches = DownloadStore.batches.filter((item: BatchItem): boolean => item.id !== batch.id);
+      DownloadStore.removeDirectory(DownloadStore.context.filesDir + '/staging/' + batch.id);
     } catch (error) {
       batch.status = 'failed'; batch.error = '压缩失败：' + String(error);
       DownloadStore.removeFile(path);
