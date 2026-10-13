@@ -21,7 +21,17 @@ entry/src/main/ets/
 
 ### 图标
 
-`view/Icons.ets` 里的路径数据由原型的 SVG 图标集生成，两边形状完全一致：
+全 app 的图标都走 `view/Icons.ets` 的 `Glyph`，它**优先使用系统 HMSymbol**（`sys.symbol.*`）：
+
+- `SYMBOL_RES` 把 32 个图标名映射到系统符号；名字取自官方 HarmonyOS Symbol 词典，其中「分享 / 导出 /
+  重命名 / 下载」等按设计套件 `designs/harmonyos-mobile/components/controls/IconMap.jsx` 给出的规范符号
+  （`share` / `arrow_up_and_rectangle_on_rectangle` / `square_and_pencil` / `arrow_down_circle`）取用。
+- 符号按 `glyphSize`（vp）设置 `fontSize`，所以不受系统字体缩放影响；原有的 `glyphWeight` 折算成
+  Regular / Medium / Bold 三档字重。
+- 没有系统对应符号的 5 个图标（`window`、`copy`、`grip`、`shield`、`dot`）回落到下面的线性路径，
+  任何图标都不会消失。
+
+`ICON_PATHS` 里的路径数据仍由原型的 SVG 图标集生成（含上面 5 个回落图标）：
 
 ```bash
 node designs/image-downloader-ui/tools/gen-icons.cjs \
@@ -29,7 +39,7 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
 ```
 
 > 注意：ArkUI `Path.commands` 的单位是 **px**，而 `Shape.viewPort` 是 **vp**，所以 `Glyph` 把 24 单位的
-> 视口按屏幕密度换算成 vp 声明，形状再自行放大到目标尺寸。
+> 视口按屏幕密度换算成 vp 声明，形状再自行放大到目标尺寸；改 `SYMBOL_RES` 时手改即可，重跑生成器不会丢。
 
 ## 构建
 
@@ -78,5 +88,9 @@ hdc shell "aa test -b com.example.imagedownloader -m entry_test \
 ## 使用边界
 
 - 网页扫描读取当前页面 `img` 元素及常见懒加载地址；滚动页面后可以重新扫描。
-- ZIP 下载仅保留压缩包，成功打包后清理本批次的临时图片。个别图片失败时仍打包成功项，失败项留在任务页。
+- 打开网页后的首次自动扫描不会一次定论：张数连续几轮不变才算扫完，最多重试 8 次（约 4 秒）。
+  微博正文这类在 `onPageEnd` 之后才渲染图片的 SPA 因此不用手动刷新也能扫到图；
+  4 秒后仍是 0 张会提示“暂未扫描到图片”，可滚动页面后点浏览器右上角的刷新重试。
+- ZIP 下载仅保留压缩包，成功打包后连批次记录和本批次的临时图片一起清理。个别图片失败时仍打包成功项，
+  失败张数记在压缩包上；整个批次失败时可在任务页点「重试整批」，或点「解散」把图片交回任务列表单独重试。
 - 登录页面的下载会按图片地址读取浏览器 Cookie；站点防盗链、会话过期或不允许外部请求时可能失败。

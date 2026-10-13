@@ -12,7 +12,9 @@
 
 ## 分层
 
-- `view/` — 纯展示组件。`Icons.ets` 由 `designs/image-downloader-ui/tools/gen-icons.cjs` 生成，不要手改。
+- `view/` — 纯展示组件。`Icons.ets` 的 `ICON_PATHS` 由 `designs/image-downloader-ui/tools/gen-icons.cjs` 生成，
+  不要手改路径数据；`SYMBOL_RES`（图标名 → `sys.symbol.*`）是手写的，生成器会原样保留。
+  **加图标时先在这里找系统符号**，找不到才回落路径。
 - `service/DownloadStore.ets` — 下载队列、打包、持久化；界面只通过它改数据。
 - `model/Models.ets` — `@Observed` 模型，卡片用 `@ObjectLink` 绑定。
 - `EntryAbility.ets` — 开全屏布局并读取系统栏高度，写入 `AppStorage` 的 `safeTop` / `safeBottom`。
