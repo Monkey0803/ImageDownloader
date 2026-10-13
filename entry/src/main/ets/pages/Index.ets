@@ -26,11 +26,27 @@ interface ScanData {
   images: ScanImage[];
 }
 
+/**
+ * 微博正文这类页面在 onPageEnd 时文档还是空的，图片由页内脚本稍后渲染出来。
+ * 所以扫描不会一次定论：扫到 0 张、或张数还在变，就按下面的节奏再看几次，
+ * 直到张数连续 SCAN_STABLE_ROUNDS 轮不变，或者用完 SCAN_RETRY_LIMIT 次。
+ */
+const SCAN_RETRY_LIMIT: number = 8;
+const SCAN_RETRY_DELAY: number = 500;
+const SCAN_STABLE_ROUNDS: number = 2;
+
 @Entry
 @Component
 struct Index {
   private browser: webview.WebviewController = new webview.WebviewController();
   private noticeTimer: number = -1;
+  /** 排队中的重扫；-1 表示当前没有等待中的重扫。 */
+  private scanTimer: number = -1;
+  /** 上一轮扫到的张数，以及张数连续没变的轮数，用来判断页面是否渲染完。 */
+  private scanSeen: number = -1;
+  private scanStable: number = 0;
+  /** 每次打开新链接自增，用来丢弃属于上一个页面的扫描结果。 */
+  private scanGeneration: number = 0;
   /** Viewport height in vp — see the minHeight guard on each screen's scroller. */
   private screenHeight: number =
     display.getDefaultDisplaySync().height / display.getDefaultDisplaySync().densityPixels;
@@ -112,6 +128,8 @@ struct Index {
     if (input.length === 0) {
       return;
     }
+    this.cancelScan();
+    this.scanGeneration++;
     if (!input.startsWith('http://') && !input.startsWith('https://')) {
       input = 'https://' + input;
     }
@@ -157,7 +175,27 @@ struct Index {
     return data;
   }
 
-  private async scan(): Promise<void> {
+  /** 取消排队中的重扫：换了页面或用户手动重扫时，旧的循环必须停下。 */
+  private cancelScan(): void {
+    if (this.scanTimer >= 0) {
+      clearTimeout(this.scanTimer);
+      this.scanTimer = -1;
+    }
+  }
+
+  /**
+   * 扫描浏览器当前页面的图片。
+   *
+   * 微博正文这类 SPA 在 onPageEnd 之后才把图片渲染进文档，所以“扫到 0 张”或“张数还在涨”
+   * 都不算最终结果：保持“正在扫描”，隔一小段时间重扫，直到张数稳定或用完重试次数。
+   */
+  private async scan(attempt: number = 0): Promise<void> {
+    if (attempt === 0) {
+      this.scanSeen = -1;
+      this.scanStable = 0;
+    }
+    this.cancelScan();
+    const generation: number = this.scanGeneration;
     const script: string = `(() => {
       const found = new Map();
       for (const img of document.images) {
@@ -176,6 +214,10 @@ struct Index {
     this.scanning = true;
     try {
       const result: webview.JsMessageExt = await this.browser.runJavaScriptExt(script);
+      if (generation !== this.scanGeneration) {
+        // 结果属于上一个页面：交给当前这一轮扫描处理，这里直接丢掉。
+        return;
+      }
       const data: ScanData = Index.parseScan(result.getString());
       // about:blank and error pages report a non-http URL; scanning one would
       // both mislabel the page and overwrite the address the user typed.
@@ -203,7 +245,24 @@ struct Index {
         found.set(image.url, picture);
       }
       this.pictures = Array.from(found.values());
-      this.say('找到 ' + this.pictures.length.toString() + ' 张图片');
+      const total: number = data.images.length;
+      this.scanStable = total > 0 && total === this.scanSeen ? this.scanStable + 1 : 0;
+      this.scanSeen = total;
+      const settled: boolean = total > 0 && this.scanStable >= SCAN_STABLE_ROUNDS;
+      if (!settled && attempt < SCAN_RETRY_LIMIT) {
+        // 页面还没渲染完：继续显示“正在扫描”，过一会儿再看一次。
+        this.scanTimer = setTimeout((): void => {
+          this.scanTimer = -1;
+          if (generation !== this.scanGeneration) {
+            return;
+          }
+          this.scan(attempt + 1);
+        }, SCAN_RETRY_DELAY);
+        return;
+      }
+      this.say(total === 0
+        ? '暂未扫描到图片，滚动页面后点刷新可再试'
+        : '找到 ' + this.pictures.length.toString() + ' 张图片');
     } catch (error) {
       this.say('扫描失败，请等待页面加载后重试');
     }
