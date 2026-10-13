@@ -1,0 +1,8 @@
+/* BROKEN: --nope is never defined anywhere in the closure (R1). */
+.hm-broken {
+  color: var(--nope);
+  /* BROKEN: a stray !important outside the reduced-motion block (R10). */
+  padding: 8px !important;
+  /* BROKEN: the asset does not exist (R9). */
+  background-image: url("assets/does-not-exist.png");
+}

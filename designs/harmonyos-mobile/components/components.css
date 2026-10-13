@@ -1,0 +1,13 @@
+/*
+ * Component groups. CSS lives here (not in the .jsx) because the compiled
+ * bundle carries JavaScript only — every rule a component needs must be
+ * reachable from styles.css.
+ */
+
+@import "shell/shell.css";
+@import "controls/controls.css";
+@import "containers/containers.css";
+
+/* LAST: re-points the templates' hard-coded locals at the token set so dark mode
+   and the material system actually take effect. See the file header. */
+@import "theme-bridge.css";

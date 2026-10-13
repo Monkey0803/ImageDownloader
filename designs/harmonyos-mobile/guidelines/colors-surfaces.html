@@ -1,0 +1,40 @@
+<!-- @dsCard group="Foundations" viewport="780x520" name="Color · Surfaces" subtitle="Page canvas, component surfaces, dividers, overlays" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Color · Surfaces</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">页面画布与组件表面</div>
+  <div class="hm-spec__note">规范区分 page canvas 与 comp surface：<code>background_secondary</code> 作页面底，<code>comp_background_primary</code> 作卡片面。两者必须有差，卡片才不会糊在页面上。</div>
+  <div class="hm-spec__grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-background-primary)"></div>background_primary 白底页</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-background-secondary)"></div>background_secondary 灰底页</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-comp-background-primary)"></div>comp_background_primary 卡片面</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-comp-background-neutral)"></div>comp_background_neutral</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-comp-background-secondary)"></div>comp_background_secondary</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-comp-background-tertiary)"></div>comp_background_tertiary</div>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">页面 / 卡片对比实测</div>
+  <div class="hm-spec__panel" style="background:var(--harmony-background-secondary);padding:20px">
+    <div style="background:var(--harmony-comp-background-primary);border-radius:16px;padding:16px;font-size:13px">
+      卡片面叠在页面底上 —— 这是规范要求的层级表达，不靠描边。
+    </div>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">分隔线与遮罩</div>
+  <div class="hm-spec__row">
+    <div style="flex:1;height:1px;background:var(--harmony-comp-divider)"></div>
+    <div style="flex:1;height:40px;border-radius:8px;background:var(--harmony-overlay-bg);display:grid;place-items:center;font-size:12px">overlay_bg</div>
+  </div>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!-- @dsCard group="Foundations" viewport="820x560" name="Material · Types" subtitle="ADAPTIVE vs IMMERSIVE — the light edge, and its graceful degradation" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Material · Types</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">材质类型 · MaterialType</div>
+  <div class="hm-spec__note">
+    <code>IMMERSIVE</code> 加<b>边缘流光（双边流光）</b>，让表面读起来像玻璃；<code>ADAPTIVE</code> 由系统按场景选择。
+    与等级正交 —— 等级给厚度乘数，主题给基础透明度，所以不需要「主题 × 等级」的六条笛卡尔积规则，也就不会互相覆盖。
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">优雅降级：沉浸式 + 轻盈档 → 丢弃边缘流光</div>
+  <div class="hm-spec__note">对应真机必须先 <code>getSystemMaterialTypes()</code> 查询再降级，不能假定设备支持。</div>
+  <div class="hm-spec__row" style="align-items:flex-start;gap:22px" id="types"></div>
+</div>
+<script>
+(function () {
+  const cases = [["adaptive", "gentle", "自适应 · 均衡", "无边缘流光"],
+                 ["immersive", "gentle", "沉浸式 · 均衡", "含 4 条 inset 流光"],
+                 ["immersive", "smooth", "沉浸式 · 轻盈", "降级：流光被丢弃"]];
+  const host = document.getElementById("types");
+  cases.forEach(function (c) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;font-size:11px;color:var(--harmony-font-secondary)";
+    wrap.innerHTML =
+      '<div class="hm-size" data-material-type="' + c[0] + '" data-material-level="' + c[1] + '" data-theme="light" ' +
+      'style="width:240px;height:180px;position:relative;background:linear-gradient(140deg,#8fb8ff,#0a59f7);overflow:hidden">' +
+        '<nav class="hm-bottomtab" style="position:absolute;bottom:0;left:0;right:0">' +
+          '<div class="hm-bottomtab__bar hm-bottomtab__bar--3" data-probe>' +
+            '<div class="hm-bottomtab__tabs"><button class="hm-bottomtab__tab hm-bottomtab__tab--active" type="button">' +
+            '<span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0027;</span>' +
+            '<span class="hm-bottomtab__tab-label">首页</span></button></div>' +
+          '</div><div class="hm-bottomtab__indicator"></div>' +
+        '</nav>' +
+      '</div>' +
+      '<div><strong>' + c[2] + '</strong><br>' + c[3] + '</div><code class="tt"></code>';
+    host.appendChild(wrap);
+  });
+  requestAnimationFrame(function () {
+    document.querySelectorAll("#types .hm-size").forEach(function (f) {
+      const bar = f.querySelector("[data-probe]");
+      const insets = (getComputedStyle(bar).boxShadow.match(/inset/g) || []).length;
+      f.parentElement.querySelector(".tt").textContent = "实测 inset 数量：" + insets;
+    });
+  });
+})();
+</script>
+</div>
+</body>
+</html>

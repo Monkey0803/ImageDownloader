@@ -1,0 +1,6 @@
+/* BROKEN: the entry file must contain ONLY @import statements (R2). */
+@import "base.css";
+@import "tokens/colors.css";
+@import "components/broken/broken.css";
+
+.hm-oops { color: red; }

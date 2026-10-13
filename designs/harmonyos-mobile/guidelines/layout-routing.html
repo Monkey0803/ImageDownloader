@@ -1,0 +1,42 @@
+<!-- @dsCard group="Foundations" viewport="820x760" name="Layout routing" subtitle="The three reference layouts and their hit rules" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Layout routing</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">先定布局，再谈间距</div>
+  <div class="hm-spec__note">
+    规范里间距不是全局常量 —— 它<b>取决于命中哪个布局与哪个标题栏变体</b>。所以第一步永远是路由：
+    这页是 card / grid / list 里的哪一种？
+  </div>
+  <table>
+    <tr><th>布局</th><th>画布</th><th>命中特征</th><th>内容起点</th></tr>
+    <tr><td><code>mobile-card</code></td><td>360×780</td><td>固定 titlebar → search 首项 → 多卡片类型垂直堆叠，section header 分区</td><td><code>96px</code>（normal 变体）</td></tr>
+    <tr><td><code>mobile-grid</code></td><td>360×792</td><td>titlebar → search → chipstab 分类栏 → 水平滚动宫格 + 多区域混合</td><td><code>96px</code> 或 <code>124px</code></td></tr>
+    <tr><td><code>mobile-list</code></td><td>360×792</td><td>主体是入口型 list item，按语义分组成圆角卡片；设置页以控件型 item 为主也命中此布局</td><td><code>96px</code> 或 <code>124px</code></td></tr>
+  </table>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">标题栏变体决定内容起点（规范强制）</div>
+  <table>
+    <tr><th>标题栏变体</th><th>内容 padding-top</th><th>原因</th></tr>
+    <tr><td><code>normal</code>（仅标题）</td><td><code>96px</code></td><td>文字层底边 88 + 强制间距 8</td></tr>
+    <tr><td><code>secondary</code>（标题 + 副标题）</td><td>等于完整标题栏高度</td><td>规范：search 不得压过 secondary 标题栏</td></tr>
+  </table>
+  <div class="hm-spec__note">
+    本系统的处理：内容起点 = <code>safe-top + --harmony-titlebar-layer-&lt;variant&gt; + --harmony-titlebar-gap</code>，
+    由 <code>SizeFrame</code> 所在画布上的 <code>data-titlebar</code> 决定取哪一档，而不是把 96 写死。
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">三个 UI kit 就是这三种布局的还原</div>
+  <div class="hm-spec__note"><code>ui_kits/card · grid · list · settings</code> —— 新页面从最接近的那套起手，几何自然正确。</div>
+</div>
+</div>
+</body>
+</html>

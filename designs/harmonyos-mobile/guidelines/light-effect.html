@@ -1,0 +1,58 @@
+<!-- @dsCard group="Foundations" viewport="820x560" name="Immersive light effect" subtitle="沉浸光感 — focal components only, and why" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Immersive light effect</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">沉浸光感 · 焦点组件专用</div>
+  <div class="hm-spec__note">
+    规范原文：「<b>满屏都是光感，就等于没有光感</b>」—— 要给交互频繁的组件（底栏、主操作按钮、开关、筛选 chips），
+    <b>不要给纯展示内容</b>。本系统用 <code>data-hm-light</code> 标记允许点亮的元素，由 SizeFrame 装一个委托式
+    pointer 监听器统一驱动，组件侧零成本接入。
+  </div>
+  <div class="hm-spec__note">★ 点击下面的按钮与开关，光晕会从触点位置向外辐射。</div>
+  <div class="hm-spec__row" id="stage" style="gap:24px"></div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">生效位置白名单（规范）</div>
+  <table>
+    <tr><th>位置</th><th>是否生效</th></tr>
+    <tr><td>Navigation / NavDestination 标题栏</td><td>✓</td></tr>
+    <tr><td>底部 TabBar（barPosition: End）</td><td>✓</td></tr>
+    <tr><td>弹窗类组件与接口</td><td>✓</td></tr>
+    <tr><td>Slider / Toggle / Select</td><td>✓</td></tr>
+    <tr><td>内容区普通 Column / Row / 卡片</td><td><b>✗ 明确不生效</b></td></tr>
+  </table>
+</div>
+<script>
+(function () {
+  const stage = document.getElementById("stage");
+  const frame = document.createElement("div");
+  frame.className = "hm-frame";
+  frame.style.cssText = "width:520px;height:auto;padding:24px;display:flex;flex-direction:column;gap:20px;background:var(--harmony-background-secondary);border-radius:20px";
+  frame.innerHTML =
+    '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+      '<button class="hm-button hm-button--medium hm-button--emphasized" type="button" data-hm-light="">' +
+        '<span class="hm-button__overlay"></span><span class="hm-button__focus-ring"></span>' +
+        '<span class="hm-button__content">主操作（焦点 · 有光感）</span></button>' +
+      '<button class="hm-button hm-button--medium hm-button--normal" type="button" data-hm-light="">' +
+        '<span class="hm-button__overlay"></span><span class="hm-button__focus-ring"></span>' +
+        '<span class="hm-button__content">次操作</span></button>' +
+    '</div>' +
+    '<div style="display:flex;gap:16px;align-items:center">' +
+      '<button class="hm-switch is-on" type="button" role="switch" aria-checked="true" data-hm-light="">' +
+        '<span class="hm-switch__thumb"></span></button>' +
+      '<div class="hm-cardview hm-cardview--max" style="padding:14px 16px;flex:1">' +
+        '内容卡片 —— 纯展示，<b>没有</b> data-hm-light，点了不亮</div>' +
+    '</div>';
+  stage.appendChild(frame);
+})();
+</script>
+</div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+/*
+ * HarmonyOS layout anchors — phone portrait, 360px canvas.
+ *
+ * Every value carries its provenance. Two kinds appear here:
+ *   SPEC     quoted from a mandatory rule or a Numeric Baseline in the
+ *            HarmonyOS reference library.
+ *   DERIVED  reconciled from several spec fragments (or supplied for dark mode,
+ *            which the reference only documents for light). Treated as ours,
+ *            not as the spec's — change with care and update compliance.md.
+ *
+ * The padding / radius / control-height / page-scale tokens live in
+ * tokens/spacing.css (generated). This file only adds what the reference states
+ * in prose rather than as tokens.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- shells */
+
+  /* SPEC: titlebar Numeric Baseline — StatusBar 360x36.
+     The floor reuses the published page token instead of hard-coding 36px. */
+  --harmony-safe-top: max(env(safe-area-inset-top), var(--harmony-page-padding-mobile-top)); /* @kind shadow */
+  /* SPEC: bottomtab — Home Indicator zone 360x28. */
+  --harmony-safe-bottom: max(env(safe-area-inset-bottom), var(--harmony-page-padding-mobile-bottom)); /* @kind shadow */
+
+  /* ------------------------------------------------------- floating titlebar */
+
+  /* SPEC baseline: statusbar 36 + .titlebar-content padding-top 12 +
+     title/action layer 40 -> text-layer bottom y=88. */
+  --harmony-titlebar-pad-top: 12px; /* @kind spacing */
+  --harmony-titlebar-row: 40px; /* @kind spacing */
+  --harmony-titlebar-layer-normal: calc(var(--harmony-titlebar-pad-top) + var(--harmony-titlebar-row)); /* @kind other */ /* 52 */
+
+  /* DERIVED: normal layer + subtitle line (title 26/35 + gap 1 + subtitle 14/19 = 55). */
+  --harmony-titlebar-layer-secondary: 67px; /* @kind spacing */
+
+  /* SPEC (mandatory): "titlebar 文字图层底边与首个内容之间的间距默认必须为 8px".
+     The 124px fades panel is explicitly NOT the spacing datum. */
+  --harmony-titlebar-gap: 8px; /* @kind spacing */
+
+  /* SPEC: Normal/Secondary panel height 124px — the gradient panel, used for
+     stacking and for the fade tail, never for spacing. */
+  --harmony-titlebar-panel: 124px; /* @kind spacing */
+  /* DERIVED: how far the gradient tail bleeds past the text layer so content
+     scrolls under it (the spec's panel implies ~32px). */
+  --harmony-titlebar-fade: 32px; /* @kind spacing */
+
+  /* ------------------------------------------------------------- bottom tab */
+
+  /* SPEC: container 360x100 = 16 top clearance + 56 pill + 28 Home Indicator. */
+  --harmony-tabbar-h: 56px; /* @kind spacing */
+  --harmony-tabbar-top-pad: 16px; /* @kind spacing */
+  --harmony-tabbar-indicator: 28px; /* @kind spacing */
+  --harmony-tabbar-height: calc(
+    var(--harmony-tabbar-h) + var(--harmony-tabbar-top-pad) + var(--harmony-safe-bottom)); /* @kind spacing */
+  /* distance from the screen's bottom edge to the pill's top edge */
+  --harmony-tabbar-bar-top: calc(var(--harmony-tabbar-h) + var(--harmony-safe-bottom)); /* @kind other */
+
+  /* SPEC: bar width is locked by tab count, never content-driven. */
+  --harmony-tabbar-width-2: 160px; /* @kind spacing */
+  --harmony-tabbar-width-3: 236px; /* @kind spacing */
+  --harmony-tabbar-width-4: 328px; /* @kind spacing */
+  --harmony-tabbar-width-5: 328px; /* @kind spacing */
+  --harmony-tabbar-width-multi: 264px; /* @kind spacing */
+  --harmony-tabbar-width-single: 264px; /* @kind spacing */
+  /* DERIVED: the trailing safe gap between the selection dock and the pill. */
+  --harmony-dock-lift: 12px; /* @kind spacing */
+
+  /* ------------------------------------------------------- content metrics */
+
+  /* SPEC: fixed content width = canvas - 2 * page padding. */
+  --harmony-content-width: var(--harmony-page-content-width-mobile); /* @kind spacing */ /* 328px */
+
+  /* ----------------------------------------------------------- interaction */
+
+  /* SPEC: 40px is the standard control height (IconButton 40x40); the small
+     control floor for tappable rows is the 36px control height. */
+  /* SPEC: the reference's three icon sizes. They were only encoded as the
+     .hm-16 / .hm-20 / .hm-24 classes, so the token layer had no icon size at all and
+     an ArkTS app had no resource to read. */
+  --harmony-icon-size-16: 16px; /* @kind spacing */
+  --harmony-icon-size-20: 20px; /* @kind spacing */
+  --harmony-icon-size-24: 24px; /* @kind spacing */
+
+  --harmony-touch-target: var(--harmony-control-height-40); /* @kind other */
+  --harmony-touch-target-min: var(--harmony-control-height-36); /* @kind other */
+}

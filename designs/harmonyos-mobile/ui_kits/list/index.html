@@ -1,0 +1,82 @@
+<!-- @dsCard group="Layouts" viewport="700x880" name="list" subtitle="mobile-list · 360×792 · 文件" -->
+<!-- @startingPoint section="Layouts" subtitle="mobile-list · 360×792 · grouped navigation rows with chevrons" viewport="700x880" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>UI kit · list</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { SizeFrame, Titlebar, BottomTab, CardView, List, Divider } = window.HarmonyosMobile_c16f53;
+
+/* mobile-list: the page body is navigation rows grouped into rounded cards.
+   The right slot is value + chevron; the divider inset follows from the variant,
+   so no line positions are hand-tuned. */
+const CONTENT_TOP = "calc(var(--harmony-safe-top) + var(--harmony-titlebar-layer-normal) + var(--harmony-titlebar-gap))";
+const TABS = [{ icon: "house", label: "首页" }, { icon: "magnifyingglass", label: "发现" },
+              { icon: "folder", label: "文件" }, { icon: "person", label: "我的" }];
+const ART = (c) => "data:image/svg+xml;utf8," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' rx='12' fill='" + c + "'/></svg>");
+
+function GroupLabel({ children }) {
+  return <div style={{ fontSize: 13, color: "var(--harmony-font-secondary)", padding: "0 18px 6px" }}>{children}</div>;
+}
+
+function ListKit() {
+  const [tab, setTab] = React.useState(2);
+  const [picked, setPicked] = React.useState("all");
+  return (
+    <SizeFrame statusbar={null} height={792} materialLevel="gentle" materialType="adaptive"
+        titlebar={<Titlebar variant="normal" title="文件" />}
+        bottomBar={<BottomTab variant="4" items={TABS} activeIndex={tab} onSelect={setTab} homeIndicatorBar={false} />}>
+      <div style={{ position: "absolute", top: CONTENT_TOP, left: 0, right: 0, bottom: 0,
+                    overflowY: "auto", paddingBottom: "var(--harmony-tabbar-height)",
+                    display: "flex", flexDirection: "column", gap: 18 }}>
+        <div>
+          <GroupLabel>存储概览</GroupLabel>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <List variant="2lines" title="本地占用" aux="图片 24 · 压缩包 3"
+                  rightText="148.3 MB" rightIcon="chevron" onClick={() => setPicked("usage")} />
+            <List variant="single" title="清理临时文件" aux="暂存目录残留" rightText="" rightIcon="chevron"
+                  onClick={() => setPicked("clean")} />
+          </CardView>
+        </div>
+
+        <div>
+          <GroupLabel>下载来源</GroupLabel>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <List variant="icon2lines" appIconSrc={ART("#0a59f7")} title="旅拍志 · 京都的秋"
+                  aux="12 张 · 今天 14:32" rightText="已完成" rightIcon="chevron" onClick={() => setPicked("a")} />
+            <List variant="icon2lines" appIconSrc={ART("#64bb5c")} title="清水寺素材包.zip"
+                  aux="24 张 · 38.4 MB" rightText="已完成" rightIcon="chevron" onClick={() => setPicked("b")} />
+            <List variant="icon2lines" appIconSrc={ART("#e84026")} title="poster-raw.tiff"
+                  aux="服务器返回的不是图片" rightText="失败" rightIcon="chevron" onClick={() => setPicked("c")} />
+          </CardView>
+        </div>
+
+        <div>
+          <GroupLabel>排序方式</GroupLabel>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <List variant="single" title="按时间" rightText="当前" rightIcon="arrow-down" onClick={() => setPicked("time")} />
+            <List variant="single" title="按大小" rightIcon="arrow-down" onClick={() => setPicked("size")} />
+            <List variant="single" title="按名称" rightIcon="arrow-down" onClick={() => setPicked("name")} />
+          </CardView>
+          <div style={{ margin: "14px 16px 0" }}>
+            <Divider variant="inset" />
+          </div>
+        </div>
+      </div>
+    </SizeFrame>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<ListKit />);
+</script>
+</body>
+</html>

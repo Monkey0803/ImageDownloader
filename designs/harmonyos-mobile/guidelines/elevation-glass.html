@@ -1,0 +1,62 @@
+<!-- @dsCard group="Foundations" viewport="820x520" name="Elevation & glass" subtitle="Shadow stacks, blur recipe and the light edge" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Elevation & glass</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">玻璃表面的构造</div>
+  <div class="hm-spec__note">
+    所有玻璃面 = <b>背景填充（含 alpha）</b> + <b>backdrop-filter: blur × saturate</b> + <b>阴影栈</b>。
+    填充透明度来自 <code>--hm-glass</code>，模糊半径来自等级，两者都在携带属性的画布元素上合成。
+  </div>
+  <table>
+    <tr><th>表面</th><th>模糊来源</th><th>阴影 token</th></tr>
+    <tr><td>标题栏</td><td><code>--harmony-material-blur-titlebar-base</code> × 等级</td><td><code>--harmony-titlebar-gradient</code></td></tr>
+    <tr><td>底部胶囊栏</td><td><code>--harmony-material-blur-pill</code> × 等级</td><td><code>--harmony-material-bar-shadow</code></td></tr>
+    <tr><td>圆形动作按钮</td><td><code>--hm-blur</code>（等级实值 46/30/10）</td><td><code>--harmony-material-action-shadow</code></td></tr>
+    <tr><td>搜索胶囊</td><td><code>--hm-blur</code></td><td><code>--harmony-material-action-shadow</code></td></tr>
+  </table>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">阴影栈实测（沉浸式 · 精致）</div>
+  <div class="hm-spec__row" id="el"></div>
+  <pre id="shadow-out" style="font-family:var(--harmony-font-mono);font-size:11px;line-height:1.6;color:var(--harmony-font-secondary);white-space:pre-wrap;margin:0"></pre>
+</div>
+<script>
+(function () {
+  const host = document.getElementById("el");
+  const f = document.createElement("div");
+  f.className = "hm-size";
+  f.dataset.materialType = "immersive";
+  f.dataset.materialLevel = "exquisite";
+  f.style.cssText = "position:fixed;left:-9999px;width:360px;height:792px";
+  f.innerHTML = '<nav class="hm-bottomtab" style="position:absolute;bottom:0;left:0;right:0">' +
+    '<div class="hm-bottomtab__bar hm-bottomtab__bar--3" id="glassbar"><div class="hm-bottomtab__tabs">' +
+    '<button class="hm-bottomtab__tab" type="button"><span class="hm-bottomtab__tab-label">首页</span></button>' +
+    '</div></div><div class="hm-bottomtab__indicator"></div></nav>';
+  document.body.appendChild(f);
+  requestAnimationFrame(function () {
+    const bar = f.querySelector("#glassbar");
+    const cs = getComputedStyle(bar);
+    document.getElementById("shadow-out").textContent =
+      "backdrop-filter: " + cs.backdropFilter + "\n" +
+      "background: " + cs.backgroundImage + "\n" +
+      "box-shadow:\n  " + cs.boxShadow.split(/,(?![^(]*\))/).join("\n  ");
+    // a visible glass sample over a coloured field
+    const card = document.createElement("div");
+    card.className = "hm-spec__panel";
+    card.style.cssText = "flex:1;min-width:280px;background:linear-gradient(140deg,#3d86ff,#0a59f7);position:relative;height:150px;overflow:hidden";
+    card.innerHTML = '<div style="position:absolute;left:16px;right:16px;bottom:16px;border-radius:100px;height:56px;' +
+      'background:' + cs.backgroundImage + ';backdrop-filter:' + cs.backdropFilter + ';box-shadow:' + cs.boxShadow + '"></div>';
+    host.appendChild(card);
+  });
+})();
+</script>
+</div>
+</body>
+</html>

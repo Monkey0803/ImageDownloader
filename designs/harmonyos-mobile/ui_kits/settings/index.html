@@ -1,0 +1,143 @@
+<!-- @dsCard group="Layouts" viewport="700x880" name="settings" subtitle="mobile-list 控件型 · 360×792 · 设置" -->
+<!-- @startingPoint section="Layouts" subtitle="mobile-list (control rows) · 360×792 · switches, slider and slider rows" viewport="700x880" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>UI kit · settings</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { SizeFrame, Titlebar, CardView, List, Switch, Button, Icon } = window.HarmonyosMobile_c16f53;
+
+/* Settings is the CONTROL-row flavour of mobile-list (the reference routes it there):
+   the rows carry switches, sliders and segmented controls instead of chevrons, so
+   the system-capability rows are read-only demonstrations. Segmented controls are
+   plain buttons here because the reference has no segmented component to reuse. */
+const CONTENT_TOP = "calc(var(--harmony-safe-top) + var(--harmony-titlebar-layer-normal) + var(--harmony-titlebar-gap))";
+
+/* Row used by the settings kit: label + control on the SAME line, label never wraps
+   to its own line. Every system-capability row is a read-only demo — the app only
+   reacts, it does not own the switch. */
+function ControlRow({ title, aux, children, demo }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 56, padding: "10px 0",
+                  borderBottom: "1px solid var(--harmony-comp-divider)" }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 15, color: "var(--harmony-font-primary)" }}>
+          {title}
+          {demo ? <span style={{ marginLeft: 6, fontSize: 11, color: "var(--harmony-font-tertiary)" }}>系统能力</span> : null}
+        </span>
+        {aux ? <span style={{ fontSize: 12, color: "var(--harmony-font-tertiary)" }}>{aux}</span> : null}
+      </div>
+      <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 8 }}>{children}</div>
+    </div>
+  );
+}
+
+function Segmented({ options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", background: "var(--harmony-comp-background-secondary)", borderRadius: 8, padding: 2 }}>
+      {options.map((option) => (
+        <button key={option} type="button" onClick={() => onChange(option)}
+          style={{ border: 0, cursor: "pointer", padding: "4px 10px", borderRadius: 6, fontSize: 12,
+                   fontFamily: "inherit",
+                   background: option === value ? "var(--harmony-comp-background-primary)" : "transparent",
+                   color: option === value ? "var(--harmony-font-primary)" : "var(--harmony-font-secondary)",
+                   fontWeight: option === value ? 600 : 400 }}>
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SliderRow({ value, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+      <input type="range" min="1" max="10" value={value} onChange={(e) => onChange(Number(e.target.value))}
+        style={{ flex: 1, accentColor: "var(--harmony-brand)" }} />
+      <span style={{ fontSize: 13, color: "var(--harmony-font-secondary)", width: 28, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+function SettingsKit() {
+  const [theme, setTheme] = React.useState("跟随系统");
+  const [material, setMaterial] = React.useState("跟随系统");
+  const [level, setLevel] = React.useState("均衡");
+  const [hand, setHand] = React.useState(true);
+  const [veil, setVeil] = React.useState(true);
+  const [light, setLight] = React.useState(true);
+  const [limit, setLimit] = React.useState(3);
+
+  return (
+    <SizeFrame statusbar={null} height={792} theme={theme === "深色" ? "dark" : "light"}
+               materialType={material === "沉浸式" ? "immersive" : "adaptive"}
+               materialLevel={level === "精致" ? "exquisite" : level === "轻盈" ? "smooth" : "gentle"}
+        titlebar={<Titlebar variant="normal" title="设置" />}>
+      <div style={{ position: "absolute", top: CONTENT_TOP, left: 0, right: 0, bottom: 0,
+                    overflowY: "auto", paddingBottom: "calc(var(--harmony-tabbar-height) + 12px)",
+                    display: "flex", flexDirection: "column", gap: 18 }}>
+        <div>
+          <div style={{ fontSize: 13, color: "var(--harmony-font-secondary)", padding: "0 18px 6px" }}>外观</div>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <ControlRow title="主题" aux="品牌蓝为固定色，不随主题变化">
+              <Segmented options={["跟随系统", "浅色", "深色"]} value={theme} onChange={setTheme} />
+            </ControlRow>
+            <ControlRow title="材质类型" aux="沉浸式增加边缘流光">
+              <Segmented options={["跟随系统", "沉浸式"]} value={material} onChange={setMaterial} />
+            </ControlRow>
+            <ControlRow title="材质等级" aux="影响毛玻璃强度，越低越省算力">
+              <Segmented options={["精致", "均衡", "轻盈"]} value={level} onChange={setLevel} />
+            </ControlRow>
+          </CardView>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 13, color: "var(--harmony-font-secondary)", padding: "0 18px 6px" }}>系统能力</div>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <ControlRow title="智感握姿" aux="识别单双手握持，自动下移主操作" demo>
+              <Switch on={hand} label="智感握姿" onChange={setHand} />
+            </ControlRow>
+            <ControlRow title="防窥保护" aux="检测到他人注视时隐藏内容" demo>
+              <Switch on={veil} label="防窥保护" onChange={setVeil} />
+            </ControlRow>
+            <ControlRow title="全局沉浸光感" aux="焦点组件随触点透出光晕" demo>
+              <Switch on={light} label="全局沉浸光感" onChange={setLight} />
+            </ControlRow>
+          </CardView>
+          <div style={{ fontSize: 11, color: "var(--harmony-font-tertiary)", margin: "8px 18px 0", lineHeight: "16px" }}>
+            以上为系统能力，应用只响应系统状态，不自行开关。
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 13, color: "var(--harmony-font-secondary)", padding: "0 18px 6px" }}>下载</div>
+          <CardView size="max" style={{ margin: "0 16px", padding: "0 16px" }}>
+            <ControlRow title="同时下载数量" aux="并发槽位，队列共用">
+              <SliderRow value={limit} onChange={setLimit} />
+            </ControlRow>
+            <List variant="single" title="默认保存位置" rightText="下载/ImageDownloader" rightIcon="chevron" />
+            <List variant="single" title="文件名来源" rightText="服务器优先" rightIcon="chevron" />
+          </CardView>
+        </div>
+
+        <div style={{ padding: "0 16px", display: "flex", gap: 12 }}>
+          <Button type="normal" size="small" style={{ flex: 1 }}>恢复默认</Button>
+          <Button type="emphasized" size="small" style={{ flex: 1 }}>完成</Button>
+        </div>
+      </div>
+    </SizeFrame>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<SettingsKit />);
+</script>
+</body>
+</html>

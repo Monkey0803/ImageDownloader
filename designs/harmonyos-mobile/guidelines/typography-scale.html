@@ -1,0 +1,37 @@
+<!-- @dsCard group="Foundations" viewport="780x760" name="Typography" subtitle="The 11-level HarmonyOS type scale with weights" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Typography</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">字阶 · theme-invariant</div>
+  <div class="hm-spec__note">字号/字重直接用 token，禁止手写 px。规范里 display 用 300 字重、title 用 700、body 用 400 —— 这个对应关系是刻意设计的，别混。</div>
+  <table>
+    <tr><th>Token 档位</th><th>示例</th><th>字号 / 字重</th></tr>
+    <tr><td>display_l</td><td style="font-size:var(--harmony-font-size-display-l);font-weight:var(--harmony-font-weight-display-l);line-height:1.1">显示</td><td><code>56 / 300</code></td></tr>
+    <tr><td>display_m</td><td style="font-size:var(--harmony-font-size-display-m);font-weight:var(--harmony-font-weight-display-m);line-height:1.1">显示</td><td><code>48 / 300</code></td></tr>
+    <tr><td>display_s</td><td style="font-size:var(--harmony-font-size-display-s);font-weight:var(--harmony-font-weight-display-s);line-height:1.1">显示</td><td><code>38 / 300</code></td></tr>
+    <tr><td>title_l</td><td style="font-size:var(--harmony-font-size-title-l);font-weight:var(--harmony-font-weight-title-l)">页面大标题</td><td><code>30 / 700</code></td></tr>
+    <tr><td>title_m</td><td style="font-size:var(--harmony-font-size-title-m);font-weight:var(--harmony-font-weight-title-m)">区块标题</td><td><code>24 / 700</code></td></tr>
+    <tr><td>title_s</td><td style="font-size:var(--harmony-font-size-title-s);font-weight:var(--harmony-font-weight-title-s)">小标题</td><td><code>20 / 700</code></td></tr>
+    <tr><td>subtitle_l</td><td style="font-size:var(--harmony-font-size-subtitle-l);font-weight:var(--harmony-font-weight-subtitle-l)">副标题大</td><td><code>18 / 500</code></td></tr>
+    <tr><td>subtitle_m</td><td style="font-size:var(--harmony-font-size-subtitle-m);font-weight:var(--harmony-font-weight-subtitle-m)">副标题中</td><td><code>16 / 500</code></td></tr>
+    <tr><td>subtitle_s</td><td style="font-size:var(--harmony-font-size-subtitle-s);font-weight:var(--harmony-font-weight-subtitle-s)">副标题小</td><td><code>14 / 500</code></td></tr>
+    <tr><td>body_l</td><td style="font-size:var(--harmony-font-size-body-l);font-weight:var(--harmony-font-weight-body-l)">正文大</td><td><code>16 / 400</code></td></tr>
+    <tr><td>body_m</td><td style="font-size:var(--harmony-font-size-body-m);font-weight:var(--harmony-font-weight-body-m)">正文中</td><td><code>14 / 400</code></td></tr>
+    <tr><td>body_s</td><td style="font-size:var(--harmony-font-size-body-s);font-weight:var(--harmony-font-weight-body-s)">正文小</td><td><code>12 / 400</code></td></tr>
+    <tr><td>caption_l</td><td style="font-size:var(--harmony-font-size-caption-l);font-weight:var(--harmony-font-weight-caption-l)">说明文字</td><td><code>12 / 500</code></td></tr>
+  </table>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">字体栈</div>
+  <div class="hm-spec__note"><code>--harmony-font-stack</code> 指向 HarmonyOS Sans —— 系统字体，无字体文件可嵌，所以它**不是** <code>@font-face</code>。图标另走 HMSymbol 字体。</div>
+</div>
+</div>
+</body>
+</html>

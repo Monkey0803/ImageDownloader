@@ -1,0 +1,161 @@
+/*
+ * HarmonyOS system material — UI Design Kit › ImmersiveMaterial.
+ *
+ * Two orthogonal axes drive every glass surface:
+ *   material TYPE  (MaterialType)  ADAPTIVE | IMMERSIVE — IMMERSIVE adds the
+ *                                  light edge (边缘流光) that reads as glass.
+ *   material LEVEL (MaterialLevel) EXQUISITE | GENTLE | SMOOTH — the device's
+ *                                  compute tier, which sets thickness.
+ *
+ * Theme and level are kept orthogonal on purpose: the level supplies a
+ * multiplier, the theme supplies the base alpha, so no rule has to enumerate
+ * every theme x level combination (and none can silently shadow another).
+ *
+ * Enable with attributes on the page frame:
+ *   <div data-theme="dark" data-material-type="immersive" data-material-level="exquisite">
+ *
+ * SPEC  = reference values (template / enum / doc text)
+ * DERIVED = ours — reconciled, or supplied for dark/level cases the reference
+ *           documents only for light.
+ */
+
+:root {
+  /* ------------------------------------------------ MaterialLevel: thickness */
+  /* SPEC: ImmersiveStyle ladder — ULTRA_THIN .. ULTRA_THICK. The material
+     templates build their glass from a blur + saturate pair; GENTLE is the
+     documented default tier. */
+  --harmony-material-blur: 30px; /* @kind spacing */ /* SPEC  GENTLE (mid tier) */
+  --harmony-material-saturate: 1.6; /* @kind other */ /* SPEC  GENTLE */
+  --harmony-material-alpha-base: 0.72; /* @kind other */ /* DERIVED  light glass fill */
+  --harmony-material-alpha-strong-base: 0.88; /* @kind other */
+  --harmony-material-alpha-scale: 1; /* @kind other */ /* level multiplier */
+  --harmony-material-blur-scale: 1; /* @kind other */ /* level multiplier */
+
+  /* SPEC: immersive bar blur is 80px on the bottom tab, 12px on the title bar. */
+  /* SPEC: the shell's own blur radii, before the level scaling that is applied at
+     the use site (see the note at the top of components/theme-bridge.css). */
+  --harmony-material-blur-pill: 80px; /* @kind spacing */
+  --harmony-material-blur-titlebar-base: 12px; /* @kind spacing */
+  --harmony-material-glass-saturate: 1.2; /* @kind other */
+  /* SPEC: floating action buttons are 40x40 white glass with this shadow. */
+  --harmony-material-action-shadow: 0 8px 48px rgba(0, 0, 0, 0.08); /* @kind shadow */
+  /* SPEC: pill bar shadow stack. */
+  --harmony-material-bar-shadow: 0 4px 48px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.16); /* @kind shadow */
+
+  /* MaterialType: IMMERSIVE adds 双边流光. See the note above about why this is
+     NOT a token — a shadow list cannot be composed with `none`, and the SMOOTH
+     tier has to drop it entirely. Written as explicit rules in theme-bridge.css. */
+
+  /* ----------------------------------------------------------- 沉浸光感 glow */
+  /* SPEC: HarmonyOS's signature interaction feedback — the touched object is
+     "lit" and the glow bleeds outward. FOCAL COMPONENTS ONLY: the spec warns
+     「满屏都是光感，就等于没有光感」and forbids it on background/display surfaces. */
+  --harmony-light-glow: radial-gradient(
+    circle 68px at var(--harmony-light-x, 50%) var(--harmony-light-y, 50%),
+    rgb(255 255 255 / 0.6),
+    rgb(255 255 255 / 0.22) 46%,
+    rgb(255 255 255 / 0) 74%
+  ); /* @kind shadow */
+  --harmony-light-fade-in: 50ms; /* @kind other */
+  --harmony-light-fade-out: 400ms; /* @kind other */
+  --harmony-light-ease: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  /* SPEC: interactive morph — the pressed object shrinks slightly. */
+  --harmony-press-scale: 0.955; /* @kind other */
+
+  /* ---------------------------------------------------- shell protection fade */
+  /* SPEC: titlebar normal/secondary background gradient (nine-stop alpha curve
+     from the titlebar template). */
+  --harmony-titlebar-gradient: linear-gradient(
+    to bottom,
+    rgba(241, 243, 245, 0.8) 0%,
+    rgba(241, 243, 245, 0.8) 30%,
+    rgba(241, 243, 245, 0.79) 38.5%,
+    rgba(241, 243, 245, 0.74) 51.1%,
+    rgba(241, 243, 245, 0.65) 59.3%,
+    rgba(241, 243, 245, 0.53) 67.5%,
+    rgba(241, 243, 245, 0.32) 76.4%,
+    rgba(241, 243, 245, 0.12) 85.7%,
+    rgba(241, 243, 245, 0) 100%
+  ); /* @kind color */
+  /* SPEC: bottomtab container gradient (16-stop curve from the bottomtab template). */
+  --harmony-tabbar-gradient: linear-gradient(
+    to bottom,
+    rgba(241, 243, 245, 0) 0%,
+    rgba(241, 243, 245, 0.0017) 11.8%,
+    rgba(241, 243, 245, 0.0065) 21.4%,
+    rgba(241, 243, 245, 0.0141) 29.1%,
+    rgba(241, 243, 245, 0.0241) 35.3%,
+    rgba(241, 243, 245, 0.0363) 40.4%,
+    rgba(241, 243, 245, 0.0502) 44.6%,
+    rgba(241, 243, 245, 0.0656) 48.2%,
+    rgba(241, 243, 245, 0.0821) 51.8%,
+    rgba(241, 243, 245, 0.0994) 55.4%,
+    rgba(241, 243, 245, 0.117) 59.6%,
+    rgba(241, 243, 245, 0.1348) 64.7%,
+    rgba(241, 243, 245, 0.1523) 70.9%,
+    rgba(241, 243, 245, 0.1693) 78.6%,
+    rgba(241, 243, 245, 0.1853) 88.2%,
+    rgba(241, 243, 245, 0.2) 100%
+  ); /* @kind color */
+}
+
+/* ============================================================ MaterialLevel
+   NOTE — these are primitives, and they are resolved where they are DECLARED.
+   A custom property that references another one bakes in the value found on its
+   own element, so `--x: calc(80px * var(--scale))` at :root would freeze :root's
+   scale and ignore the frame's attribute. Composition therefore happens on the
+   element that carries the attributes — see components/theme-bridge.css. */
+/* DERIVED alphas: the reference fixes blur/saturate per tier but not the fill;
+   thicker tiers are denser so text stays legible as blur drops. */
+[data-material-level="exquisite"] {
+  --harmony-material-blur: 46px; /* @kind spacing */ /* SPEC  EXQUISITE — full visual set */
+  --harmony-material-saturate: 1.9; /* @kind other */
+  --harmony-material-alpha-scale: 0.8; /* @kind other */
+  --harmony-material-blur-scale: 1.5; /* @kind other */
+}
+[data-material-level="gentle"] {
+  --harmony-material-blur: 30px; /* @kind spacing */ /* SPEC  GENTLE — documented default */
+  --harmony-material-saturate: 1.6; /* @kind other */
+  --harmony-material-alpha-scale: 1; /* @kind other */
+  --harmony-material-blur-scale: 1; /* @kind other */
+}
+[data-material-level="smooth"] {
+  --harmony-material-blur: 10px; /* @kind spacing */ /* SPEC  SMOOTH — core visuals only */
+  --harmony-material-saturate: 1.08; /* @kind other */
+  --harmony-material-alpha-scale: 1.2; /* @kind other */
+  --harmony-material-blur-scale: 0.4; /* @kind other */
+}
+
+/* ================================================================== theme */
+/* DERIVED: the reference documents the material templates for light only; dark
+   alphas follow the same relationship as the colour tokens' font_on_* family. */
+[data-theme="dark"] {
+  --harmony-material-alpha-base: 0.1; /* @kind other */
+  --harmony-material-alpha-strong-base: 0.16; /* @kind other */
+  --harmony-material-action-shadow: 0 8px 48px rgba(0, 0, 0, 0.35); /* @kind shadow */
+  --harmony-material-bar-shadow: 0 4px 48px rgba(0, 0, 0, 0.28), 0 4px 8px rgba(0, 0, 0, 0.4); /* @kind shadow */
+}
+/* DERIVED dark protection fades (light values come from the templates). */
+[data-theme="dark"] {
+  --harmony-titlebar-gradient: linear-gradient(
+    to bottom,
+    rgba(25, 26, 28, 0.92) 0%,
+    rgba(25, 26, 28, 0.92) 30%,
+    rgba(25, 26, 28, 0.9) 38.5%,
+    rgba(25, 26, 28, 0.85) 51.1%,
+    rgba(25, 26, 28, 0.75) 59.3%,
+    rgba(25, 26, 28, 0.6) 67.5%,
+    rgba(25, 26, 28, 0.36) 76.4%,
+    rgba(25, 26, 28, 0.14) 85.7%,
+    rgba(25, 26, 28, 0) 100%
+  ); /* @kind color */
+  --harmony-tabbar-gradient: linear-gradient(
+    to bottom,
+    rgba(25, 26, 28, 0) 0%,
+    rgba(25, 26, 28, 0.06) 29.1%,
+    rgba(25, 26, 28, 0.2) 44.6%,
+    rgba(25, 26, 28, 0.45) 59.6%,
+    rgba(25, 26, 28, 0.74) 88.2%,
+    rgba(25, 26, 28, 0.96) 100%
+  ); /* @kind color */
+}

@@ -1,0 +1,139 @@
+<!-- @dsCard group="Foundations" viewport="820x900" name="Geometry anchors" subtitle="The measured 36 / 12 / 40 / 8 / 96 and 100 = 16+56+28 chain, self-verified" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Geometry anchors</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">顶部链路 · 规范原文强制 8px</div>
+  <div class="hm-spec__note">
+    规范原文：「titlebar 文字图层底边与首个内容之间的间距默认必须为 <strong>8px</strong>」。
+    几何基准：statusbar <code>36</code> + padding-top <code>12</code> + 文字层 <code>40</code> = 底边 <code>88</code>；
+    内容 <code>padding-top: 96px</code> → 间距 <code>96 − 88 = 8</code>。
+    <strong>124px 是渐隐背板底边，不是间距基准</strong>——规范明确禁止拿它算 search 位置。
+  </div>
+</div>
+
+<div class="hm-spec__section">
+  <div class="hm-spec__label">底部链路 · 容器 100 = 16 + 56 + 28</div>
+  <div class="hm-spec__note">下方 28px 是 Home Indicator 区，<strong>本设计系统不画那条 112×5 指示条</strong>——真机由系统绘制，再画一遍会重叠。</div>
+</div>
+
+<div class="hm-spec__section">
+  <div class="hm-spec__label">1:1 实测（数值由脚本量出，不是写死的说明文字）</div>
+  <div style="display:flex;gap:28px;align-items:flex-start">
+    <div id="probe" class="hm-size" data-theme="light" data-material-level="gentle" data-material-type="adaptive"
+         style="width:360px;height:640px;flex:0 0 auto">
+      <div class="hm-size-statusbar" id="sbslot" hidden>
+        <span class="hm-statusbar-time">08:08</span>
+        <span class="hm-statusbar-icons" aria-hidden="true">
+          <i class="hm-statusbar-icon hm-statusbar-icon-wifi"></i>
+          <i class="hm-statusbar-icon hm-statusbar-icon-single-card"></i>
+          <i class="hm-statusbar-icon hm-statusbar-icon-dual-card"></i>
+          <i class="hm-statusbar-icon hm-statusbar-icon-battery"></i>
+        </span>
+      </div>
+      <div class="hm-size-content">
+        <header class="hm-titlebar hm-titlebar--normal" id="tb" data-variant="normal"
+                style="position:absolute;top:0;left:0;right:0">
+          <div class="hm-titlebar__status" id="sb">
+            <span class="hm-titlebar__time">08:08</span>
+            <span class="hm-titlebar__status-icons" aria-hidden="true">
+              <i class="hm-titlebar__status-icon hm-titlebar__status-icon--wifi"></i>
+              <i class="hm-titlebar__status-icon hm-titlebar__status-icon--sig1"></i>
+              <i class="hm-titlebar__status-icon hm-titlebar__status-icon--sig2"></i>
+              <i class="hm-titlebar__status-icon hm-titlebar__status-icon--battery"></i>
+            </span>
+          </div>
+          <div class="hm-titlebar__content">
+            <div class="hm-titlebar__actions">
+              <button class="hm-titlebar__action-btn" type="button" aria-label="偏好">
+                <span class="hm hm-24 hm-icon" style="font-family:HMSymbol">&#xF00D9;</span>
+              </button>
+            </div>
+            <h2 class="hm-titlebar__title">标题</h2>
+          </div>
+        </header>
+        <div id="content" style="padding-top:calc(var(--harmony-safe-top) + var(--harmony-titlebar-layer-normal) + var(--harmony-titlebar-gap))">
+          <div class="hm-cardview hm-cardview--max" style="margin:0 16px;padding:16px">首个内容项</div>
+        </div>
+      </div>
+      <div class="hm-size-home-indicator"></div>
+      <nav class="hm-bottomtab" id="bt" data-variant="4">
+        <div class="hm-bottomtab__bar hm-bottomtab__bar--4">
+          <div class="hm-bottomtab__tabs">
+            <button class="hm-bottomtab__tab hm-bottomtab__tab--active" type="button" aria-pressed="true" data-hm-light>
+              <span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0027;</span>
+              <span class="hm-bottomtab__tab-label">首页</span>
+            </button>
+            <button class="hm-bottomtab__tab" type="button" data-hm-light>
+              <span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0029;</span>
+              <span class="hm-bottomtab__tab-label">发现</span>
+            </button>
+          </div>
+        </div>
+        <div class="hm-bottomtab__indicator"></div>
+      </nav>
+    </div>
+    <div style="flex:1;min-width:300px">
+      <table id="out">
+        <tr><th>锚点</th><th>规范</th><th>实测</th></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const q = (s) => document.querySelector(s);
+  const px = (n) => Math.round(n) + "px";
+  const r = (el) => el.getBoundingClientRect();
+
+  const frame = q("#probe");
+  const slot = q("#sb");              // the title bar's own 36px status row
+  const tb = q("#tb");                // title bar: its own text row is 12 + 40
+  const content = q("#content");
+  const card = content.firstElementChild;
+  const bt = q("#bt");
+  const bar = q(".hm-bottomtab__bar");
+
+  /* Measure offsets from the FRAME's top edge. The title bar sits inside the
+     content flow, so its own top already includes the 36px status area — adding
+     safe-top again would double-count it (this card caught exactly that). */
+  const frameTop = r(frame).top;
+  const frameBottom = r(frame).bottom;
+  const at = (el) => r(el).top - frameTop;
+
+  // the title bar carries its OWN status row first (36), then its text/action layer
+  const statusRow = r(q("#tb .hm-titlebar__status")).height;
+  const layerBottom = at(tb) + statusRow + 12 + 40;
+  const gap = at(card) - layerBottom;
+
+  const rows = [
+    ["状态栏区高", "36px", px(r(slot).height)],
+    ["标题栏文字层底边", "88px", px(layerBottom)],
+    ["首个内容顶边", "96px", px(at(card))],
+    ["标题栏 → 内容间距", "8px", px(gap)],
+    ["底栏容器高", "100px", px(r(bt).height)],
+    ["胶囊高", "56px", px(r(bar).height)],
+    ["胶囊下方净空", "28px", px(frameBottom - r(bar).bottom)],
+    ["容器顶余量", "16px", px(r(bar).top - r(bt).top)],
+  ];
+  const tbody = q("#out");
+  rows.forEach(([name, spec, got]) => {
+    const ok = Math.abs(parseFloat(got) - parseFloat(spec)) < 1.5;
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td>' + name + '</td><td><code>' + spec + '</code></td>' +
+      '<td><code style="color:' + (ok ? "var(--harmony-confirm)" : "var(--harmony-warning)") + '">' +
+      got + (ok ? "  ✓" : "  ✗") + '</code></td>';
+    tbody.appendChild(tr);
+  });
+})();
+</script>
+</div>
+</body>
+</html>

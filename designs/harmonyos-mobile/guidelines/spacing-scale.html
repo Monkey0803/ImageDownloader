@@ -1,0 +1,56 @@
+<!-- @dsCard group="Foundations" viewport="780x700" name="Spacing" subtitle="Padding levels, radius levels and the page-scale tokens" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Spacing</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">间距档位 · padding-level0–16</div>
+  <div class="hm-spec__note">只有这些档位。<code>--harmony-page-padding-mobile</code> = level8 (16px) 是页面左右内边距的规范值，别放大。</div>
+  <div class="hm-spec__grid" style="grid-template-columns:repeat(2,1fr)">
+    <table>
+      <tr><th>Token</th><th>值</th><th>典型用途</th></tr>
+      <tr><td>level1</td><td><code>2px</code></td><td>文字行间紧贴</td></tr>
+      <tr><td>level2</td><td><code>4px</code></td><td>图标与文字</td></tr>
+      <tr><td>level4</td><td><code>8px</code></td><td>紧凑内边距</td></tr>
+      <tr><td>level6</td><td><code>12px</code></td><td>卡片内边距</td></tr>
+    </table>
+    <table>
+      <tr><th>Token</th><th>值</th><th>典型用途</th></tr>
+      <tr><td>level8</td><td><code>16px</code></td><td>页面左右 / 区块间距</td></tr>
+      <tr><td>level10</td><td><code>20px</code></td><td>大卡片内边距</td></tr>
+      <tr><td>level12</td><td><code>24px</code></td><td>分组间距</td></tr>
+      <tr><td>level16</td><td><code>32px</code></td><td>大留白</td></tr>
+    </table>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">圆角档位 · corner-radius-level1–18</div>
+  <div class="hm-spec__row">
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level4)"></div>level4 · 8px</div>
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level6)"></div>level6 · 12px</div>
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level8)"></div>level8 · 16px</div>
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level10)"></div>level10 · 20px</div>
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level16)"></div>level16 · 32px</div>
+    <div class="hm-spec__tile"><div style="width:84px;height:56px;background:var(--harmony-comp-background-primary);border-radius:var(--harmony-corner-radius-level18)"></div>level18 · 36px</div>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">页面级 token</div>
+  <table>
+    <tr><th>Token</th><th>值</th><th>说明</th></tr>
+    <tr><td>page-canvas-width-mobile</td><td><code>360px</code></td><td>画布宽，仅用于壳层</td></tr>
+    <tr><td>page-content-width-mobile</td><td><code>328px</code></td><td>360 − 16×2，固定内容块用它</td></tr>
+    <tr><td>page-padding-mobile-top</td><td><code>36px</code></td><td>= 状态栏高度</td></tr>
+    <tr><td>page-padding-mobile-bottom</td><td><code>28px</code></td><td>= Home Indicator 区</td></tr>
+    <tr><td>section-gap-mobile</td><td><code>16px</code></td><td>区块之间</td></tr>
+    <tr><td>card-gap-mobile</td><td><code>12px</code></td><td>卡片之间</td></tr>
+  </table>
+</div>
+</div>
+</body>
+</html>

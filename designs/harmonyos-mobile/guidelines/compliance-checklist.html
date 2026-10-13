@@ -1,0 +1,61 @@
+<!-- @dsCard group="Foundations" viewport="820x980" name="Compliance checklist" subtitle="The mandatory rules, and the six traps this system already fell into" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Compliance checklist</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">A · 强制数值（规范原文）</div>
+  <table>
+    <tr><th>规则</th><th>值</th><th>本文档是否实测</th></tr>
+    <tr><td>titlebar 文字图层底边 → 首个内容</td><td><b>8px</b></td><td><a href="geometry-anchors.html">geometry-anchors</a> ✓</td></tr>
+    <tr><td>normal 变体内容 padding-top</td><td><code>96px</code></td><td>同上 ✓</td></tr>
+    <tr><td>底栏容器 / 胶囊 / Home Indicator</td><td><code>100 = 16 + 56 + 28</code></td><td>同上 ✓</td></tr>
+    <tr><td>状态栏</td><td><code>360×36</code></td><td><a href="safe-areas.html">safe-areas</a> ✓</td></tr>
+    <tr><td>页面左右内边距</td><td><code>16px</code>（<code>--harmony-page-padding-mobile</code>）</td><td><a href="spacing-scale.html">spacing-scale</a></td></tr>
+    <tr><td>内容宽</td><td><code>328px</code>（360 − 16×2）</td><td>spacing-scale</td></tr>
+    <tr><td>胶囊栏宽按 tab 数锁定</td><td><code>160 / 236 / 328 / 264</code></td><td><a href="../components/shell/shell.card.html">shell card</a></td></tr>
+    <tr><td>图标只用 HMSymbol 线性版</td><td>禁止 inline SVG</td><td><a href="iconography.html">iconography</a> ✓</td></tr>
+  </table>
+</div>
+
+<div class="hm-spec__section">
+  <div class="hm-spec__label">B · 六个已经踩过的坑（本系统全部修过）</div>
+  <table>
+    <tr><th>#</th><th>陷阱</th><th>症状 / 修法</th></tr>
+    <tr><td>1</td><td>模板 <code>url()</code> 路径是相对<strong>参考库</strong>写的</td>
+      <td>搬迁到 <code>components/&lt;group&gt;/</code> 后状态栏 PNG 全 404。导入器现在重写路径，且<strong>资产缺失直接构建失败</strong>。</td></tr>
+    <tr><td>2</td><td>模板把模糊半径写成固定字面量</td>
+      <td><code>--titlebar-blur: 12px</code> / <code>--bt-blur: 80px</code> 写死 → 材质等级对最显眼的两处完全无效。</td></tr>
+    <tr><td>3</td><td><strong>自定义属性在声明处结算，不在使用处</strong></td>
+      <td><code>:root</code> 里写 <code>calc(80px * var(--scale))</code> 会冻结 :root 的 scale，后代的 <code>data-material-level</code> 传不进去。派生必须写在携带属性的元素上。</td></tr>
+    <tr><td>4</td><td>CSS 注释<strong>不嵌套</strong></td>
+      <td>自动注释器把 <code>/* @kind */</code> 插进注释中间 → 注释提前闭合、后半句变非法 CSS，把紧随其后的 <code>[data-material-level="exquisite"]</code> 整块吃掉。</td></tr>
+    <tr><td>5</td><td>编译器会剥掉 <code>react</code> 的 import</td>
+      <td><code>import { useEffect } from "react"</code> 编译通过、运行时抛 <code>ReferenceError</code>。hook 必须从全局 <code>React</code> 取。</td></tr>
+    <tr><td>6</td><td><code>box-sizing</code> 复位的作用域漏了真正的画布</td>
+      <td>复位只写了 <code>.hm-frame</code>，而真画布是 <code>.hm-size</code> → 胶囊 56+8 内边距 = 64px，进而吃掉容器 16px 顶余量。</td></tr>
+    <tr><td>7</td><td>同一块空间被算两次</td>
+      <td><code>--tabbar-space: 84px</code> 已含 28px 指示区，又叠了 <code>--safe-bottom: 6px</code> → 净空 34px 而非规范 28px。</td></tr>
+    <tr><td>9</td><td>规范模板自身缺资源：标题栏状态图标只给几何、无 <code>background-image</code></td>
+      <td>标题栏内置状态行渲染成四个空框。状态栏模板确有该图（<code>--statusbar-*-icon</code>），同款同尺寸 —— 已在 <code>theme-bridge.css</code> 接上，不另画。</td></tr>
+    <tr><td>8</td><td>状态栏区高度各家不一致</td>
+      <td>规范文字 36、page token 36、我最初写 32 → 标题与内容各自偏移 4px。统一由 <code>--harmony-page-padding-mobile-top</code> 派生。</td></tr>
+  </table>
+</div>
+
+<div class="hm-spec__section">
+  <div class="hm-spec__label">C · 提交前自检</div>
+  <div class="hm-spec__note">
+    ① <code>node tools/verify-harmony.mjs</code> 全绿 ② <code>check-design-system.mjs</code> 无 issue
+    ③ 页面 CSS 无十六进制字面量 ④ 每个 <code>var(--x)</code> 都有定义
+    ⑤ <code>data-hm-light</code> 只出现在交互控件上 ⑥ 明暗两套都翻得动。
+  </div>
+</div>
+</div>
+</body>
+</html>

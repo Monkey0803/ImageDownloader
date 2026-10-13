@@ -1,0 +1,64 @@
+<!-- @dsCard group="Foundations" viewport="820x900" name="Theme" subtitle="Same screen in light and dark — tokens, never literals" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Theme</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">同一屏 · 明 / 暗</div>
+  <div class="hm-spec__note">
+    明暗两套 token 都在 <code>tokens/colors.css</code> 里（各 132 条，由规范库生成）。
+    切换只在画布上设 <code>data-theme</code>；组件侧无需任何分支 —— 若某处硬编码了颜色，它就不会翻转，这正是不许写死的原因。
+  </div>
+  <div class="hm-spec__row" style="align-items:flex-start;gap:24px" id="th"></div>
+</div>
+<script>
+(function () {
+  const host = document.getElementById("th");
+  ["light", "dark"].forEach(function (theme) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;font-size:11px;color:var(--harmony-font-secondary)";
+    wrap.innerHTML =
+      '<div class="hm-size" data-theme="' + theme + '" data-material-level="exquisite" data-material-type="immersive" ' +
+      'style="width:320px;height:420px;position:relative">' +
+        '<header class="hm-titlebar hm-titlebar--secondary" style="position:absolute;top:0;left:0;right:0">' +
+          '<div class="hm-titlebar__status"><span class="hm-titlebar__time">08:08</span></div>' +
+          '<div class="hm-titlebar__content">' +
+            '<button class="hm-titlebar__leading" type="button" aria-label="返回"><span class="hm hm-24" style="font-family:HMSymbol">&#xF00DA;</span></button>' +
+            '<h2 class="hm-titlebar__title">标题</h2><p class="hm-titlebar__subtitle">副标题</p>' +
+          '</div></header>' +
+        '<div style="position:absolute;top:96px;left:16px;right:16px;display:flex;flex-direction:column;gap:12px">' +
+          '<div class="hm-cardview hm-cardview--max" style="padding:14px 16px">卡片面 · comp_background_primary</div>' +
+          '<div class="hm-list hm-list-single"><div class="hm-list__left hm-list__left--vertical">' +
+            '<span class="hm-list__title">列表行</span></div><div class="hm-list__right">' +
+            '<span class="hm-list__right-text">值</span><span class="hm-list-icon hm-list-icon--chevron" style="font-family:HMSymbol">&#xF00D9;</span></div></div>' +
+          '<div style="display:flex;gap:10px"><button class="hm-button hm-button--medium hm-button--emphasized" type="button"><span class="hm-button__overlay"></span><span class="hm-button__focus-ring"></span><span class="hm-button__content">主操作</span></button>' +
+          '<button class="hm-button hm-button--medium hm-button--normal" type="button"><span class="hm-button__overlay"></span><span class="hm-button__focus-ring"></span><span class="hm-button__content">次操作</span></button></div>' +
+          '<div class="hm-search"><span class="hm-search__overlay"></span><span class="hm-search__icon" style="font-family:HMSymbol">&#xF0029;</span>' +
+            '<span class="hm-search__text hm-search__text--placeholder">搜索</span></div>' +
+        '</div>' +
+        '<nav class="hm-bottomtab" style="position:absolute;bottom:0;left:0;right:0"><div class="hm-bottomtab__bar hm-bottomtab__bar--3">' +
+          '<div class="hm-bottomtab__tabs">' +
+          '<button class="hm-bottomtab__tab hm-bottomtab__tab--active" type="button"><span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0027;</span><span class="hm-bottomtab__tab-label">首页</span></button>' +
+          '<button class="hm-bottomtab__tab" type="button"><span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0029;</span><span class="hm-bottomtab__tab-label">发现</span></button>' +
+          '<button class="hm-bottomtab__tab" type="button"><span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF05E5;</span><span class="hm-bottomtab__tab-label">我的</span></button>' +
+          '</div></div><div class="hm-bottomtab__indicator"></div></nav>' +
+      '</div>' +
+      '<div><strong>' + theme + '</strong> · 活动页签 <code class="tc"></code></div>';
+    host.appendChild(wrap);
+  });
+  requestAnimationFrame(function () {
+    document.querySelectorAll("#th .hm-size").forEach(function (f) {
+      const tab = f.querySelector(".hm-bottomtab__tab--active");
+      f.parentElement.querySelector(".tc").textContent = getComputedStyle(tab).color;
+    });
+  });
+})();
+</script>
+</div>
+</body>
+</html>

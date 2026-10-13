@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!--
+  css-probe.html — fixture that exercises the CSS layer alone (no components).
+  Used by tools/verify-harmony.mjs and while developing the theme bridge, to
+  confirm that MaterialLevel / MaterialType / theme actually reach the templates'
+  hard-coded locals.
+
+  Not a @dsCard and not a starting point: it is a test surface.
+-->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>HarmonyOS Mobile — CSS probe</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body { margin: 0; }
+</style>
+</head>
+<body class="hm-host">
+  <div class="hm-size" id="frame" data-theme="light" data-material-level="gentle" data-material-type="adaptive">
+
+    <div class="hm-size-statusbar"></div>
+
+    <header class="hm-titlebar hm-titlebar--secondary" id="titlebar" data-component="titlebar">
+      <div class="hm-titlebar__content">
+        <button class="hm-titlebar__leading" type="button" aria-label="返回">
+          <span class="hm hm-24 hm-icon" aria-hidden="true"></span>
+        </button>
+        <h2 class="hm-titlebar__title">标题</h2>
+        <p class="hm-titlebar__subtitle">副标题</p>
+      </div>
+    </header>
+
+    <nav class="hm-bottomtab" id="bottomtab" data-component="bottomtab" data-variant="3">
+      <div class="hm-bottomtab__bar hm-bottomtab__bar--3">
+        <div class="hm-bottomtab__tabs">
+          <button class="hm-bottomtab__tab hm-bottomtab__tab--active" type="button" aria-pressed="true" data-hm-light>
+            <span class="hm-bottomtab__tab-icon hm-icon" aria-hidden="true"></span>
+            <span class="hm-bottomtab__tab-label">首页</span>
+          </button>
+          <button class="hm-bottomtab__tab" type="button" aria-pressed="false" data-hm-light>
+            <span class="hm-bottomtab__tab-icon hm-icon" aria-hidden="true"></span>
+            <span class="hm-bottomtab__tab-label">发现</span>
+          </button>
+          <button class="hm-bottomtab__tab" type="button" aria-pressed="false" data-hm-light>
+            <span class="hm-bottomtab__tab-icon hm-icon" aria-hidden="true"></span>
+            <span class="hm-bottomtab__tab-label">我的</span>
+          </button>
+        </div>
+      </div>
+      <div class="hm-bottomtab__indicator">
+        <div class="hm-bottomtab__indicator-bar"></div>
+      </div>
+    </nav>
+    <div class="hm-size-home-indicator"></div>
+
+    <button class="hm-switch" id="switch" type="button" role="switch" aria-checked="true" data-hm-light>
+      <span class="hm-switch__thumb"></span>
+    </button>
+
+    <button class="hm-button hm-button--medium hm-button--emphasized" id="button" type="button" data-hm-light>
+      <span class="hm-button__overlay"></span>
+      <span class="hm-button__content">按钮</span>
+    </button>
+
+  </div>
+</body>
+</html>

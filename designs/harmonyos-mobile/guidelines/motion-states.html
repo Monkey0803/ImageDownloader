@@ -1,0 +1,50 @@
+<!-- @dsCard group="Foundations" viewport="820x480" name="Motion & states" subtitle="Hover, pressed, focus and the interactive morph" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Motion & states</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">交互状态 · 全部来自 token</div>
+  <div class="hm-spec__note">
+    叠加层颜色取自 <code>--harmony-interactive-hover / -pressed / -focus</code>。
+    <b>一个真踩过的坑</b>：按钮模板自带的 hover/pressed 叠加层是 <code>0.0022 / 0.0096</code>，
+    远低于 token 体系的 <code>0.047 / 0.098</code>，肉眼等同于无反馈 —— 已在 <code>theme-bridge.css</code> 里改回 token 值并注明理由。
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">叠加层实测</div>
+  <table id="mv"><tr><th>状态</th><th>规范 token</th><th>实测值</th></tr></table>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">交互形变（按压缩放）</div>
+  <div class="hm-spec__row">
+    <span class="hm-spec__note">沉浸光感开启时，焦点组件按压会缩到 <code>--harmony-press-scale</code> = 0.955。按住下面的按钮看效果。</span>
+  </div>
+  <div class="hm-spec__row" style="padding:8px 0">
+    <button class="hm-button hm-button--medium hm-button--emphasized hm-pressable" type="button" data-hm-light="">
+      <span class="hm-button__overlay"></span><span class="hm-button__focus-ring"></span>
+      <span class="hm-button__content">按住我</span></button>
+  </div>
+</div>
+<script>
+(function () {
+  const root = getComputedStyle(document.documentElement);
+  const rows = [["hover", "--harmony-interactive-hover"], ["pressed", "--harmony-interactive-pressed"],
+                ["focus", "--harmony-interactive-focus"]];
+  const t = document.getElementById("mv");
+  rows.forEach(function (r) {
+    const v = root.getPropertyValue(r[1]).trim();
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + r[0] + "</td><td><code>" + r[1] + "</code></td><td><code>" + (v || "—") + "</code></td>";
+    t.appendChild(tr);
+  });
+})();
+</script>
+</div>
+</body>
+</html>

@@ -1,0 +1,4929 @@
+{
+  "namespace": "HarmonyosMobile_c16f53",
+  "components": [
+    {
+      "name": "CardView",
+      "sourcePath": "components/containers/CardView.jsx",
+      "props": [
+        {
+          "name": "size",
+          "values": [
+            "mini",
+            "small",
+            "medium",
+            "larger",
+            "max"
+          ]
+        },
+        {
+          "name": "iconButtons",
+          "type": "CardIconButton[]"
+        },
+        {
+          "name": "onClick",
+          "type": "(event: React.MouseEvent<HTMLDivElement>) => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "style",
+          "type": "React.CSSProperties"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "Divider",
+      "sourcePath": "components/containers/Divider.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "",
+            "inset",
+            "block",
+            "vertical"
+          ]
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "List",
+      "sourcePath": "components/containers/List.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "single",
+            "icondot",
+            "iconsingle",
+            "2lines",
+            "icon2lines",
+            "3lines"
+          ]
+        },
+        {
+          "name": "title",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "aux",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "aux2",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "appIconSrc",
+          "type": "string"
+        },
+        {
+          "name": "appIconAlt",
+          "type": "string"
+        },
+        {
+          "name": "rightText",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "rightIcon",
+          "type": "\"chevron\" | \"arrow-down\" | null"
+        },
+        {
+          "name": "onClick",
+          "type": "() => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "Button",
+      "sourcePath": "components/controls/Button.jsx",
+      "props": [
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "size",
+          "values": [
+            "small",
+            "medium"
+          ]
+        },
+        {
+          "name": "type",
+          "values": [
+            "emphasized",
+            "normal",
+            "selected",
+            "unselected",
+            "warning"
+          ]
+        },
+        {
+          "name": "loading",
+          "type": "boolean"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "icon",
+          "type": "string"
+        },
+        {
+          "name": "onClick",
+          "type": "(event: React.MouseEvent<HTMLButtonElement>) => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "style",
+          "type": "React.CSSProperties"
+        },
+        {
+          "name": "light",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "name": "FloatingChipsTab",
+      "sourcePath": "components/controls/FloatingChipsTab.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "tab",
+            "tab-with-icon",
+            "icontab"
+          ]
+        },
+        {
+          "name": "chips",
+          "type": "ChipItem[]"
+        },
+        {
+          "name": "activeIndex",
+          "type": "number"
+        },
+        {
+          "name": "onSelect",
+          "type": "(index: number) => void"
+        },
+        {
+          "name": "trailingIcon",
+          "type": "string"
+        },
+        {
+          "name": "onTrailing",
+          "type": "() => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "FloatingSearch",
+      "sourcePath": "components/controls/FloatingSearch.jsx",
+      "props": [
+        {
+          "name": "mode",
+          "values": [
+            "idle",
+            "actived",
+            "typing",
+            "output"
+          ]
+        },
+        {
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "name": "placeholder",
+          "type": "string"
+        },
+        {
+          "name": "on",
+          "type": "boolean"
+        },
+        {
+          "name": "actionLabel",
+          "type": "string"
+        },
+        {
+          "name": "voice",
+          "type": "boolean"
+        },
+        {
+          "name": "cancel",
+          "type": "boolean"
+        },
+        {
+          "name": "onAction",
+          "type": "() => void"
+        },
+        {
+          "name": "onActivate",
+          "type": "() => void"
+        },
+        {
+          "name": "onChange",
+          "type": "(value: string) => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "light",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "name": "Icon",
+      "sourcePath": "components/controls/Icon.jsx",
+      "props": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "size",
+          "type": "16 | 20 | 24"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "style",
+          "type": "React.CSSProperties"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ICON_NAMES",
+      "sourcePath": "components/controls/Icon.jsx",
+      "kind": "constant"
+    },
+    {
+      "name": "Switch",
+      "sourcePath": "components/controls/Switch.jsx",
+      "props": [
+        {
+          "name": "on",
+          "type": "boolean"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "onChange",
+          "type": "(next: boolean) => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "light",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "name": "AIBottomBar",
+      "sourcePath": "components/shell/AIBottomBar.jsx",
+      "props": [
+        {
+          "name": "theme",
+          "values": [
+            "light",
+            "dark"
+          ]
+        },
+        {
+          "name": "indicator",
+          "type": "boolean"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "BottomTab",
+      "sourcePath": "components/shell/BottomTab.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "1bar",
+            "multibar"
+          ]
+        },
+        {
+          "name": "items",
+          "type": "BottomTabItem[]"
+        },
+        {
+          "name": "activeIndex",
+          "type": "number"
+        },
+        {
+          "name": "onSelect",
+          "type": "(index: number) => void"
+        },
+        {
+          "name": "homeIndicatorBar",
+          "type": "boolean"
+        },
+        {
+          "name": "albumSrc",
+          "type": "string"
+        },
+        {
+          "name": "expandLabel",
+          "type": "string"
+        },
+        {
+          "name": "expandIcons",
+          "type": "{ glyph: string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "onClick",
+          "type": "() => void }[]"
+        },
+        {
+          "name": "circleIcon",
+          "type": "string"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SizeFrame",
+      "sourcePath": "components/shell/SizeFrame.jsx",
+      "props": [
+        {
+          "name": "device",
+          "values": [
+            "phone-portrait",
+            "phone-landscape",
+            "foldable",
+            "tablet-portrait",
+            "tablet-landscape"
+          ]
+        },
+        {
+          "name": "width",
+          "type": "number | string"
+        },
+        {
+          "name": "height",
+          "type": "number | string"
+        },
+        {
+          "name": "theme",
+          "values": [
+            "light",
+            "dark"
+          ]
+        },
+        {
+          "name": "materialType",
+          "values": [
+            "adaptive",
+            "immersive"
+          ]
+        },
+        {
+          "name": "materialLevel",
+          "values": [
+            "exquisite",
+            "gentle",
+            "smooth"
+          ]
+        },
+        {
+          "name": "statusbar",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "titlebar",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "bottomBar",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "homeIndicator",
+          "type": "boolean"
+        },
+        {
+          "name": "lightEffect",
+          "type": "boolean"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "style",
+          "type": "React.CSSProperties"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "StatusBar",
+      "sourcePath": "components/shell/StatusBar.jsx",
+      "props": [
+        {
+          "name": "time",
+          "type": "string"
+        },
+        {
+          "name": "theme",
+          "values": [
+            "light",
+            "dark"
+          ]
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Titlebar",
+      "sourcePath": "components/shell/Titlebar.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "big",
+            "normal",
+            "secondary",
+            "drawer"
+          ]
+        },
+        {
+          "name": "title",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "subtitle",
+          "type": "React.ReactNode"
+        },
+        {
+          "name": "time",
+          "type": "string"
+        },
+        {
+          "name": "leadingGlyph",
+          "type": "string"
+        },
+        {
+          "name": "onLeading",
+          "type": "() => void"
+        },
+        {
+          "name": "actions",
+          "type": "TitlebarAction[]"
+        },
+        {
+          "name": "showStatus",
+          "type": "boolean"
+        },
+        {
+          "name": "theme",
+          "values": [
+            "light",
+            "dark"
+          ]
+        },
+        {
+          "name": "className",
+          "type": "string"
+        },
+        {
+          "name": "children",
+          "type": "React.ReactNode"
+        }
+      ]
+    },
+    {
+      "name": "Toolbar",
+      "sourcePath": "components/shell/Toolbar.jsx",
+      "props": [
+        {
+          "name": "variant",
+          "values": [
+            "3",
+            "4",
+            "5",
+            "6",
+            "vertical-icon"
+          ]
+        },
+        {
+          "name": "items",
+          "type": "ToolbarItem[]"
+        },
+        {
+          "name": "activeIndex",
+          "type": "number"
+        },
+        {
+          "name": "onSelect",
+          "type": "(index: number) => void"
+        },
+        {
+          "name": "className",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "startingPoints": [
+    {
+      "name": "CardView",
+      "path": "components/containers/CardView.jsx",
+      "previewPath": "components/containers/containers.card.html",
+      "kind": "component",
+      "section": "Containers",
+      "subtitle": "Card surface in five sizes with floating icon buttons",
+      "viewport": "700x420"
+    },
+    {
+      "name": "List",
+      "path": "components/containers/List.jsx",
+      "previewPath": "components/containers/containers.card.html",
+      "kind": "component",
+      "section": "Containers",
+      "subtitle": "Six documented row heights with dividers that skip the icon",
+      "viewport": "700x560"
+    },
+    {
+      "name": "Button",
+      "path": "components/controls/Button.jsx",
+      "previewPath": "components/controls/controls.card.html",
+      "kind": "component",
+      "section": "Controls",
+      "subtitle": "Emphasized / normal / warning × small / medium, with loading",
+      "viewport": "700x260"
+    },
+    {
+      "name": "FloatingChipsTab",
+      "path": "components/controls/FloatingChipsTab.jsx",
+      "previewPath": "components/controls/controls.card.html",
+      "kind": "component",
+      "section": "Controls",
+      "subtitle": "Text / icon chips with an activated state",
+      "viewport": "700x220"
+    },
+    {
+      "name": "FloatingSearch",
+      "path": "components/controls/FloatingSearch.jsx",
+      "previewPath": "components/controls/controls.card.html",
+      "kind": "component",
+      "section": "Controls",
+      "subtitle": "Idle / activated / typing / output, with the trailing action",
+      "viewport": "700x260"
+    },
+    {
+      "name": "Icon",
+      "path": "components/controls/Icon.jsx",
+      "previewPath": "components/controls/controls.card.html",
+      "kind": "component",
+      "section": "Controls",
+      "subtitle": "HMSymbol glyph from the official dictionary",
+      "viewport": "700x180"
+    },
+    {
+      "name": "Switch",
+      "path": "components/controls/Switch.jsx",
+      "previewPath": "components/controls/controls.card.html",
+      "kind": "component",
+      "section": "Controls",
+      "subtitle": "On / off / disabled with the light effect",
+      "viewport": "700x160"
+    },
+    {
+      "name": "BottomTab",
+      "path": "components/shell/BottomTab.jsx",
+      "previewPath": "components/shell/shell.card.html",
+      "kind": "component",
+      "section": "Shell",
+      "subtitle": "Locked-width glass pill bar, 2–5 tabs plus 1bar / multibar",
+      "viewport": "700x560"
+    },
+    {
+      "name": "SizeFrame",
+      "path": "components/shell/SizeFrame.jsx",
+      "previewPath": "components/shell/shell.card.html",
+      "kind": "component",
+      "section": "Shell",
+      "subtitle": "Device canvas with theme + material attributes",
+      "viewport": "700x820"
+    },
+    {
+      "name": "Titlebar",
+      "path": "components/shell/Titlebar.jsx",
+      "previewPath": "components/shell/shell.card.html",
+      "kind": "component",
+      "section": "Shell",
+      "subtitle": "Big / normal / secondary / drawer floating title bar",
+      "viewport": "700x520"
+    },
+    {
+      "name": "Toolbar",
+      "path": "components/shell/Toolbar.jsx",
+      "previewPath": "components/shell/shell.card.html",
+      "kind": "component",
+      "section": "Shell",
+      "subtitle": "Floating toolbar, 3–6 items",
+      "viewport": "700x260"
+    },
+    {
+      "name": "card",
+      "path": "ui_kits/card/index.html",
+      "previewPath": "ui_kits/card/index.html",
+      "kind": "screen",
+      "section": "Layouts",
+      "subtitle": "mobile-card · 360×780 · titlebar + search + stacked cards + 4-tab bar",
+      "viewport": "700x860"
+    },
+    {
+      "name": "grid",
+      "path": "ui_kits/grid/index.html",
+      "previewPath": "ui_kits/grid/index.html",
+      "kind": "screen",
+      "section": "Layouts",
+      "subtitle": "mobile-grid · 360×792 · chipstab + horizontal rails + hero card",
+      "viewport": "700x880"
+    },
+    {
+      "name": "list",
+      "path": "ui_kits/list/index.html",
+      "previewPath": "ui_kits/list/index.html",
+      "kind": "screen",
+      "section": "Layouts",
+      "subtitle": "mobile-list · 360×792 · grouped navigation rows with chevrons",
+      "viewport": "700x880"
+    },
+    {
+      "name": "settings",
+      "path": "ui_kits/settings/index.html",
+      "previewPath": "ui_kits/settings/index.html",
+      "kind": "screen",
+      "section": "Layouts",
+      "subtitle": "mobile-list (control rows) · 360×792 · switches, slider and slider rows",
+      "viewport": "700x880"
+    }
+  ],
+  "cards": [
+    {
+      "path": "components/containers/containers.card.html",
+      "group": "Components",
+      "viewport": "780x960",
+      "subtitle": "CardView · List · Divider",
+      "name": "Containers"
+    },
+    {
+      "path": "components/controls/controls.card.html",
+      "group": "Components",
+      "viewport": "780x1120",
+      "subtitle": "Button · Switch · FloatingSearch · FloatingChipsTab · Icon",
+      "name": "Controls"
+    },
+    {
+      "path": "components/shell/shell.card.html",
+      "group": "Components",
+      "viewport": "800x1500",
+      "subtitle": "SizeFrame · StatusBar · Titlebar · BottomTab · AIBottomBar · Toolbar",
+      "name": "Shell"
+    },
+    {
+      "path": "guidelines/colors-semantic.html",
+      "group": "Foundations",
+      "viewport": "780x620",
+      "subtitle": "Brand, warning, alert, confirm across light and dark",
+      "name": "Color · Semantic"
+    },
+    {
+      "path": "guidelines/colors-surfaces.html",
+      "group": "Foundations",
+      "viewport": "780x520",
+      "subtitle": "Page canvas, component surfaces, dividers, overlays",
+      "name": "Color · Surfaces"
+    },
+    {
+      "path": "guidelines/compliance-checklist.html",
+      "group": "Foundations",
+      "viewport": "820x980",
+      "subtitle": "The mandatory rules, and the six traps this system already fell into",
+      "name": "Compliance checklist"
+    },
+    {
+      "path": "guidelines/control-heights.html",
+      "group": "Foundations",
+      "viewport": "780x420",
+      "subtitle": "The six locked control heights",
+      "name": "Control heights"
+    },
+    {
+      "path": "guidelines/elevation-glass.html",
+      "group": "Foundations",
+      "viewport": "820x520",
+      "subtitle": "Shadow stacks, blur recipe and the light edge",
+      "name": "Elevation & glass"
+    },
+    {
+      "path": "guidelines/geometry-anchors.html",
+      "group": "Foundations",
+      "viewport": "820x900",
+      "subtitle": "The measured 36 / 12 / 40 / 8 / 96 and 100 = 16+56+28 chain, self-verified",
+      "name": "Geometry anchors"
+    },
+    {
+      "path": "guidelines/iconography.html",
+      "group": "Foundations",
+      "viewport": "820x620",
+      "subtitle": "HMSymbol only — 40 curated names from the official dictionary",
+      "name": "Iconography"
+    },
+    {
+      "path": "guidelines/layout-routing.html",
+      "group": "Foundations",
+      "viewport": "820x760",
+      "subtitle": "The three reference layouts and their hit rules",
+      "name": "Layout routing"
+    },
+    {
+      "path": "guidelines/light-effect.html",
+      "group": "Foundations",
+      "viewport": "820x560",
+      "subtitle": "沉浸光感 — focal components only, and why",
+      "name": "Immersive light effect"
+    },
+    {
+      "path": "guidelines/material-levels.html",
+      "group": "Foundations",
+      "viewport": "820x680",
+      "subtitle": "EXQUISITE / GENTLE / SMOOTH — one source of truth, no cross-product",
+      "name": "Material · Levels"
+    },
+    {
+      "path": "guidelines/material-types.html",
+      "group": "Foundations",
+      "viewport": "820x560",
+      "subtitle": "ADAPTIVE vs IMMERSIVE — the light edge, and its graceful degradation",
+      "name": "Material · Types"
+    },
+    {
+      "path": "guidelines/motion-states.html",
+      "group": "Foundations",
+      "viewport": "820x480",
+      "subtitle": "Hover, pressed, focus and the interactive morph",
+      "name": "Motion & states"
+    },
+    {
+      "path": "guidelines/safe-areas.html",
+      "group": "Foundations",
+      "viewport": "820x760",
+      "subtitle": "Status bar 36 · Home Indicator 28 — reserved, never painted",
+      "name": "Safe areas"
+    },
+    {
+      "path": "guidelines/spacing-scale.html",
+      "group": "Foundations",
+      "viewport": "780x700",
+      "subtitle": "Padding levels, radius levels and the page-scale tokens",
+      "name": "Spacing"
+    },
+    {
+      "path": "guidelines/theme-lightdark.html",
+      "group": "Foundations",
+      "viewport": "820x900",
+      "subtitle": "Same screen in light and dark — tokens, never literals",
+      "name": "Theme"
+    },
+    {
+      "path": "guidelines/typography-scale.html",
+      "group": "Foundations",
+      "viewport": "780x760",
+      "subtitle": "The 11-level HarmonyOS type scale with weights",
+      "name": "Typography"
+    },
+    {
+      "path": "ui_kits/card/index.html",
+      "group": "Layouts",
+      "viewport": "700x860",
+      "subtitle": "mobile-card · 360×780 · 首页",
+      "name": "card"
+    },
+    {
+      "path": "ui_kits/grid/index.html",
+      "group": "Layouts",
+      "viewport": "700x880",
+      "subtitle": "mobile-grid · 360×792 · 发现",
+      "name": "grid"
+    },
+    {
+      "path": "ui_kits/list/index.html",
+      "group": "Layouts",
+      "viewport": "700x880",
+      "subtitle": "mobile-list · 360×792 · 文件",
+      "name": "list"
+    },
+    {
+      "path": "ui_kits/settings/index.html",
+      "group": "Layouts",
+      "viewport": "700x880",
+      "subtitle": "mobile-list 控件型 · 360×792 · 设置",
+      "name": "settings"
+    }
+  ],
+  "globalCssPaths": [
+    "fonts.css",
+    "tokens/colors.css",
+    "tokens/typography.css",
+    "tokens/spacing.css",
+    "tokens/geometry.css",
+    "tokens/material.css",
+    "base.css",
+    "components/shell/shell.css",
+    "components/controls/controls.css",
+    "components/containers/containers.css",
+    "components/theme-bridge.css",
+    "components/components.css",
+    "styles.css"
+  ],
+  "tokens": [
+    {
+      "name": "--harmony-brand",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-warning",
+      "value": "rgba(232, 64, 38, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-alert",
+      "value": "rgba(237, 111, 33, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-confirm",
+      "value": "rgba(100, 187, 92, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-primary",
+      "value": "rgba(0, 0, 0, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-secondary",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-tertiary",
+      "value": "rgba(0, 0, 0, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-fourth",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-primary",
+      "value": "rgba(0, 0, 0, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-secondary",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-tertiary",
+      "value": "rgba(0, 0, 0, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-fourth",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-sub-emphasize",
+      "value": "rgba(10, 89, 247, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-secondary",
+      "value": "rgba(241, 243, 245, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-tertiary",
+      "value": "rgba(229, 229, 234, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-fourth",
+      "value": "rgba(209, 209, 214, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-foreground-primary",
+      "value": "rgba(0, 0, 0, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-primary-contrary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-gray",
+      "value": "rgba(241, 243, 245, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-secondary",
+      "value": "rgba(0, 0, 0, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-tertiary",
+      "value": "rgba(0, 0, 0, 0.047059)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-neutral",
+      "value": "rgba(0, 0, 0, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-emphasize-secondary",
+      "value": "rgba(10, 89, 247, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-emphasize-tertiary",
+      "value": "rgba(10, 89, 247, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-divider",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-common-contrary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-focus",
+      "value": "rgba(241, 243, 245, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-primary",
+      "value": "rgba(0, 0, 0, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-secondary",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-tertiary",
+      "value": "rgba(0, 0, 0, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-hover",
+      "value": "rgba(0, 0, 0, 0.047059)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-pressed",
+      "value": "rgba(0, 0, 0, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-focus",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-active",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-select",
+      "value": "rgba(10, 89, 247, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-click",
+      "value": "rgba(0, 0, 0, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-secondary",
+      "value": "var(--harmony-font-secondary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-tertiary",
+      "value": "var(--harmony-font-tertiary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-fourth",
+      "value": "var(--harmony-font-fourth)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-brand-color",
+      "value": "var(--harmony-brand)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-brand-text",
+      "value": "var(--harmony-font-on-primary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-bg-surface",
+      "value": "var(--harmony-background-primary, var(--harmony-comp-background-primary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-bg-elevated",
+      "value": "var(--harmony-background-secondary, var(--harmony-comp-background-secondary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-border",
+      "value": "var(--harmony-comp-divider)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-divider-color",
+      "value": "var(--harmony-comp-divider)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-btn-bg",
+      "value": "var(--harmony-comp-background-secondary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-overlay-bg",
+      "value": "var(--harmony-interactive-pressed, var(--harmony-comp-background-secondary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-page-bg",
+      "value": "rgba(243, 245, 248, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-panel-border",
+      "value": "rgba(223, 225, 230, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-title-text",
+      "value": "rgba(37, 43, 58, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-meta-text",
+      "value": "rgba(87, 93, 108, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-old",
+      "value": "rgba(0, 125, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-stroke-mid",
+      "value": "rgba(173, 176, 184, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-004",
+      "value": "rgba(0, 0, 0, 0.04)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-005",
+      "value": "rgba(0, 0, 0, 0.05)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-006",
+      "value": "rgba(0, 0, 0, 0.06)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-008",
+      "value": "rgba(0, 0, 0, 0.08)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-010",
+      "value": "rgba(0, 0, 0, 0.1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-012",
+      "value": "rgba(0, 0, 0, 0.12)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-016",
+      "value": "rgba(0, 0, 0, 0.16)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-020",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-rgb",
+      "value": "0, 0, 0",
+      "kind": "other",
+      "definedIn": "tokens/colors.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-008",
+      "value": "rgba(10, 89, 247, 0.08)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-035",
+      "value": "rgba(10, 89, 247, 0.35)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-075",
+      "value": "rgba(10, 89, 247, 0.75)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-solid",
+      "value": "rgba(251, 101, 34, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-text",
+      "value": "rgba(245, 101, 34, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-bg",
+      "value": "rgba(251, 101, 34, 0.1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-cyan-accent",
+      "value": "rgba(70, 177, 227, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-white-085",
+      "value": "rgba(255, 255, 255, 0.85)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-frosted-surface",
+      "value": "rgba(255, 255, 255, 0.9)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-brand",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-warning",
+      "value": "rgba(217, 72, 56, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-alert",
+      "value": "rgba(219, 107, 66, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-confirm",
+      "value": "rgba(91, 168, 84, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-primary",
+      "value": "rgba(255, 255, 255, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-emphasize",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-on-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-primary",
+      "value": "rgba(255, 255, 255, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-emphasize",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-sub-emphasize",
+      "value": "rgba(49, 122, 247, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-on-fourth",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-primary",
+      "value": "rgba(229, 229, 229, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-secondary",
+      "value": "rgba(25, 26, 28, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-tertiary",
+      "value": "rgba(32, 34, 36, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-fourth",
+      "value": "rgba(46, 48, 51, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-background-emphasize",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-foreground-primary",
+      "value": "rgba(229, 229, 229, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-primary",
+      "value": "rgba(32, 34, 36, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-primary-contrary",
+      "value": "rgba(229, 229, 229, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-gray",
+      "value": "rgba(229, 229, 234, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-secondary",
+      "value": "rgba(255, 255, 255, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-tertiary",
+      "value": "rgba(255, 255, 255, 0.047059)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-emphasize",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-neutral",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-emphasize-secondary",
+      "value": "rgba(49, 122, 247, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-emphasize-tertiary",
+      "value": "rgba(49, 122, 247, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-divider",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-common-contrary",
+      "value": "rgba(0, 0, 0, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-background-focus",
+      "value": "rgba(0, 0, 0, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-primary",
+      "value": "rgba(255, 255, 255, 0.898039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-secondary",
+      "value": "rgba(255, 255, 255, 0.6)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-comp-focused-tertiary",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-hover",
+      "value": "rgba(255, 255, 255, 0.047059)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-pressed",
+      "value": "rgba(255, 255, 255, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-focus",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-active",
+      "value": "rgba(49, 122, 247, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-select",
+      "value": "rgba(49, 122, 247, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-interactive-click",
+      "value": "rgba(255, 255, 255, 0.098039)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-secondary",
+      "value": "var(--harmony-font-secondary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-tertiary",
+      "value": "var(--harmony-font-tertiary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-text-fourth",
+      "value": "var(--harmony-font-fourth)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-brand-color",
+      "value": "var(--harmony-brand)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-brand-text",
+      "value": "var(--harmony-font-on-primary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-bg-surface",
+      "value": "var(--harmony-background-primary, var(--harmony-comp-background-primary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-bg-elevated",
+      "value": "var(--harmony-background-secondary, var(--harmony-comp-background-secondary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-border",
+      "value": "var(--harmony-comp-divider)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-divider-color",
+      "value": "var(--harmony-comp-divider)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-icon-btn-bg",
+      "value": "var(--harmony-comp-background-secondary)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-overlay-bg",
+      "value": "var(--harmony-interactive-pressed, var(--harmony-comp-background-secondary))",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-page-bg",
+      "value": "rgba(243, 245, 248, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-panel-border",
+      "value": "rgba(223, 225, 230, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-title-text",
+      "value": "rgba(37, 43, 58, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-meta-text",
+      "value": "rgba(87, 93, 108, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-old",
+      "value": "rgba(0, 125, 255, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-stroke-mid",
+      "value": "rgba(173, 176, 184, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-004",
+      "value": "rgba(0, 0, 0, 0.04)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-005",
+      "value": "rgba(0, 0, 0, 0.05)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-006",
+      "value": "rgba(0, 0, 0, 0.06)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-008",
+      "value": "rgba(0, 0, 0, 0.08)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-010",
+      "value": "rgba(0, 0, 0, 0.1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-012",
+      "value": "rgba(0, 0, 0, 0.12)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-016",
+      "value": "rgba(0, 0, 0, 0.16)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-020",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-overlay-rgb",
+      "value": "0, 0, 0",
+      "kind": "other",
+      "definedIn": "tokens/colors.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-008",
+      "value": "rgba(10, 89, 247, 0.08)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-035",
+      "value": "rgba(10, 89, 247, 0.35)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-brand-075",
+      "value": "rgba(10, 89, 247, 0.75)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-solid",
+      "value": "rgba(251, 101, 34, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-text",
+      "value": "rgba(245, 101, 34, 1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-orange-bg",
+      "value": "rgba(251, 101, 34, 0.1)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-cyan-accent",
+      "value": "rgba(70, 177, 227, 0.4)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-white-085",
+      "value": "rgba(255, 255, 255, 0.85)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-x-legacy-frosted-surface",
+      "value": "rgba(255, 255, 255, 0.9)",
+      "kind": "color",
+      "definedIn": "tokens/colors.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-size-display-l",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-display-l",
+      "value": "300",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-display-m",
+      "value": "48px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-display-m",
+      "value": "300",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-display-s",
+      "value": "38px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-display-s",
+      "value": "300",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-title-l",
+      "value": "30px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-title-l",
+      "value": "700",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-title-m",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-title-m",
+      "value": "700",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-title-s",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-title-s",
+      "value": "700",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-subtitle-l",
+      "value": "18px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-subtitle-l",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-subtitle-m",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-subtitle-m",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-subtitle-s",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-subtitle-s",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-body-l",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-body-l",
+      "value": "400",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-body-m",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-body-m",
+      "value": "400",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-body-s",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-body-s",
+      "value": "400",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-caption-l",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-caption-l",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-caption-m",
+      "value": "10px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-caption-m",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-font-size-caption-s",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "tokens/typography.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-font-weight-caption-s",
+      "value": "500",
+      "kind": "other",
+      "definedIn": "tokens/typography.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-padding-level0",
+      "value": "0px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level1",
+      "value": "2px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level2",
+      "value": "4px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level3",
+      "value": "6px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level4",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level5",
+      "value": "10px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level6",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level7",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level8",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level9",
+      "value": "18px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level10",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level11",
+      "value": "22px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level12",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level13",
+      "value": "26px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-padding-level16",
+      "value": "32px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-corner-radius-none",
+      "value": "0px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level1",
+      "value": "2px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level2",
+      "value": "4px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level3",
+      "value": "6px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level4",
+      "value": "8px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level5",
+      "value": "10px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level6",
+      "value": "12px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level7",
+      "value": "14px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level8",
+      "value": "16px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level9",
+      "value": "18px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level10",
+      "value": "20px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level11",
+      "value": "22px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level12",
+      "value": "24px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level13",
+      "value": "26px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level16",
+      "value": "32px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-corner-radius-level18",
+      "value": "36px",
+      "kind": "radius",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-control-height-28",
+      "value": "28px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-control-height-36",
+      "value": "36px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-control-height-40",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-control-height-56",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-control-height-64",
+      "value": "64px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-control-height-72",
+      "value": "72px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-page-canvas-width-mobile",
+      "value": "360px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-page-padding-mobile",
+      "value": "var(--harmony-padding-level8)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-page-padding-mobile-top",
+      "value": "36px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-page-padding-mobile-bottom",
+      "value": "28px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-page-content-width-mobile",
+      "value": "328px",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-card-gap-mobile",
+      "value": "var(--harmony-padding-level6)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-section-gap-mobile",
+      "value": "var(--harmony-padding-level8)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-section-gap-tight-mobile",
+      "value": "var(--harmony-padding-level4)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-text-gap-mobile-top",
+      "value": "var(--harmony-padding-level1)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-text-gap-mobile-left",
+      "value": "var(--harmony-padding-level4)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-inline-gap-tight-mobile",
+      "value": "var(--harmony-padding-level2)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-inline-gap-mobile",
+      "value": "var(--harmony-padding-level6)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-inline-gap-loose-mobile",
+      "value": "var(--harmony-padding-level8)",
+      "kind": "spacing",
+      "definedIn": "tokens/spacing.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-safe-top",
+      "value": "max(env(safe-area-inset-top), var(--harmony-page-padding-mobile-top))",
+      "kind": "shadow",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-safe-bottom",
+      "value": "max(env(safe-area-inset-bottom), var(--harmony-page-padding-mobile-bottom))",
+      "kind": "shadow",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-titlebar-pad-top",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-titlebar-row",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-titlebar-layer-normal",
+      "value": "calc(var(--harmony-titlebar-pad-top) + var(--harmony-titlebar-row))",
+      "kind": "other",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-titlebar-layer-secondary",
+      "value": "67px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-titlebar-gap",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-titlebar-panel",
+      "value": "124px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-titlebar-fade",
+      "value": "32px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-h",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-top-pad",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-indicator",
+      "value": "28px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-height",
+      "value": "calc(\n    var(--harmony-tabbar-h) + var(--harmony-tabbar-top-pad) + var(--harmony-safe-bottom))",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-bar-top",
+      "value": "calc(var(--harmony-tabbar-h) + var(--harmony-safe-bottom))",
+      "kind": "other",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-tabbar-width-2",
+      "value": "160px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-width-3",
+      "value": "236px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-width-4",
+      "value": "328px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-width-5",
+      "value": "328px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-width-multi",
+      "value": "264px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-tabbar-width-single",
+      "value": "264px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-dock-lift",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-content-width",
+      "value": "var(--harmony-page-content-width-mobile)",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-icon-size-16",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-icon-size-20",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-icon-size-24",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-touch-target",
+      "value": "var(--harmony-control-height-40)",
+      "kind": "other",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-touch-target-min",
+      "value": "var(--harmony-control-height-36)",
+      "kind": "other",
+      "definedIn": "tokens/geometry.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur",
+      "value": "30px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-saturate",
+      "value": "1.6",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-base",
+      "value": "0.72",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-strong-base",
+      "value": "0.88",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-scale",
+      "value": "1",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur-scale",
+      "value": "1",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur-pill",
+      "value": "80px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-blur-titlebar-base",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-glass-saturate",
+      "value": "1.2",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-action-shadow",
+      "value": "0 8px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "tokens/material.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-material-bar-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.16)",
+      "kind": "shadow",
+      "definedIn": "tokens/material.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-light-glow",
+      "value": "radial-gradient(\n    circle 68px at var(--harmony-light-x, 50%) var(--harmony-light-y, 50%),\n    rgb(255 255 255 / 0.6),\n    rgb(255 255 255 / 0.22) 46%,\n    rgb(255 255 255 / 0) 74%\n  )",
+      "kind": "shadow",
+      "definedIn": "tokens/material.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-light-fade-in",
+      "value": "50ms",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-light-fade-out",
+      "value": "400ms",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-light-ease",
+      "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-press-scale",
+      "value": "0.955",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-titlebar-gradient",
+      "value": "linear-gradient(\n    to bottom,\n    rgba(241, 243, 245, 0.8) 0%,\n    rgba(241, 243, 245, 0.8) 30%,\n    rgba(241, 243, 245, 0.79) 38.5%,\n    rgba(241, 243, 245, 0.74) 51.1%,\n    rgba(241, 243, 245, 0.65) 59.3%,\n    rgba(241, 243, 245, 0.53) 67.5%,\n    rgba(241, 243, 245, 0.32) 76.4%,\n    rgba(241, 243, 245, 0.12) 85.7%,\n    rgba(241, 243, 245, 0) 100%\n  )",
+      "kind": "color",
+      "definedIn": "tokens/material.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-tabbar-gradient",
+      "value": "linear-gradient(\n    to bottom,\n    rgba(241, 243, 245, 0) 0%,\n    rgba(241, 243, 245, 0.0017) 11.8%,\n    rgba(241, 243, 245, 0.0065) 21.4%,\n    rgba(241, 243, 245, 0.0141) 29.1%,\n    rgba(241, 243, 245, 0.0241) 35.3%,\n    rgba(241, 243, 245, 0.0363) 40.4%,\n    rgba(241, 243, 245, 0.0502) 44.6%,\n    rgba(241, 243, 245, 0.0656) 48.2%,\n    rgba(241, 243, 245, 0.0821) 51.8%,\n    rgba(241, 243, 245, 0.0994) 55.4%,\n    rgba(241, 243, 245, 0.117) 59.6%,\n    rgba(241, 243, 245, 0.1348) 64.7%,\n    rgba(241, 243, 245, 0.1523) 70.9%,\n    rgba(241, 243, 245, 0.1693) 78.6%,\n    rgba(241, 243, 245, 0.1853) 88.2%,\n    rgba(241, 243, 245, 0.2) 100%\n  )",
+      "kind": "color",
+      "definedIn": "tokens/material.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--x",
+      "value": "calc(80px * var(--scale))` at :root would freeze :root's\n   scale and ignore the frame's attribute. Composition therefore happens on the\n   element that carries the attributes — see components/theme-bridge.css. */\n/* DERIVED alphas: the reference fixes blur/saturate per tier but not the fill",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css"
+    },
+    {
+      "name": "--harmony-material-blur",
+      "value": "46px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-saturate",
+      "value": "1.9",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-scale",
+      "value": "0.8",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur-scale",
+      "value": "1.5",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur",
+      "value": "30px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-saturate",
+      "value": "1.6",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-scale",
+      "value": "1",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur-scale",
+      "value": "1",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur",
+      "value": "10px",
+      "kind": "spacing",
+      "definedIn": "tokens/material.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-material-saturate",
+      "value": "1.08",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-scale",
+      "value": "1.2",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-blur-scale",
+      "value": "0.4",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-base",
+      "value": "0.1",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-alpha-strong-base",
+      "value": "0.16",
+      "kind": "other",
+      "definedIn": "tokens/material.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-material-action-shadow",
+      "value": "0 8px 48px rgba(0, 0, 0, 0.35)",
+      "kind": "shadow",
+      "definedIn": "tokens/material.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-material-bar-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.28), 0 4px 8px rgba(0, 0, 0, 0.4)",
+      "kind": "shadow",
+      "definedIn": "tokens/material.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-titlebar-gradient",
+      "value": "linear-gradient(\n    to bottom,\n    rgba(25, 26, 28, 0.92) 0%,\n    rgba(25, 26, 28, 0.92) 30%,\n    rgba(25, 26, 28, 0.9) 38.5%,\n    rgba(25, 26, 28, 0.85) 51.1%,\n    rgba(25, 26, 28, 0.75) 59.3%,\n    rgba(25, 26, 28, 0.6) 67.5%,\n    rgba(25, 26, 28, 0.36) 76.4%,\n    rgba(25, 26, 28, 0.14) 85.7%,\n    rgba(25, 26, 28, 0) 100%\n  )",
+      "kind": "color",
+      "definedIn": "tokens/material.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-tabbar-gradient",
+      "value": "linear-gradient(\n    to bottom,\n    rgba(25, 26, 28, 0) 0%,\n    rgba(25, 26, 28, 0.06) 29.1%,\n    rgba(25, 26, 28, 0.2) 44.6%,\n    rgba(25, 26, 28, 0.45) 59.6%,\n    rgba(25, 26, 28, 0.74) 88.2%,\n    rgba(25, 26, 28, 0.96) 100%\n  )",
+      "kind": "color",
+      "definedIn": "tokens/material.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-font-stack",
+      "value": "\"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"HarmonyHeiTi\",\n    -apple-system, \"PingFang SC\", \"Noto Sans SC\", sans-serif",
+      "kind": "font",
+      "definedIn": "base.css",
+      "annotation": "font"
+    },
+    {
+      "name": "--harmony-font-mono",
+      "value": "\"SF Mono\", \"HarmonyOS Sans SC\", ui-monospace, monospace",
+      "kind": "font",
+      "definedIn": "base.css",
+      "annotation": "font"
+    },
+    {
+      "name": "--harmony-canvas-w",
+      "value": "360px",
+      "kind": "spacing",
+      "definedIn": "base.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-canvas-h",
+      "value": "792px",
+      "kind": "spacing",
+      "definedIn": "base.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-canvas-h-card",
+      "value": "780px",
+      "kind": "spacing",
+      "definedIn": "base.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-canvas-radius",
+      "value": "38px",
+      "kind": "radius",
+      "definedIn": "base.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--statusbar-color-light",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--statusbar-color-dark",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--statusbar-wifi-icon",
+      "value": "url(\"../../assets/statusbar-wifi-light.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-single-card-icon",
+      "value": "url(\"../../assets/statusbar-single-card-light.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-dual-card-icon",
+      "value": "url(\"../../assets/statusbar-dual-card-light.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-battery-icon",
+      "value": "url(\"../../assets/statusbar-battery-light.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-wifi-icon",
+      "value": "url(\"../../assets/statusbar-wifi-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-single-card-icon",
+      "value": "url(\"../../assets/statusbar-single-card-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-dual-card-icon",
+      "value": "url(\"../../assets/statusbar-dual-card-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-battery-icon",
+      "value": "url(\"../../assets/statusbar-battery-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-font-primary",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-font-secondary",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-icon-primary",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-bg-fill",
+      "value": "rgba(241, 243, 245, 0.8)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-blur",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--titlebar-normal-bg-gradient",
+      "value": "linear-gradient(\n    to bottom,\n    rgba(241, 243, 245, 0.8) 0%,\n    rgba(241, 243, 245, 0.8) 30%,\n    rgba(241, 243, 245, 0.79) 38.5%,\n    rgba(241, 243, 245, 0.74) 51.1%,\n    rgba(241, 243, 245, 0.65) 59.3%,\n    rgba(241, 243, 245, 0.53) 67.5%,\n    rgba(241, 243, 245, 0.32) 76.4%,\n    rgba(241, 243, 245, 0.12) 85.7%,\n    rgba(241, 243, 245, 0) 100%\n  )",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-bg",
+      "value": "rgba(255, 255, 255, 0.88)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-bg-hover",
+      "value": "rgba(255, 255, 255, 0.96)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-pressed",
+      "value": "rgba(0, 0, 0, 0.098)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-shadow",
+      "value": "0 8px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-blur",
+      "value": "blur(16px)",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-action-saturate",
+      "value": "1.2",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-action-inner-a",
+      "value": "inset 0 10px 80px rgba(0, 0, 0, 0.06)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-inner-b",
+      "value": "inset 0 -4px 40px rgba(0, 0, 0, 0.03)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-inner-c",
+      "value": "inset 0.5px 0 0.5px rgba(0, 0, 0, 0.2)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-inner-d",
+      "value": "inset -0.5px 0 0.75px rgba(40, 40, 40, 0.25)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-inner-e",
+      "value": "inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.3)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-action-inner-f",
+      "value": "inset 0 0.5px 0.75px rgba(255, 255, 255, 0.7)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-focus",
+      "value": "rgba(245, 249, 255, 0.5)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-font-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-font-primary",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-icon-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-icon-primary",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-bar-fill-top",
+      "value": "rgba(255, 255, 255, 0.15)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-bar-fill-bottom",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-bar-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--bt-blur",
+      "value": "80px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--bt-glass-blur",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--bt-fold-fill",
+      "value": "rgba(255, 255, 255, 0.2)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-fold-blur",
+      "value": "blur(10px) saturate(1.2)",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--bt-fold-border",
+      "value": "rgba(255, 255, 255, 0.21)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-fold-shadow-inner-top",
+      "value": "inset 0 2px 5px rgba(0, 0, 0, 0.5)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--bt-fold-shadow-inner-bottom",
+      "value": "inset 0 -2px 5px rgba(0, 0, 0, 0.25)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--bt-fold-shadow-outer",
+      "value": "0 4px 10px rgba(0, 0, 0, 0.1)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--bt-indicator-fill",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-expand-album-bg",
+      "value": "rgba(255, 255, 255, 0.3)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-container-gradient",
+      "value": "linear-gradient(\n      to bottom,\n      rgba(241, 243, 245, 0) 0%,\n      rgba(241, 243, 245, 0.0017) 11.8%,\n      rgba(241, 243, 245, 0.0065) 21.4%,\n      rgba(241, 243, 245, 0.0141) 29.1%,\n      rgba(241, 243, 245, 0.0241) 35.3%,\n      rgba(241, 243, 245, 0.0363) 40.4%,\n      rgba(241, 243, 245, 0.0502) 44.6%,\n      rgba(241, 243, 245, 0.0656) 48.2%,\n      rgba(241, 243, 245, 0.0821) 51.8%,\n      rgba(241, 243, 245, 0.0994) 55.4%,\n      rgba(241, 243, 245, 0.117) 59.6%,\n      rgba(241, 243, 245, 0.1348) 64.7%,\n      rgba(241, 243, 245, 0.1523) 70.9%,\n      rgba(241, 243, 245, 0.1693) 78.6%,\n      rgba(241, 243, 245, 0.1853) 88.2%,\n      rgba(241, 243, 245, 0.2) 100%\n    )",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--aibottombar-indicator-light",
+      "value": "rgba(0, 0, 0, 0.2)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--aibottombar-indicator-dark",
+      "value": "rgba(255, 255, 255, 0.5)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--aibottombar-indicator-transparent",
+      "value": "rgba(255, 255, 255, 0.7)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-emphasize",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-primary",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-material-base",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-material-dodge",
+      "value": "rgba(255, 255, 255, 0.15)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-toolbar-glass-shadow",
+      "value": "0 4px 8px rgba(0, 0, 0, 0.25)",
+      "kind": "shadow",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-toolbar-blur",
+      "value": "80px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-hover",
+      "value": "rgba(0, 0, 0, 0.05)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-pressed",
+      "value": "rgba(0, 0, 0, 0.1)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-focus",
+      "value": "rgba(10, 89, 247, 0.28)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-disabled",
+      "value": "rgba(0, 0, 0, 0.35)",
+      "kind": "color",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-radius",
+      "value": "28px",
+      "kind": "radius",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-toolbar-height",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-item-size",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-item-six-width",
+      "value": "50.6667px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-icon-size",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-label-height",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-font",
+      "value": "\"HarmonyHeiTi\", \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Noto Sans SC\", sans-serif",
+      "kind": "other",
+      "definedIn": "components/shell/shell.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-emphasized-bg",
+      "value": "rgba(0, 137, 249, 0.88)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-selected-bg",
+      "value": "rgba(199, 229, 253, 0.88)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-material-fill-1",
+      "value": "rgba(255, 255, 255, 0.16)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-material-fill-2",
+      "value": "rgba(255, 255, 255, 0.0225)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-font-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-font-primary",
+      "value": "rgba(0, 0, 0, 0.8065)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-warning",
+      "value": "rgba(232, 64, 38, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-interactive-hover",
+      "value": "rgba(0, 0, 0, 0.0022)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-interactive-pressed",
+      "value": "rgba(0, 0, 0, 0.0096)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-interactive-focus",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-floating-shadow",
+      "value": "0 8px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-blur",
+      "value": "30px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-floating-saturate",
+      "value": "1.2",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-floating-inner-a",
+      "value": "inset 0 10px 80px rgba(0, 0, 0, 0.06)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-inner-b",
+      "value": "inset 0 -4px 40px rgba(0, 0, 0, 0.03)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-inner-c",
+      "value": "inset 0.5px 0 0.5px rgba(0, 0, 0, 0.2)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-inner-d",
+      "value": "inset -0.5px 0 0.75px rgba(40, 40, 40, 0.25)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-inner-e",
+      "value": "inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.4)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-inner-f",
+      "value": "inset 0 0.5px 0.75px rgba(255, 255, 255, 0.7)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-material-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-material-blur",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-medium-w",
+      "value": "120px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-medium-h",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-medium-r",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-medium-font",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-small-w",
+      "value": "72px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-small-h",
+      "value": "28px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-small-r",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-small-font",
+      "value": "14px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-loading-ext",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-focus-ext",
+      "value": "4px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-focus-stroke",
+      "value": "2px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-spinner-size",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-font-family",
+      "value": "\"HarmonyHeiTi\", \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Noto Sans SC\", sans-serif",
+      "kind": "font",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "font"
+    },
+    {
+      "name": "--switch-on-track",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-thumb-fill",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-off-track",
+      "value": "rgba(0, 0, 0, 0.098)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-off-thumb-stroke",
+      "value": "rgba(0, 0, 0, 0.047)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-focus-ring",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-hover-overlay",
+      "value": "rgba(0, 0, 0, 0.047)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-pressed-overlay",
+      "value": "rgba(0, 0, 0, 0.098)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--switch-track-w",
+      "value": "36px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-track-h",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-track-r",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-thumb-s",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-thumb-on-left",
+      "value": "18px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-thumb-off-left",
+      "value": "2px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-focus-stroke",
+      "value": "2px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--switch-disabled-opacity",
+      "value": "0.4",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-font",
+      "value": "\"HarmonyHeiTi\", \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Noto Sans SC\", sans-serif",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-w",
+      "value": "328px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--search-h",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--search-r",
+      "value": "24px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--search-fill-1",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-fill-2",
+      "value": "rgba(255, 255, 255, 0.15)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-shadow",
+      "value": "0 4px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--search-backdrop-blur",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--search-placeholder",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-text",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-action-text",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-cursor",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-hover-overlay",
+      "value": "rgba(0, 0, 0, 0.047)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-pressed-overlay",
+      "value": "rgba(0, 0, 0, 0.098)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-focus-ring",
+      "value": "rgba(10, 89, 247, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-font",
+      "value": "\"HarmonyHeiTi\", \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Noto Sans SC\", sans-serif",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-activated-bg",
+      "value": "#0091FF",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-enable-bg",
+      "value": "rgba(255, 255, 255, 0.05)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-activated-title",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-activated-num",
+      "value": "rgba(255, 255, 255, 0.4)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-enable-title",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-enable-num",
+      "value": "rgba(0, 0, 0, 0.4)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-icon-color",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-icon-secondary",
+      "value": "rgba(0, 0, 0, 0.6)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-icon-on-primary",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--chipstab-shadow",
+      "value": "0 8px 48px rgba(0, 0, 0, 0.08)",
+      "kind": "shadow",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--chipstab-glass-blur",
+      "value": "blur(8px)",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-container-w",
+      "value": "360px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-container-h",
+      "value": "56px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-chip-h",
+      "value": "36px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-chip-r",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-chip-gap",
+      "value": "8px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-chip-content-gap",
+      "value": "6px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-chip-padding",
+      "value": "8px 16px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-num-size",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-title-size",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-icon-btn-size",
+      "value": "40px",
+      "kind": "spacing",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--chipstab-font",
+      "value": "\"HarmonyHeiTi\", \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Noto Sans SC\", sans-serif",
+      "kind": "other",
+      "definedIn": "components/controls/controls.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--cardview-bg",
+      "value": "rgba(255, 255, 255, 1)",
+      "kind": "color",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--cardview-icon-btn-bg",
+      "value": "rgba(0, 0, 0, 0.047)",
+      "kind": "color",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--cardview-icon-color",
+      "value": "rgba(0, 0, 0, 0.898)",
+      "kind": "color",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--cardview-radius",
+      "value": "20px",
+      "kind": "radius",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--cardview-icon-btn-size",
+      "value": "32px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--cardview-icon-size",
+      "value": "20px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--cardview-icon-margin",
+      "value": "12px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-list-dot-color",
+      "value": "#46B1E3",
+      "kind": "color",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-radius-pill",
+      "value": "999px",
+      "kind": "radius",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--harmony-checkbox-size",
+      "value": "16px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-size-width",
+      "value": "360px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-size-height",
+      "value": "792px",
+      "kind": "spacing",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-size-surface",
+      "value": "rgba(241, 243, 245, 1)",
+      "kind": "color",
+      "definedIn": "components/containers/containers.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--hm-glass-strong",
+      "value": "rgb(255 255 255 / calc(\n    var(--harmony-material-alpha-strong-base) * var(--harmony-material-alpha-scale)))",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--hm-blur",
+      "value": "var(--harmony-material-blur)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--hm-blur-pill",
+      "value": "calc(var(--harmony-material-blur-pill) * var(--harmony-material-blur-scale))",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--hm-blur-titlebar",
+      "value": "calc(\n    var(--harmony-material-blur-titlebar-base) * var(--harmony-material-blur-scale))",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--titlebar-bg-fill",
+      "value": "var(--hm-glass)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-blur",
+      "value": "var(--hm-blur-titlebar)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--titlebar-normal-bg-gradient",
+      "value": "var(--harmony-titlebar-gradient)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-action-bg",
+      "value": "var(--hm-glass-strong)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-bg-hover",
+      "value": "var(--hm-glass-strong)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--titlebar-action-blur",
+      "value": "blur(var(--hm-blur))",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-action-shadow",
+      "value": "var(--harmony-material-action-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--titlebar-font-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-font-secondary",
+      "value": "var(--harmony-font-secondary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-icon-primary",
+      "value": "var(--harmony-icon-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--titlebar-focus",
+      "value": "var(--harmony-interactive-focus)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--bt-blur",
+      "value": "var(--hm-blur-pill)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--bt-bar-fill-bottom",
+      "value": "var(--hm-glass)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-bar-fill-top",
+      "value": "rgb(255 255 255 / calc(\n    var(--harmony-material-alpha-base) * var(--harmony-material-alpha-scale) * 0.375))",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--bt-bar-shadow",
+      "value": "var(--harmony-material-bar-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--bt-container-gradient",
+      "value": "var(--harmony-tabbar-gradient)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--bt-font-emphasize",
+      "value": "var(--harmony-brand)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--bt-icon-emphasize",
+      "value": "var(--harmony-brand)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--bt-font-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--bt-icon-primary",
+      "value": "var(--harmony-icon-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-toolbar-blur",
+      "value": "var(--hm-blur-pill)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-material-base",
+      "value": "var(--hm-glass)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-material-dodge",
+      "value": "var(--hm-glass-strong)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--harmony-toolbar-shadow",
+      "value": "var(--harmony-material-bar-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--harmony-toolbar-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-toolbar-emphasize",
+      "value": "var(--harmony-brand)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--harmony-toolbar-hover",
+      "value": "var(--harmony-interactive-hover)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-toolbar-pressed",
+      "value": "var(--harmony-interactive-pressed)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-toolbar-focus",
+      "value": "var(--harmony-interactive-focus)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-font-primary",
+      "value": "var(--harmony-font-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-font-on-primary",
+      "value": "var(--harmony-font-on-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-emphasized-bg",
+      "value": "var(--harmony-brand)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-warning",
+      "value": "var(--harmony-warning)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-material-blur",
+      "value": "var(--hm-blur)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--btn-material-fill-1",
+      "value": "var(--hm-glass)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--btn-material-shadow",
+      "value": "var(--harmony-material-action-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-floating-blur",
+      "value": "blur(var(--hm-blur))",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-floating-shadow",
+      "value": "var(--harmony-material-action-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--btn-interactive-hover",
+      "value": "var(--harmony-interactive-hover)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-interactive-pressed",
+      "value": "var(--harmony-interactive-pressed)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--btn-interactive-focus",
+      "value": "var(--harmony-interactive-focus)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-on-track",
+      "value": "var(--harmony-brand)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-off-track",
+      "value": "var(--harmony-interactive-pressed)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-hover-overlay",
+      "value": "var(--harmony-interactive-hover)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-pressed-overlay",
+      "value": "var(--harmony-interactive-pressed)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--switch-focus-ring",
+      "value": "var(--harmony-interactive-focus)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-backdrop-blur",
+      "value": "var(--hm-blur)",
+      "kind": "spacing",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "spacing"
+    },
+    {
+      "name": "--search-fill-1",
+      "value": "var(--hm-glass)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-fill-2",
+      "value": "var(--hm-glass-strong)",
+      "kind": "color",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "color"
+    },
+    {
+      "name": "--search-shadow",
+      "value": "var(--harmony-material-action-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--search-text",
+      "value": "var(--harmony-font-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-placeholder",
+      "value": "var(--harmony-font-secondary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-cursor",
+      "value": "var(--harmony-brand)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-focus-ring",
+      "value": "var(--harmony-interactive-focus)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-hover-overlay",
+      "value": "var(--harmony-interactive-hover)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--search-pressed-overlay",
+      "value": "var(--harmony-interactive-pressed)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-activated-bg",
+      "value": "var(--harmony-brand)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-activated-title",
+      "value": "var(--harmony-font-on-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-activated-num",
+      "value": "var(--harmony-font-on-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-enable-title",
+      "value": "var(--harmony-font-secondary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-enable-num",
+      "value": "var(--harmony-font-tertiary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-icon-on-primary",
+      "value": "var(--harmony-icon-on-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-icon-secondary",
+      "value": "var(--harmony-icon-secondary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-glass-blur",
+      "value": "blur(var(--hm-blur))",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--chipstab-shadow",
+      "value": "var(--harmony-material-action-shadow)",
+      "kind": "shadow",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "shadow"
+    },
+    {
+      "name": "--cardview-bg",
+      "value": "var(--harmony-comp-background-primary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--cardview-radius",
+      "value": "var(--harmony-corner-radius-level10)",
+      "kind": "radius",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "radius"
+    },
+    {
+      "name": "--cardview-icon-btn-bg",
+      "value": "var(--harmony-interactive-hover)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--cardview-icon-color",
+      "value": "var(--harmony-icon-secondary)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--harmony-list-dot-color",
+      "value": "var(--harmony-icon-emphasize)",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-wifi-icon",
+      "value": "url(\"../assets/statusbar-wifi-light.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-single-card-icon",
+      "value": "url(\"../assets/statusbar-single-card-light.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-dual-card-icon",
+      "value": "url(\"../assets/statusbar-dual-card-light.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-battery-icon",
+      "value": "url(\"../assets/statusbar-battery-light.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-wifi-icon",
+      "value": "url(\"../assets/statusbar-wifi-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-single-card-icon",
+      "value": "url(\"../assets/statusbar-single-card-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-dual-card-icon",
+      "value": "url(\"../assets/statusbar-dual-card-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    },
+    {
+      "name": "--statusbar-battery-icon",
+      "value": "url(\"../assets/statusbar-battery-dark.png\")",
+      "kind": "other",
+      "definedIn": "components/theme-bridge.css",
+      "annotation": "other"
+    }
+  ],
+  "themes": [],
+  "fonts": [
+    {
+      "family": "hmsymbol"
+    }
+  ],
+  "brandFonts": [],
+  "source": "spa"
+}

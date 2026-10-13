@@ -1,0 +1,66 @@
+<!-- @dsCard group="Foundations" viewport="820x680" name="Material · Levels" subtitle="EXQUISITE / GENTLE / SMOOTH — one source of truth, no cross-product" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Material · Levels</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">材质等级 · MaterialLevel</div>
+  <div class="hm-spec__note">
+    规范：<code>EXQUISITE</code> 精致（高算力）· <code>GENTLE</code> 均衡（默认）· <code>SMOOTH</code> 轻盈（低算力）。
+    <strong>实测宽度</strong>由 <code>--harmony-material-blur-scale</code>（1.5 / 1 / 0.4）乘出，所以三档在标题栏与底栏上真的不同 —— 若写成固定字面量，材质系统就只是装饰。
+  </div>
+  <div class="hm-spec__row" style="align-items:flex-start;gap:22px" id="lv">
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">为什么派生值必须写在携带属性的元素上</div>
+  <div class="hm-spec__note">
+    CSS 自定义属性在<strong>声明它的元素</strong>上完成替换再继承。若把
+    <code>--x: calc(80px * var(--scale))</code> 写在 <code>:root</code>，它就在 :root 结算（scale=1）并被冻结，
+    后代元素上的 <code>data-material-level</code> 永远传不进去。所以组合发生在 <code>.hm-size</code> 上。
+  </div>
+</div>
+<script>
+(function () {
+  const levels = [["exquisite", "精致 EXQUISITE", "46/1.9 · scale 1.5"], ["gentle", "均衡 GENTLE", "30/1.6 · scale 1"], ["smooth", "轻盈 SMOOTH", "10/1.08 · scale 0.4"]];
+  const host = document.getElementById("lv");
+  levels.forEach(function (l) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "flex:0 0 auto;display:flex;flex-direction:column;gap:8px;font-size:11px;color:var(--harmony-font-secondary)";
+    wrap.innerHTML =
+      '<div class="hm-size" data-material-level="' + l[0] + '" data-material-type="adaptive" data-theme="light" ' +
+      'style="width:240px;height:300px;position:relative;background:linear-gradient(140deg,#3d86ff,#0a59f7 55%,#0a46c4);overflow:hidden">' +
+        '<header class="hm-titlebar hm-titlebar--normal" style="position:absolute;top:0;left:0;right:0">' +
+          '<div class="hm-titlebar__status"><span class="hm-titlebar__time">08:08</span></div>' +
+          '<div class="hm-titlebar__content"><h2 class="hm-titlebar__title" style="font-size:20px">标题</h2></div>' +
+        '</header>' +
+        '<nav class="hm-bottomtab" style="position:absolute;bottom:0;left:0;right:0">' +
+          '<div class="hm-bottomtab__bar hm-bottomtab__bar--3">' +
+            '<div class="hm-bottomtab__tabs"><button class="hm-bottomtab__tab hm-bottomtab__tab--active" type="button">' +
+            '<span class="hm-bottomtab__tab-icon" style="font-family:HMSymbol">&#xF0027;</span>' +
+            '<span class="hm-bottomtab__tab-label">首页</span></button></div>' +
+          '</div><div class="hm-bottomtab__indicator"></div>' +
+        '</nav>' +
+      '</div>' +
+      '<div><strong>' + l[1] + '</strong><br>' + l[2] + '</div>' +
+      '<code class="lv-blur"></code>';
+    host.appendChild(wrap);
+  });
+  requestAnimationFrame(function () {
+    document.querySelectorAll("#lv .hm-size").forEach(function (f, i) {
+      const bar = f.querySelector(".hm-bottomtab__bar");
+      const computed = getComputedStyle(f).getPropertyValue("--hm-blur-pill").trim();
+      const rendered = getComputedStyle(bar).backdropFilter;
+      f.parentElement.querySelector(".lv-blur").textContent = "token " + computed.replace(/\s+/g, " ") + " → " + rendered;
+    });
+  });
+})();
+</script>
+</div>
+</body>
+</html>

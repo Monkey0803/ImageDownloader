@@ -1,0 +1,89 @@
+<!-- @dsCard group="Layouts" viewport="700x880" name="grid" subtitle="mobile-grid · 360×792 · 发现" -->
+<!-- @startingPoint section="Layouts" subtitle="mobile-grid · 360×792 · chipstab + horizontal rails + hero card" viewport="700x880" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>UI kit · grid</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { SizeFrame, Titlebar, FloatingSearch, FloatingChipsTab, BottomTab, CardView, Icon } = window.HarmonyosMobile_c16f53;
+
+/* mobile-grid: titlebar → search → chipstab category bar → hero + horizontally
+   scrolling card rails. The rails intentionally overflow the 360 canvas (the
+   layout spec calls this out); the scroll container is wider than the viewport. */
+const CONTENT_TOP = "calc(var(--harmony-safe-top) + var(--harmony-titlebar-layer-normal) + var(--harmony-titlebar-gap))";
+const TABS = [{ icon: "house", label: "首页" }, { icon: "magnifyingglass", label: "发现" },
+              { icon: "heart", label: "收藏" }, { icon: "person", label: "我的" }];
+const CHIPS = [{ title: "推荐" }, { title: "壁纸", count: 12 }, { title: "头像" }, { title: "表情" }];
+const RAIL = [
+  { title: "京都红叶", sub: "12 张", tint: "linear-gradient(140deg,#3d86ff,#0a59f7)" },
+  { title: "雪山清晨", sub: "8 张", tint: "linear-gradient(140deg,#8fb8ff,#2f6ee0)" },
+  { title: "海边落日", sub: "21 张", tint: "linear-gradient(140deg,#ffb27f,#e8722f)" },
+  { title: "城市夜景", sub: "6 张", tint: "linear-gradient(140deg,#6f7bd8,#39418f)" },
+];
+
+function Rail({ title, action, items }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "0 16px" }}>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>{title}</span>
+        <span style={{ flex: 1 }} />
+        {action ? <span style={{ fontSize: 13, color: "var(--harmony-font-emphasize)" }}>{action}</span> : null}
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 4px" }}>
+        {items.map((item) => (
+          <CardView key={item.title} size="small" style={{ flex: "0 0 auto", width: 131, overflow: "hidden" }}>
+            <div style={{ height: 131, background: item.tint }} />
+            <div style={{ padding: "8px 10px 10px" }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{item.title}</div>
+              <div style={{ fontSize: 11, color: "var(--harmony-font-tertiary)" }}>{item.sub}</div>
+            </div>
+          </CardView>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GridKit() {
+  const [tab, setTab] = React.useState(1);
+  const [chip, setChip] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  return (
+    <SizeFrame statusbar={null} height={792} materialLevel="exquisite" materialType="immersive"
+        titlebar={<Titlebar variant="normal" title="发现" />}
+        bottomBar={<BottomTab variant="4" items={TABS} activeIndex={tab} onSelect={setTab} homeIndicatorBar={false} />}>
+      <div style={{ position: "absolute", top: CONTENT_TOP, left: 0, right: 0, bottom: 0,
+                    display: "flex", flexDirection: "column", gap: 16,
+                    paddingBottom: "var(--harmony-tabbar-height)", overflowY: "auto" }}>
+        <div style={{ padding: "0 16px" }}><FloatingSearch placeholder="搜索图片、站点" value={q} onChange={setQ} /></div>
+        <div style={{ padding: "0 16px" }}><FloatingChipsTab chips={CHIPS} activeIndex={chip} onSelect={setChip} /></div>
+
+        <div style={{ padding: "0 16px" }}>
+          <CardView size="larger" style={{ overflow: "hidden" }}>
+            <div style={{ height: 166, background: "linear-gradient(140deg,#3d86ff,#0a46c4)" }} />
+            <div style={{ padding: 14 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>本周精选壁纸</div>
+              <div style={{ fontSize: 12, color: "var(--harmony-font-tertiary)", marginTop: 2 }}>48 张 · 每周三更新</div>
+            </div>
+          </CardView>
+        </div>
+
+        <Rail title="热门合集" action="全部" items={RAIL} />
+        <Rail title="为你推荐" items={RAIL.slice().reverse()} />
+      </div>
+    </SizeFrame>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<GridKit />);
+</script>
+</body>
+</html>

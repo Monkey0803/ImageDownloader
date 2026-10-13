@@ -1,0 +1,60 @@
+<!-- @dsCard group="Foundations" viewport="820x620" name="Iconography" subtitle="HMSymbol only — 40 curated names from the official dictionary" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Iconography</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">图标来源优先级（规范强制）</div>
+  <div class="hm-spec__note">
+    1. <b>HMSymbol 最高优先</b> —— 字典里已有条目的图标，禁止用 inline SVG 替代。<br>
+    2. <b>只用线性图标</b> —— 同一语义同时有线性与面性版本时，必须选线性，且不许混用 <code>*_fill</code>。<br>
+    3. 本系统在 <code>tools/gen-icon-map.mjs</code> 里维护 40 个语义名的白名单，名字必须能在官方字典中解析，<b>解析不到直接构建失败</b>，不允许编造字形。
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">精选图标（全部来自官方字典）</div>
+  <div id="icons" style="display:flex;flex-wrap:wrap;gap:16px"></div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">两条如实记录的字典缺口</div>
+  <table>
+    <tr><th>需求</th><th>字典实情</th><th>本系统处理</th></tr>
+    <tr><td>关闭 / 关闭</td><td>没有 <code>close</code>，真实名是 <code>xmark</code></td><td>用 <code>xmark</code>，不画 SVG</td></tr>
+    <tr><td>设置齿轮</td><td>没有 <code>gear</code> / <code>setting</code>，真实名是 <code>gearshape</code></td><td>用 <code>gearshape</code></td></tr>
+    <tr><td>通知铃铛（线性）</td><td><b>只有</b> <code>bell_fill</code> / <code>bell_slash</code> / <code>bell_slash_fill</code>，<b>没有线性版</b></td><td><b>如实记为缺口</b>，不伪造线性铃铛</td></tr>
+  </table>
+</div>
+<script>
+(function () {
+  const names = ["chevron_left","chevron_right","chevron_up","chevron_down","indent_right","xmark","plus","more","sort",
+    "circle_dashed","trash","share","arrow_up_and_rectangle_on_rectangle","square_and_pencil","checkmark","checkmark_circle",
+    "exclamationmark_circle","info_circle","picture","play_fill","backward_end_fill","pause_round_triangle_fill","forward_end_fill",
+    "magnifyingglass","house","person","heart","gearshape","lock","eye","arrow_down_circle","folder","calendar","camera",
+    "star","bookmark","clock","list_bullet","square_grid_2x2","slider_horizontal_2"];
+  // Codepoints come from the generated map, so this card is a rendering check on it.
+  const CP = window.__HM_ICON_CODEPOINTS__ || null;
+  const host = document.getElementById("icons");
+  fetch("../components/controls/IconMap.jsx").then((r) => r.text()).then((src) => {
+    const map = {};
+    src.replace(/"([a-z0-9_]+)":\s*\{\s*u:\s*"(0x[0-9A-Fa-f]+)"/g, (m, n, u) => { map[n] = parseInt(u, 16); return m; });
+    names.forEach(function (n) {
+      const ok = map[n] !== undefined;
+      const cell = document.createElement("div");
+      cell.className = "hm-spec__tile";
+      cell.style.width = "72px";
+      cell.innerHTML = '<div style="font-family:HMSymbol;font-size:32px;line-height:1;height:36px;' +
+        (ok ? '' : 'color:var(--harmony-warning)') + '">' + (ok ? String.fromCodePoint(map[n]) : "✗") + '</div>' +
+        '<span style="font-size:9px;word-break:break-all">' + n + '</span>';
+      host.appendChild(cell);
+    });
+  });
+})();
+</script>
+</div>
+</body>
+</html>

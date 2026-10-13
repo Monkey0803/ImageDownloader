@@ -1,0 +1,45 @@
+<!-- @dsCard group="Foundations" viewport="780x620" name="Color · Semantic" subtitle="Brand, warning, alert, confirm across light and dark" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Color · Semantic</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">语义色 · 明 / 暗</div>
+  <div class="hm-spec__note">全部来自 <code>tokens/colors.css</code>（由 <code>tools/sync-tokens.mjs</code> 从规范库生成，未手抄）。切换右下角主题属性即可看到两套值。</div>
+  <div class="hm-spec__grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-brand)"></div>brand<code>#0a59f7</code></div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-confirm)"></div>confirm 确认</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-alert)"></div>alert 二级警示</div>
+    <div class="hm-spec__tile"><div class="hm-spec__swatch" style="background:var(--harmony-warning)"></div>warning 一级警示</div>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">文本与图标层级 · 四级</div>
+  <div class="hm-spec__panel" style="display:flex;flex-direction:column;gap:10px">
+    <div style="color:var(--harmony-font-primary);font-size:16px">一级文本 font_primary · 正文与标题</div>
+    <div style="color:var(--harmony-font-secondary);font-size:15px">二级文本 font_secondary · 辅助说明</div>
+    <div style="color:var(--harmony-font-tertiary);font-size:13px">三级文本 font_tertiary · 时间戳与元信息</div>
+    <div style="color:var(--harmony-font-fourth);font-size:12px">四级文本 font_fourth · 占位与禁用</div>
+    <div style="color:var(--harmony-font-emphasize);font-size:15px;font-weight:600">高亮文本 font_emphasize · 等同品牌色</div>
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">交互叠加层</div>
+  <div class="hm-spec__row">
+    <div style="flex:1;height:44px;border-radius:8px;background:var(--harmony-interactive-hover);display:grid;place-items:center;font-size:12px">hover 4.7%</div>
+    <div style="flex:1;height:44px;border-radius:8px;background:var(--harmony-interactive-pressed);display:grid;place-items:center;font-size:12px">pressed 9.8%</div>
+  </div>
+</div>
+<script>
+document.addEventListener("keydown", (e) => {
+  if (e.key === "d") { document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; }
+});
+</script>
+</div>
+</body>
+</html>

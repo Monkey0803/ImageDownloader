@@ -1,0 +1,85 @@
+<!-- @dsCard group="Components" viewport="780x1120" name="Controls" subtitle="Button · Switch · FloatingSearch · FloatingChipsTab · Icon" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Controls</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { Button, Switch, FloatingSearch, FloatingChipsTab, Icon, ICON_NAMES } = window.HarmonyosMobile_c16f53;
+
+function Panel({ label, children }) {
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase",
+                    color: "var(--harmony-font-tertiary)", marginBottom: 10 }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>{children}</div>
+    </div>
+  );
+}
+
+function ControlsCard() {
+  const [sw1, setSw1] = React.useState(true);
+  const [sw2, setSw2] = React.useState(false);
+  const [chip, setChip] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  return (
+    <div className="hm-frame" style={{ width: 660, height: "auto", padding: 28, background: "var(--harmony-background-secondary)", borderRadius: 20 }}>
+      <Panel label="Button — medium / small, by type">
+        <Button type="emphasized">主操作</Button>
+        <Button type="normal">次要</Button>
+        <Button type="selected">已选</Button>
+        <Button type="unselected">未选</Button>
+        <Button type="warning">删除</Button>
+        <Button type="normal" icon="plus" size="small">新建</Button>
+        <Button type="emphasized" loading>提交中</Button>
+        <Button type="normal" disabled>不可用</Button>
+      </Panel>
+
+      <Panel label="Switch — on / off / disabled">
+        <Switch on={sw1} label="沉浸光感" onChange={setSw1} />
+        <Switch on={sw2} label="防窥保护" onChange={setSw2} />
+        <Switch on disabled label="不可用" />
+      </Panel>
+
+      <Panel label="FloatingSearch — idle / typing / output, with the action region">
+        <div style={{ width: 328 }}>
+          <FloatingSearch placeholder="搜索文件名" value={q} onChange={setQ} />
+        </div>
+      </Panel>
+
+      <Panel label="FloatingChipsTab — tab / tab-with-icon / icontab">
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+          <FloatingChipsTab chips={[{ title: "推荐" }, { title: "壁纸", count: 12 }, { title: "头像" }]}
+                            activeIndex={chip} onSelect={setChip} />
+          <FloatingChipsTab variant="tab-with-icon"
+            chips={[{ title: "图片", icon: "picture" }, { title: "视频", icon: "play_fill" }, { title: "文件", icon: "folder" }]} />
+          <FloatingChipsTab variant="icontab" chips={[{ title: "全部" }, { title: "已下载" }]} trailingIcon="list_bullet" />
+        </div>
+      </Panel>
+
+      <Panel label={"Icon — " + ICON_NAMES.length + " curated HMSymbol names (line variants only)"}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 18 }}>
+          {ICON_NAMES.slice(0, 26).map((n) => (
+            <div key={n} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, width: 62 }}>
+              <Icon name={n} size={24} />
+              <span style={{ fontSize: 9, color: "var(--harmony-font-tertiary)", textAlign: "center", wordBreak: "break-all" }}>{n}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<ControlsCard />);
+</script>
+</body>
+</html>

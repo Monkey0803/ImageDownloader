@@ -1,0 +1,21 @@
+/*
+ * HarmonyOS Mobile Design System — global CSS entry point.
+ *
+ * Consumers link THIS file only. Keep it a list of @import lines and nothing
+ * else: everything it transitively imports is what ships.
+ *
+ * Order matters — fonts, then primitives (tokens), then the base layer, then
+ * component groups (each component's rules ride in its group's CSS, because the
+ * compiled bundle carries JavaScript only).
+ */
+
+@import "fonts.css";
+
+@import "tokens/colors.css";
+@import "tokens/typography.css";
+@import "tokens/spacing.css";
+@import "tokens/geometry.css";
+@import "tokens/material.css";
+
+@import "base.css";
+@import "components/components.css";

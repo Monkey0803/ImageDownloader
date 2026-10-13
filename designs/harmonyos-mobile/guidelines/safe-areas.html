@@ -1,0 +1,67 @@
+<!-- @dsCard group="Foundations" viewport="820x760" name="Safe areas" subtitle="Status bar 36 · Home Indicator 28 — reserved, never painted" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Safe areas</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="hm-host">
+<div class="hm-spec">
+<div class="hm-spec__section">
+  <div class="hm-spec__label">安全区：只预留，不绘制</div>
+  <div class="hm-spec__note">
+    顶部 <b>36px</b> = 状态栏（<code>StatusBar 360×36</code>，也是 <code>--harmony-page-padding-mobile-top</code>）。
+    底部 <b>28px</b> = Home Indicator 区（<code>360×28</code>，内含 112×5 指示条）。
+    <b>这两块都是留白</b>：真机上由系统绘制状态栏与指示条，原型再画一遍会重叠。
+    <code>--harmony-safe-top / --harmony-safe-bottom</code> 用 <code>max(env(...), 36px/28px)</code>：
+    真机取系统真实值，浏览器里 env() 为 0 时用规范值兜底。
+  </div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">实测（纯浏览器环境，env() 为 0）</div>
+  <table>
+    <tr><th>锚点</th><th>规范</th><th>实测</th><th>说明</th></tr>
+    <tr><td>顶部状态栏区</td><td><code>36px</code></td><td><code id="v-top">—</code></td><td>状态栏区域高度</td></tr>
+    <tr><td>底部 Home Indicator 区</td><td><code>28px</code></td><td><code id="v-bottom">—</code></td><td>胶囊底边到屏幕底</td></tr>
+  </table>
+  <div class="hm-spec__note" id="v-note"></div>
+</div>
+<div class="hm-spec__section">
+  <div class="hm-spec__label">为什么会踩坑</div>
+  <div class="hm-spec__note">
+    我最初的实现是 <code>--safe-bottom: max(env(...), 6px)</code>，同时 <code>--tabbar-space: 84px</code> 里<b>已经含了</b>28px 指示区，
+    于是净空变成 28+6=34px —— 同一块空间被算了两次。现在指示区高度只存在于 <code>--safe-bottom</code> 一处。
+  </div>
+</div>
+<script>
+(function () {
+  const f = document.createElement("div");
+  f.className = "hm-size";
+  f.style.cssText = "position:fixed;left:-9999px;width:360px;height:792px";
+  f.innerHTML = '<div class="hm-size-statusbar" id="probe-slot"></div>' +
+    '<nav class="hm-bottomtab" style="position:absolute;bottom:0;left:0;right:0">' +
+    '<div class="hm-bottomtab__bar hm-bottomtab__bar--3"><div class="hm-bottomtab__tabs">' +
+    '<button class="hm-bottomtab__tab" type="button"><span class="hm-bottomtab__tab-label">首页</span></button>' +
+    '</div></div><div class="hm-bottomtab__indicator"></div></nav>';
+  document.body.appendChild(f);
+  requestAnimationFrame(function () {
+    const r = (el) => el.getBoundingClientRect();
+    const top = r(f.querySelector("#probe-slot")).height;
+    const bottom = r(f).bottom - r(f.querySelector(".hm-bottomtab__bar")).bottom;
+    const set = (id, val, spec) => {
+      const el = document.getElementById(id);
+      const ok = Math.abs(val - spec) < 1.5;
+      el.textContent = Math.round(val) + "px " + (ok ? "✓" : "✗");
+      el.style.color = ok ? "var(--harmony-confirm)" : "var(--harmony-warning)";
+    };
+    set("v-top", top, 36);
+    set("v-bottom", bottom, 28);
+    document.getElementById("v-note").textContent =
+      "顶部实测 " + Math.round(top) + "px，底部实测 " + Math.round(bottom) + "px。若底部读到 34px，说明指示区被重复计算了。";
+  });
+})();
+</script>
+</div>
+</body>
+</html>

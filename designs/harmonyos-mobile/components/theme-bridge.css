@@ -1,0 +1,245 @@
+/*
+ * Theme bridge — attaches the translated templates to this system's tokens.
+ *
+ * tools/import-template-css.mjs copies the reference templates byte-for-byte, and
+ * those templates hard-code their own local values (brand blue, white glass, blur
+ * radii) instead of reading tokens. Left alone, that breaks three things:
+ *   · dark mode — light-only literals never change
+ *   · the material system — MaterialLevel / MaterialType would have no effect
+ *     because the templates set their own --*-blur / --*-fill
+ *   · token discipline — raw hex appears inside components
+ *
+ * So this file re-points those locals at the token set. It is the ONLY place a
+ * template value is overridden, and every override states why. Values not listed
+ * here keep the reference's exact numbers (that is the point of importing them).
+ *
+ * Imported last, so these win over the generated group CSS.
+ */
+
+/* ---------------------------------------------------------------- composition */
+/*
+ * Derived values are composed HERE, on the element that carries the attributes
+ * (SizeFrame renders .hm-size with data-theme / data-material-level /
+ * data-material-type), never at :root.
+ *
+ * Why it matters: a CSS custom property is substituted on the element where it is
+ * DECLARED and then inherited as an already-resolved value. A `:root` token such
+ * as `--x: calc(80px * var(--scale))` therefore freezes :root's `--scale`, and the
+ * frame's data-material-level would have no effect on anything that consumes --x.
+ * Composing on the attribute carrier keeps one source of truth with no
+ * theme x level cross-product.
+ */
+.hm-size,
+.hm-frame {
+  --hm-glass: rgb(255 255 255 / calc(
+    var(--harmony-material-alpha-base) * var(--harmony-material-alpha-scale))); /* @kind color */
+  --hm-glass-strong: rgb(255 255 255 / calc(
+    var(--harmony-material-alpha-strong-base) * var(--harmony-material-alpha-scale))); /* @kind color */
+  /* the level's own thickness (46 / 30 / 10px) for component-sized glass */
+  --hm-blur: var(--harmony-material-blur); /* @kind spacing */
+  /* the shell's larger radii, scaled by the level */
+  --hm-blur-pill: calc(var(--harmony-material-blur-pill) * var(--harmony-material-blur-scale)); /* @kind spacing */
+  --hm-blur-titlebar: calc(
+    var(--harmony-material-blur-titlebar-base) * var(--harmony-material-blur-scale)); /* @kind spacing */
+}
+
+/* ============================================================ floating titlebar */
+.hm-titlebar {
+  /* literal light grey -> material glass (theme- and level-aware) */
+  --titlebar-bg-fill: var(--hm-glass); /* @kind color */
+  /* 12px literal -> token (SPEC: immersive titlebar blur is 12px) */
+  --titlebar-blur: var(--hm-blur-titlebar); /* @kind spacing */
+  /* the nine-stop fade already exists as a token, with a dark variant */
+  --titlebar-normal-bg-gradient: var(--harmony-titlebar-gradient); /* @kind other */
+  /* 40x40 action button: white glass + floating shadow */
+  --titlebar-action-bg: var(--hm-glass-strong); /* @kind color */
+  --titlebar-action-bg-hover: var(--hm-glass-strong); /* @kind color */
+  --titlebar-action-blur: blur(var(--hm-blur)); /* @kind other */
+  --titlebar-action-shadow: var(--harmony-material-action-shadow); /* @kind shadow */
+  /* literals -> semantic text/icon tokens so dark mode resolves */
+  --titlebar-font-primary: var(--harmony-font-primary); /* @kind other */
+  --titlebar-font-secondary: var(--harmony-font-secondary); /* @kind other */
+  --titlebar-icon-primary: var(--harmony-icon-primary); /* @kind other */
+  --titlebar-focus: var(--harmony-interactive-focus); /* @kind other */
+}
+
+/* ================================================================ bottom tab */
+.hm-bottomtab {
+  /* SPEC: immersive pill bar blur is 80px */
+  --bt-blur: var(--hm-blur-pill); /* @kind spacing */
+  /* the template's two blend layers are 0.15 and 0.4 of white; keep the RATIO and
+     drive the magnitude from the material alpha so level/theme still apply */
+  --bt-bar-fill-bottom: var(--hm-glass); /* @kind color */
+  --bt-bar-fill-top: rgb(255 255 255 / calc(
+    var(--harmony-material-alpha-base) * var(--harmony-material-alpha-scale) * 0.375)); /* @kind color */
+  /* the pill's own top highlight is part of the MaterialType light edge below */
+  --bt-bar-shadow: var(--harmony-material-bar-shadow); /* @kind shadow */
+  /* the 16-stop container fade, with a dark variant */
+  --bt-container-gradient: var(--harmony-tabbar-gradient); /* @kind other */
+  /* brand literals -> --harmony-brand, which is the token that flips in dark mode */
+  --bt-font-emphasize: var(--harmony-brand); /* @kind spacing */
+  --bt-icon-emphasize: var(--harmony-brand); /* @kind spacing */
+  --bt-font-primary: var(--harmony-font-primary); /* @kind other */
+  --bt-icon-primary: var(--harmony-icon-primary); /* @kind other */
+}
+
+/* ================================================================== toolbar */
+.hm-toolbar {
+  --harmony-toolbar-blur: var(--hm-blur-pill); /* @kind spacing */
+  --harmony-toolbar-material-base: var(--hm-glass); /* @kind color */
+  --harmony-toolbar-material-dodge: var(--hm-glass-strong); /* @kind color */
+  --harmony-toolbar-shadow: var(--harmony-material-bar-shadow); /* @kind shadow */
+  --harmony-toolbar-primary: var(--harmony-font-primary); /* @kind other */
+  --harmony-toolbar-emphasize: var(--harmony-brand); /* @kind spacing */
+  --harmony-toolbar-hover: var(--harmony-interactive-hover); /* @kind other */
+  --harmony-toolbar-pressed: var(--harmony-interactive-pressed); /* @kind other */
+  --harmony-toolbar-focus: var(--harmony-interactive-focus); /* @kind other */
+}
+
+/* =================================================================== button */
+.hm-button {
+  --btn-font-primary: var(--harmony-font-primary); /* @kind other */
+  --btn-font-on-primary: var(--harmony-font-on-primary); /* @kind other */
+  --btn-emphasized-bg: var(--harmony-brand); /* @kind spacing */
+  --btn-warning: var(--harmony-warning); /* @kind other */
+  --btn-material-blur: var(--hm-blur); /* @kind spacing */
+  --btn-material-fill-1: var(--hm-glass); /* @kind color */
+  --btn-material-shadow: var(--harmony-material-action-shadow); /* @kind shadow */
+  --btn-floating-blur: blur(var(--hm-blur)); /* @kind other */
+  --btn-floating-shadow: var(--harmony-material-action-shadow); /* @kind shadow */
+  /* DEVIATION: the template's own overlays are 0.0022 / 0.0096 — far below the
+     token set's 0.047 / 0.098, so hover and press read as no-ops. Re-pointed at
+     the published interaction tokens. */
+  --btn-interactive-hover: var(--harmony-interactive-hover); /* @kind other */
+  --btn-interactive-pressed: var(--harmony-interactive-pressed); /* @kind other */
+  --btn-interactive-focus: var(--harmony-interactive-focus); /* @kind other */
+}
+
+/* =================================================================== switch */
+.hm-switch {
+  --switch-on-track: var(--harmony-brand); /* @kind other */
+  --switch-off-track: var(--harmony-interactive-pressed); /* @kind other */
+  --switch-hover-overlay: var(--harmony-interactive-hover); /* @kind other */
+  --switch-pressed-overlay: var(--harmony-interactive-pressed); /* @kind other */
+  --switch-focus-ring: var(--harmony-interactive-focus); /* @kind other */
+}
+
+/* =================================================================== search */
+.hm-search {
+  --search-backdrop-blur: var(--hm-blur); /* @kind spacing */
+  --search-fill-1: var(--hm-glass); /* @kind color */
+  --search-fill-2: var(--hm-glass-strong); /* @kind color */
+  --search-shadow: var(--harmony-material-action-shadow); /* @kind shadow */
+  --search-text: var(--harmony-font-primary); /* @kind other */
+  --search-placeholder: var(--harmony-font-secondary); /* @kind other */
+  --search-cursor: var(--harmony-brand); /* @kind other */
+  --search-focus-ring: var(--harmony-interactive-focus); /* @kind other */
+  --search-hover-overlay: var(--harmony-interactive-hover); /* @kind other */
+  --search-pressed-overlay: var(--harmony-interactive-pressed); /* @kind other */
+}
+
+/* ============================================================== chips tab */
+.hm-chipstab {
+  /* DEVIATION: the template hard-codes #0091FF here — a raw hex that is not even
+     the brand blue (which is #0a59f7), so the activated chip never matched the
+     system accent and never flipped in dark mode. */
+  --chipstab-activated-bg: var(--harmony-brand); /* @kind other */
+  --chipstab-activated-title: var(--harmony-font-on-primary); /* @kind other */
+  --chipstab-activated-num: var(--harmony-font-on-primary); /* @kind other */
+  --chipstab-enable-title: var(--harmony-font-secondary); /* @kind other */
+  --chipstab-enable-num: var(--harmony-font-tertiary); /* @kind other */
+  --chipstab-icon-on-primary: var(--harmony-icon-on-primary); /* @kind other */
+  --chipstab-icon-secondary: var(--harmony-icon-secondary); /* @kind other */
+  --chipstab-glass-blur: blur(var(--hm-blur)); /* @kind other */
+  --chipstab-shadow: var(--harmony-material-action-shadow); /* @kind shadow */
+}
+
+/* ==================================================================== card */
+.hm-cardview {
+  --cardview-bg: var(--harmony-comp-background-primary); /* @kind other */
+  --cardview-radius: var(--harmony-corner-radius-level10); /* @kind radius */
+  --cardview-icon-btn-bg: var(--harmony-interactive-hover); /* @kind other */
+  --cardview-icon-color: var(--harmony-icon-secondary); /* @kind other */
+}
+
+/* ==================================================================== list */
+.hm-list {
+  --harmony-list-dot-color: var(--harmony-icon-emphasize); /* @kind other */
+}
+
+/* ============================================================ MaterialType
+   IMMERSIVE adds the light edge (双边流光) that reads the surface as glass.
+   Written as rules rather than a token because a box-shadow list cannot contain
+   `none`, and the SMOOTH tier must drop the edge entirely — the graceful
+   degradation getSystemMaterialTypes() / getGlobalMaterialLevel() require. */
+[data-material-type="immersive"] .hm-bottomtab__bar,
+[data-material-type="immersive"] .hm-toolbar__bar,
+[data-material-type="immersive"] .hm-titlebar__action-btn,
+[data-material-type="immersive"] .hm-titlebar__leading {
+  box-shadow:
+    var(--harmony-material-bar-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.38),
+    inset -1px 0 0 rgba(255, 255, 255, 0.38);
+}
+[data-material-type="immersive"] .hm-button--floating,
+[data-material-type="immersive"] .hm-search {
+  box-shadow:
+    var(--harmony-material-action-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+}
+/* Graceful degradation: the SMOOTH tier cannot render the light edge. */
+[data-material-type="immersive"][data-material-level="smooth"] .hm-bottomtab__bar,
+[data-material-type="immersive"][data-material-level="smooth"] .hm-toolbar__bar,
+[data-material-type="immersive"][data-material-level="smooth"] .hm-titlebar__action-btn,
+[data-material-type="immersive"][data-material-level="smooth"] .hm-titlebar__leading {
+  box-shadow: var(--harmony-material-bar-shadow);
+}
+[data-material-type="immersive"][data-material-level="smooth"] .hm-button--floating,
+[data-material-type="immersive"][data-material-level="smooth"] .hm-search {
+  box-shadow: var(--harmony-material-action-shadow);
+}
+
+/* ==================================================== reference gap: titlebar
+   The reference's titlebar template defines .harmony-titlebar__status-icon--wifi /
+   --sig1 / --sig2 / --battery with exact geometry (15.34×12 @ 0.4,0.5 …) but NO
+   background-image, so its internal status row renders as four empty boxes. The
+   statusbar template DOES ship the artwork (--statusbar-*-icon). Same glyphs, same
+   sizes — the assets were simply not wired up in the titlebar. Bridged here rather
+   than by drawing anything. */
+/* The reference injects the glyph URLs on .hm-statusbar-light / .hm-statusbar-dark —
+   a COMPONENT scope, so only the statusbar itself can see them. Theme is a canvas
+   level concept, so re-declare the same four assets on the theme scope; the
+   statusbar keeps its own declarations and nothing is drawn by hand. */
+.hm-size,
+.hm-frame,
+.hm-statusbar-light {
+  --statusbar-wifi-icon: url("../assets/statusbar-wifi-light.png"); /* @kind other */
+  --statusbar-single-card-icon: url("../assets/statusbar-single-card-light.png"); /* @kind other */
+  --statusbar-dual-card-icon: url("../assets/statusbar-dual-card-light.png"); /* @kind other */
+  --statusbar-battery-icon: url("../assets/statusbar-battery-light.png"); /* @kind other */
+}
+[data-theme="dark"] .hm-size,
+[data-theme="dark"] .hm-frame,
+.hm-size[data-theme="dark"],
+.hm-frame[data-theme="dark"],
+.hm-statusbar-dark {
+  --statusbar-wifi-icon: url("../assets/statusbar-wifi-dark.png"); /* @kind other */
+  --statusbar-single-card-icon: url("../assets/statusbar-single-card-dark.png"); /* @kind other */
+  --statusbar-dual-card-icon: url("../assets/statusbar-dual-card-dark.png"); /* @kind other */
+  --statusbar-battery-icon: url("../assets/statusbar-battery-dark.png"); /* @kind other */
+}
+.hm-titlebar__status-icon--wifi,
+.hm-titlebar__status-icon--sig1,
+.hm-titlebar__status-icon--sig2,
+.hm-titlebar__status-icon--battery {
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+.hm-titlebar__status-icon--wifi { background-image: var(--statusbar-wifi-icon); }
+.hm-titlebar__status-icon--sig1 { background-image: var(--statusbar-single-card-icon); }
+.hm-titlebar__status-icon--sig2 { background-image: var(--statusbar-dual-card-icon); }
+.hm-titlebar__status-icon--battery { background-image: var(--statusbar-battery-icon); }

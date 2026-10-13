@@ -1,0 +1,91 @@
+<!-- @dsCard group="Components" viewport="800x1500" name="Shell" subtitle="SizeFrame · StatusBar · Titlebar · BottomTab · AIBottomBar · Toolbar" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Shell components</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { SizeFrame, StatusBar, Titlebar, BottomTab, AIBottomBar, Toolbar } = window.HarmonyosMobile_c16f53;
+
+const shellTabs = [
+  { icon: "house", label: "首页" },
+  { icon: "magnifyingglass", label: "发现" },
+  { icon: "heart", label: "收藏" },
+  { icon: "person", label: "我的" },
+];
+
+function Row({ label, children }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase",
+                    color: "var(--harmony-font-tertiary)", marginBottom: 10 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function ShellCard() {
+  const [tabIndex, setTabIndex] = React.useState(0);
+  const [toolIndex, setToolIndex] = React.useState(0);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start", maxWidth: 780 }}>
+      <div>
+        <div style={{ display: "flex", gap: 24 }}>
+          <SizeFrame materialLevel="gentle" materialType="adaptive" statusbar={<StatusBar time="08:08" />}>
+            <Titlebar variant="secondary" title="标题" subtitle="副标题" showStatus={false} />
+          </SizeFrame>
+          <SizeFrame theme="dark" materialLevel="exquisite" materialType="immersive" statusbar={<StatusBar time="08:08" theme="dark" />}>
+            <Titlebar variant="big" title="大标题" subtitle="30/40 Bold + 副标题" showStatus={false}
+              actions={[{ glyph: "circle_dashed", label: "动作一" }, { glyph: "plus", label: "动作二" }, { glyph: "more", label: "更多" }]} />
+          </SizeFrame>
+        </div>
+        <Row label="SizeFrame · StatusBar · Titlebar (secondary / big)">
+          <span style={{ fontSize: 12, color: "var(--harmony-font-secondary)" }}>
+            画布 360×792（卡片布局为 360×780）· 状态栏 36px 由本组件绘制，仅用于设计稿
+          </span>
+        </Row>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+        <Row label="BottomTab — variant 4 (bar 328px)">
+          <SizeFrame statusbar={null} width={360} height={110} materialType="immersive">
+            <BottomTab variant="4" items={shellTabs} activeIndex={tabIndex} onSelect={setTabIndex} />
+          </SizeFrame>
+        </Row>
+        <Row label="BottomTab — variant 3 (bar 236px) · AIBottomBar">
+          <SizeFrame statusbar={null} width={360} height={110}>
+            <BottomTab variant="3" items={shellTabs.slice(0, 3)} activeIndex={0} />
+          </SizeFrame>
+        </Row>
+        <Row label="Toolbar — variant 4 / vertical-icon">
+          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+            <Toolbar variant="4" activeIndex={toolIndex} onSelect={setToolIndex}
+              items={[{ icon: "square_and_pencil", label: "重命名" }, { icon: "share", label: "分享" },
+                      { icon: "trash", label: "删除" }, { icon: "more", label: "更多" }]} />
+            <Toolbar variant="vertical-icon" activeIndex={0}
+              items={[{ icon: "house", label: "首页" }, { icon: "magnifyingglass", label: "发现" }]} />
+          </div>
+        </Row>
+        <Row label="AIBottomBar — light / dark">
+          <div style={{ display: "flex", gap: 24 }}>
+            <AIBottomBar theme="light" />
+            <AIBottomBar theme="dark" />
+          </div>
+        </Row>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<ShellCard />);
+</script>
+</body>
+</html>

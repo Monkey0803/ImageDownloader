@@ -1,0 +1,9 @@
+:root {
+  /* BROKEN: the reference mandates 8px (R6). */
+  --harmony-brand: rgba(10, 89, 247, 1);
+  --harmony-titlebar-gap: 12px;
+  --harmony-titlebar-layer-normal: 52px;
+  --harmony-tabbar-h: 56px;
+  --harmony-tabbar-top-pad: 16px;
+  --harmony-tabbar-indicator: 28px;
+}

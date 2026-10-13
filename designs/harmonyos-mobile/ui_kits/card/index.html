@@ -1,0 +1,90 @@
+<!-- @dsCard group="Layouts" viewport="700x860" name="card" subtitle="mobile-card · 360×780 · 首页" -->
+<!-- @startingPoint section="Layouts" subtitle="mobile-card · 360×780 · titlebar + search + stacked cards + 4-tab bar" viewport="700x860" -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>UI kit · card</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head>
+<body class="hm-host">
+<div id="root"></div>
+<script type="text/babel">
+const { SizeFrame, Titlebar, FloatingSearch, BottomTab, CardView, List, Divider, Button, Icon } = window.HarmonyosMobile_c16f53;
+
+/* mobile-card: fixed titlebar → search as the first scrollable item → sections of
+   stacked cards → fixed bottom shell. Content starts at 96px (normal variant:
+   text-layer bottom 88 + the mandatory 8px), expressed from the tokens rather
+   than hard-coded so a variant change moves it correctly. */
+const CONTENT_TOP = "calc(var(--harmony-safe-top) + var(--harmony-titlebar-layer-normal) + var(--harmony-titlebar-gap))";
+
+const TABS = [
+  { icon: "house", label: "首页" },
+  { icon: "magnifyingglass", label: "发现" },
+  { icon: "heart", label: "收藏" },
+  { icon: "person", label: "我的" },
+];
+
+const FEED = [
+  { title: "旅拍志 · 京都的秋", meta: "12 张 · 14:32", tint: "linear-gradient(140deg,#3d86ff,#0a59f7)" },
+  { title: "山野纪实 · 川西", meta: "8 张 · 昨天", tint: "linear-gradient(140deg,#7fb2ff,#2f6ee0)" },
+];
+
+function SectionLabel({ children, action }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "0 2px" }}>
+      <span style={{ fontSize: 15, fontWeight: 700, color: "var(--harmony-font-primary)" }}>{children}</span>
+      <span style={{ flex: 1 }} />
+      {action ? <span style={{ fontSize: 13, color: "var(--harmony-font-emphasize)" }}>{action}</span> : null}
+    </div>
+  );
+}
+
+function CardKit() {
+  const [tab, setTab] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  return (
+    <SizeFrame statusbar={null} height={780} materialLevel="gentle" materialType="immersive"
+        titlebar={<Titlebar variant="normal" title="首页" />}
+        bottomBar={<BottomTab variant="4" items={TABS} activeIndex={tab} onSelect={setTab} homeIndicatorBar={false} />}>
+      <div style={{ position: "absolute", top: CONTENT_TOP, left: 16, right: 16, bottom: 0,
+                    overflowY: "auto", display: "flex", flexDirection: "column", gap: 16,
+                    paddingBottom: "var(--harmony-tabbar-height)" }}>
+        <FloatingSearch placeholder="搜索网页或图片" value={q} onChange={setQ} />
+
+        <SectionLabel action="全部">今日推荐</SectionLabel>
+        <div style={{ display: "flex", gap: 12 }}>
+          {FEED.map((item) => (
+            <CardView key={item.title} size="medium" style={{ flex: 1, overflow: "hidden" }}>
+              <div style={{ height: 96, background: item.tint }} />
+              <div style={{ padding: "10px 12px 12px" }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: "var(--harmony-font-tertiary)", marginTop: 2 }}>{item.meta}</div>
+              </div>
+            </CardView>
+          ))}
+        </div>
+
+        <SectionLabel action="更多">最近下载</SectionLabel>
+        <CardView size="max" style={{ padding: "0 16px" }}>
+          <List variant="icon2lines" appIconSrc="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' rx='12' fill='%230a59f7'/%3E%3C/svg%3E"
+                title="kyoto-01.jpg" aux="1.8 MB · 今天 14:26" rightText="已完成" rightIcon="chevron" />
+          <List variant="icon2lines" appIconSrc="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' rx='12' fill='%2364bb5c'/%3E%3C/svg%3E"
+                title="清水寺素材包.zip" aux="24 张 · 38.4 MB" rightText="已完成" rightIcon="chevron" />
+          <List variant="icon2lines" appIconSrc="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' rx='12' fill='%23e84026'/%3E%3C/svg%3E"
+                title="poster-raw.tiff" aux="服务器返回的不是图片" rightText="失败" rightIcon="chevron" />
+        </CardView>
+
+        <Button type="emphasized" icon="plus">新建下载任务</Button>
+      </div>
+    </SizeFrame>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<CardKit />);
+</script>
+</body>
+</html>

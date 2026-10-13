@@ -1,0 +1,4 @@
+/* BROKEN: a component must not redefine a system token (R12). */
+:root {
+  --harmony-brand: rgba(255, 0, 0, 1);
+}

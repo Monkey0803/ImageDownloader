@@ -1,0 +1,20 @@
+/*
+ * Fonts.
+ *
+ * HMSymbol is the HarmonyOS icon font. The reference library forbids hand-drawn
+ * inline SVG icons for this system, so iconography goes through this font via
+ * the `name → codepoint` map in assets/hmsymbol-map.json (see Iconography in
+ * readme.md).
+ *
+ * HarmonyOS Sans is the SYSTEM font — it ships with the OS and has no binary to
+ * embed. It is declared as a stack token (--harmony-font-stack in base.css)
+ * rather than an @font-face, so it is deliberately absent here.
+ */
+
+@font-face {
+  font-family: "HMSymbol";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("assets/HMSymbolVF_1.ttf") format("truetype");
+}
