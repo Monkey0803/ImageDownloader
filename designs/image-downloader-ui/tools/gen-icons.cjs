@@ -69,16 +69,63 @@ const entries = Object.keys(icons).map((k) => {
 const out = `import { display } from '@kit.ArkUI';
 
 /*
- * Icons.ets — one consistent 24 px line-icon set.
+ * Icons.ets — the app's single icon surface.
  *
- * Generated from designs/image-downloader-ui/icons.jsx: each prototype SVG
- * glyph was rewritten into a single 24x24 path so the app and the design
- * prototype draw exactly the same shapes. Do not hand-edit the path data;
- * run designs/image-downloader-ui/tools/gen-icons.cjs instead.
+ * Every icon in the app goes through \`Glyph\`, and \`Glyph\` prefers the system
+ * HMSymbol set (\`sys.symbol.*\`): those are the HarmonyOS-native glyphs, they
+ * follow the system font weight and the app's own color tokens, and they cost
+ * nothing to ship.
+ *
+ * A handful of prototype glyphs have no system equivalent (see SYMBOL_RES);
+ * those fall back to the 24x24 line paths below.
  */
 
 const ICON_PATHS: Record<string, string> = {
 ${entries.join(',\n')}
+};
+
+/**
+ * Glyph name → system HMSymbol.
+ *
+ * Names follow the official HarmonyOS Symbol dictionary (see the design kit's
+ * \`components/controls/IconMap.jsx\`, which lists the canonical symbol behind
+ * each UI intent: 分享=share, 导出=arrow_up_and_rectangle_on_rectangle,
+ * 重命名=square_and_pencil, 下载=arrow_down_circle …). Anything missing here
+ * keeps the prototype's path icon, so no icon can ever disappear.
+ */
+const SYMBOL_RES: Record<string, Resource> = {
+  'search': $r('sys.symbol.magnifyingglass'),
+  'globe': $r('sys.symbol.website'),
+  'refresh': $r('sys.symbol.arrow_clockwise'),
+  'check': $r('sys.symbol.checkmark'),
+  'close': $r('sys.symbol.xmark'),
+  'download': $r('sys.symbol.arrow_down_circle'),
+  'image': $r('sys.symbol.picture'),
+  'layers': $r('sys.symbol.layer'),
+  'archive': $r('sys.symbol.archivebox'),
+  'sliders': $r('sys.symbol.slider_horizontal_2'),
+  'trash': $r('sys.symbol.trash'),
+  'share': $r('sys.symbol.share'),
+  'export': $r('sys.symbol.arrow_up_and_rectangle_on_rectangle'),
+  'pencil': $r('sys.symbol.square_and_pencil'),
+  'chevronRight': $r('sys.symbol.chevron_right'),
+  'grid': $r('sys.symbol.square_grid_2x2'),
+  'chevronDown': $r('sys.symbol.chevron_down'),
+  'play': $r('sys.symbol.play_fill'),
+  'pause': $r('sys.symbol.pause_round_triangle_fill'),
+  'retry': $r('sys.symbol.arrow_counterclockwise'),
+  'plus': $r('sys.symbol.plus'),
+  'folder': $r('sys.symbol.folder'),
+  'sun': $r('sys.symbol.sun_max'),
+  'moon': $r('sys.symbol.moon'),
+  'clock': $r('sys.symbol.clock'),
+  'alert': $r('sys.symbol.exclamationmark_circle'),
+  'checkCircle': $r('sys.symbol.checkmark_circle'),
+  'xCircle': $r('sys.symbol.xmark_circle'),
+  'scan': $r('sys.symbol.circle_viewfinder'),
+  'inbox': $r('sys.symbol.inbox'),
+  'sparkle': $r('sys.symbol.rays'),
+  'eye': $r('sys.symbol.eye')
 };
 
 /** Path data for a named glyph, falling back to a dot for unknown names. */
@@ -86,15 +133,37 @@ export function iconPath(name: string): string {
   return ICON_PATHS[name] ?? ICON_PATHS.dot;
 }
 
+/** System symbol for a glyph name, or undefined when only a path icon exists. */
+export function symbolOf(name: string): Resource | undefined {
+  return SYMBOL_RES[name];
+}
+
 /**
- * Line icon drawn in the prototype's 24x24 viewport.
+ * The prototype draws icons with 1.7–2.6 unit strokes; symbols express the same
+ * emphasis through font weight. Three buckets cover every call site.
+ */
+function symbolWeight(glyphWeight: number): FontWeight {
+  if (glyphWeight >= 2.4) {
+    return FontWeight.Bold;
+  }
+  if (glyphWeight >= 1.9) {
+    return FontWeight.Medium;
+  }
+  return FontWeight.Regular;
+}
+
+/**
+ * One icon of the app.
  *
- * Path commands are measured in **px** (PathAttribute#commands) while the shape
- * viewport is measured in **vp**, so the viewport is declared as the 24-unit box
- * converted to vp. The shape then scales that box up to glyphSize by itself and
- * no path data has to be rewritten. strokeWidth is a vp length and is divided by
- * the same density, which keeps the stroke proportional to the glyph exactly the
- * way the prototype's SVG did.
+ * System symbols are drawn at \`glyphSize\` in vp so they keep the layout the
+ * prototype specified regardless of the user's font scale. The path fallback
+ * draws in the prototype's 24x24 viewport: path commands are measured in **px**
+ * (PathAttribute#commands) while the shape viewport is measured in **vp**, so
+ * the viewport is declared as the 24-unit box converted to vp. The shape then
+ * scales that box up to glyphSize by itself and no path data has to be
+ * rewritten. strokeWidth is a vp length and is divided by the same density,
+ * which keeps the stroke proportional to the glyph exactly the way the
+ * prototype's SVG did.
  */
 @Component
 export struct Glyph {
@@ -107,19 +176,36 @@ export struct Glyph {
 
   private density: number = display.getDefaultDisplaySync().densityPixels;
 
+  private hasSymbol(): boolean {
+    return SYMBOL_RES[this.glyph] !== undefined;
+  }
+
+  private symbol(): Resource {
+    return SYMBOL_RES[this.glyph];
+  }
+
   build() {
-    Shape() {
-      Path()
-        .commands(iconPath(this.glyph))
-        .fill(Color.Transparent)
-        .stroke(this.glyphTone)
-        .strokeWidth(this.glyphWeight / this.density)
-        .strokeLineCap(LineCapStyle.Round)
-        .strokeLineJoin(LineJoinStyle.Round)
+    if (this.hasSymbol()) {
+      SymbolGlyph(this.symbol())
+        .fontSize(this.glyphSize.toString() + 'vp')
+        .fontColor([this.glyphTone])
+        .fontWeight(symbolWeight(this.glyphWeight))
+        .renderingStrategy(SymbolRenderingStrategy.SINGLE)
+        .effectStrategy(SymbolEffectStrategy.NONE)
+    } else {
+      Shape() {
+        Path()
+          .commands(iconPath(this.glyph))
+          .fill(Color.Transparent)
+          .stroke(this.glyphTone)
+          .strokeWidth(this.glyphWeight / this.density)
+          .strokeLineCap(LineCapStyle.Round)
+          .strokeLineJoin(LineJoinStyle.Round)
+      }
+      .viewPort({ x: 0, y: 0, width: 24 / this.density, height: 24 / this.density })
+      .width(this.glyphSize)
+      .height(this.glyphSize)
     }
-    .viewPort({ x: 0, y: 0, width: 24 / this.density, height: 24 / this.density })
-    .width(this.glyphSize)
-    .height(this.glyphSize)
   }
 }
 `;
