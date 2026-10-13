@@ -384,12 +384,16 @@ export struct PillButton {
   label: string = '';
   /** 'primary' | 'tonal' | 'ghost' | 'danger' */
   variant: string = 'ghost';
-  icon: string = '';
+  /** @Prop so a caller may flip the icon at runtime (e.g. single / ZIP mode). */
+  @Prop icon: string = '';
   small: boolean = false;
   /** Stretch to the full width of its parent. */
   block: boolean = false;
-  /** Whether the button responds; an inactive primary greys out. */
-  active: boolean = true;
+  /**
+   * Whether the button responds; an inactive primary greys out.
+   * @Prop (not a plain member) so a caller's state change re-renders the button.
+   */
+  @Prop active: boolean = true;
   onAction: () => void = () => {
   };
 
@@ -485,7 +489,8 @@ export struct Card {
 @Component
 export struct SectionHead {
   heading: string = '';
-  meta: string = '';
+  /** @Prop: callers pass live counters ("已选 3" / occupancy) into this slot. */
+  @Prop meta: string = '';
   actionLabel: string = '';
   secondLabel: string = '';
   thirdLabel: string = '';
@@ -554,8 +559,9 @@ export struct SectionHead {
 @Component
 export struct EmptyState {
   glyph: string = 'inbox';
-  heading: string = '';
-  body: string = '';
+  /** @Prop: the gallery swaps this between "图库还是空的" and "没有匹配的图片". */
+  @Prop heading: string = '';
+  @Prop body: string = '';
 
   build() {
     Column({ space: Space.s12 }) {
@@ -692,9 +698,11 @@ export struct ListRow {
 /** A settings row: leading glyph, title, description, then a control below. */
 @Component
 export struct StackedRow {
-  glyph: string = 'dot';
+  /** @Prop: the theme row swaps sun / moon as the setting changes. */
+  @Prop glyph: string = 'dot';
   heading: string = '';
-  aux: string = '';
+  /** @Prop: the subtitle describes the current theme / material mode. */
+  @Prop aux: string = '';
   @BuilderParam control: () => void = this.slot;
 
   @Builder
