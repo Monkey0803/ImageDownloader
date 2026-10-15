@@ -293,6 +293,46 @@ export default function downloadStoreTest() {
       expect(parsed !== undefined).assertTrue();
     });
 
+    /*
+     * 「写出去再读回来」必须一个字都不差。
+     *
+     * 这条是被真机咬出来的：`@ObservedV2` 的 `@Trace` 字段在观察代理上**不是普通可枚举属性**，
+     * 直接 `JSON.stringify` 会把字段名写成 `__ob_id` / `__ob_name` 这类前缀，而读侧读的是
+     * `id` / `name` —— 记录会在下次启动时静默变成空白（名字空、大小 0）。
+     * 现在写盘走 `StoreState.serialize()`（显式线格式），这条用例专门盯着它别再被改回去。
+     */
+    it('serialize_then_parse_keeps_every_field', 0, () => {
+      const state: SavedState = new SavedState();
+      const item: DownloadItem = new DownloadItem();
+      item.id = 'p1';
+      item.url = 'https://example.com/a.png';
+      item.name = 'still_color.jpg';
+      item.path = '/data/files/images/still_color.jpg';
+      item.status = 'completed';
+      item.size = 10138;
+      item.kind = 'livephoto';
+      item.animated = true;
+      item.stillPath = '/data/files/images/p1.jpg';
+      item.auxSize = 4096;
+      item.note = '解包成功';
+      state.downloads = [item];
+
+      const raw: string = StoreState.serialize(state);
+      // 线格式里出现代理痕迹，即代表有人又直接 stringify 了模型实例。
+      expect(raw.includes('__ob_')).assertFalse();
+
+      const back: SavedState = StoreState.normalized(StoreState.parse(raw) as SavedState);
+      expect(back.downloads.length).assertEqual(1);
+      expect(back.downloads[0].name).assertEqual('still_color.jpg');
+      expect(back.downloads[0].status).assertEqual('completed');
+      expect(back.downloads[0].size).assertEqual(10138);
+      expect(back.downloads[0].kind).assertEqual('livephoto');
+      expect(back.downloads[0].animated).assertTrue();
+      expect(back.downloads[0].auxSize).assertEqual(4096);
+      expect(back.downloads[0].stillPath).assertEqual('/data/files/images/p1.jpg');
+      expect(back.downloads[0].note).assertEqual('解包成功');
+    });
+
     it('normalized_fills_missing_fields_of_an_old_file', 0, () => {
       const safe: SavedState = StoreState.normalized(StoreState.parse('{}') as SavedState);
       expect(safe.downloads.length).assertEqual(0);

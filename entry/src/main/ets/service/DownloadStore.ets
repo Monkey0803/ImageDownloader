@@ -291,7 +291,7 @@ export class DownloadStore {
     const temp: string = path + '.tmp';
     try {
       const file: fs.File = fs.openSync(temp, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, JSON.stringify(state));
+      fs.writeSync(file.fd, StoreState.serialize(state));
       fs.closeSync(file);
       fs.renameSync(temp, path);
       DownloadStore.saveProblem = '';

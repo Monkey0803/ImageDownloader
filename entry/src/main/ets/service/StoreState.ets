@@ -18,7 +18,154 @@ import { normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
  * 为什么要把普通对象重新实例化成模型：界面用 `@ObjectLink` 绑它们，而 `@ObjectLink` 只认
  * `@Observed` 实例 —— `JSON.parse` 出来的裸对象绑不上，进度和选中都不会刷新。
  */
+/**
+ * 落盘的**线格式**：一整套普通类（**没有任何装饰器**）。
+ *
+ * 为什么要有这一层、而不是直接 `JSON.stringify(SavedState)`：
+ * `@ObservedV2` 的实例是观察代理，`@Trace` 字段在代理上**不是普通可枚举属性** ——
+ * 真机实测，直接 stringify 会把字段名写成 `__ob_` 前缀：
+ *
+ * ```json
+ * {"__ob_id":"...","__ob_name":"still_color.jpg","__ob_size":10138}   // ← 写进文件的真实内容
+ * ```
+ *
+ * 而读侧 `normalized()` 读的是 `id` / `name` / `size`，于是记录会在下次启动时**静默变成空白**
+ * （名字空、大小 0）。这一层显式线格式让「写出去的名字」由我们自己定，不依赖框架代理的实现细节。
+ *
+ * 同理**不要**用 `UIUtils.getTarget()` 去解代理：那是 `@kit.ArkUI` 的界面 API，而持久化属于
+ * service 层，分层规则是 `pages → view → viewmodel → service`，不能反向依赖界面。
+ */
+class DownloadWire {
+  id: string = '';
+  url: string = '';
+  name: string = '';
+  userNamed: boolean = false;
+  path: string = '';
+  sourcePage: string = '';
+  batchId: string = '';
+  taskId: string = '';
+  status: string = 'queued';
+  processed: number = 0;
+  total: number = 0;
+  size: number = 0;
+  error: string = '';
+  createdAt: number = 0;
+  finishedAt: number = 0;
+  kind: string = 'image';
+  animated: boolean = false;
+  stillPath: string = '';
+  motionPath: string = '';
+  auxSize: number = 0;
+  note: string = '';
+}
+
+class ZipWire {
+  id: string = '';
+  name: string = '';
+  path: string = '';
+  batchId: string = '';
+  imageCount: number = 0;
+  failedCount: number = 0;
+  size: number = 0;
+  createdAt: number = 0;
+  thumbs: string[] = [];
+}
+
+class BatchWire {
+  id: string = '';
+  name: string = '';
+  sourcePage: string = '';
+  status: string = 'downloading';
+  error: string = '';
+}
+
+class StateWire {
+  downloads: DownloadWire[] = [];
+  zips: ZipWire[] = [];
+  batches: BatchWire[] = [];
+  concurrency: number = 3;
+  themeMode: string = 'system';
+  materialType: string = 'adaptive';
+  materialLevel: string = 'adaptive';
+  lightEffect: boolean = true;
+  gripEnabled: boolean = false;
+  antiPeepEnabled: boolean = false;
+  pictureQuality: string = 'all';
+  downloadLocation: string = 'app';
+  customDirUri: string = '';
+  customDirName: string = '';
+}
+
 export class StoreState {
+  /**
+   * 把状态编成**不带代理痕迹**的 JSON 文本（写盘用）。
+   *
+   * 与 `normalized()` 一一对应：那边把裸对象整成模型实例，这边把模型实例摊成线格式。
+   * 谁加了字段，两边都要加 —— 有单测盯着（`StoreState` 的「写出去再读回来」那组）。
+   */
+  static serialize(state: SavedState): string {
+    const wire: StateWire = new StateWire();
+    wire.downloads = state.downloads.map((item: DownloadItem): DownloadWire => {
+      const out: DownloadWire = new DownloadWire();
+      out.id = item.id;
+      out.url = item.url;
+      out.name = item.name;
+      out.userNamed = item.userNamed;
+      out.path = item.path;
+      out.sourcePage = item.sourcePage;
+      out.batchId = item.batchId;
+      out.taskId = item.taskId;
+      out.status = item.status;
+      out.processed = item.processed;
+      out.total = item.total;
+      out.size = item.size;
+      out.error = item.error;
+      out.createdAt = item.createdAt;
+      out.finishedAt = item.finishedAt;
+      out.kind = item.kind;
+      out.animated = item.animated;
+      out.stillPath = item.stillPath;
+      out.motionPath = item.motionPath;
+      out.auxSize = item.auxSize;
+      out.note = item.note;
+      return out;
+    });
+    wire.zips = state.zips.map((zip: ZipItem): ZipWire => {
+      const out: ZipWire = new ZipWire();
+      out.id = zip.id;
+      out.name = zip.name;
+      out.path = zip.path;
+      out.batchId = zip.batchId;
+      out.imageCount = zip.imageCount;
+      out.failedCount = zip.failedCount;
+      out.size = zip.size;
+      out.createdAt = zip.createdAt;
+      out.thumbs = zip.thumbs;
+      return out;
+    });
+    wire.batches = state.batches.map((batch: BatchItem): BatchWire => {
+      const out: BatchWire = new BatchWire();
+      out.id = batch.id;
+      out.name = batch.name;
+      out.sourcePage = batch.sourcePage;
+      out.status = batch.status;
+      out.error = batch.error;
+      return out;
+    });
+    wire.concurrency = state.concurrency;
+    wire.themeMode = state.themeMode;
+    wire.materialType = state.materialType;
+    wire.materialLevel = state.materialLevel;
+    wire.lightEffect = state.lightEffect;
+    wire.gripEnabled = state.gripEnabled;
+    wire.antiPeepEnabled = state.antiPeepEnabled;
+    wire.pictureQuality = state.pictureQuality;
+    wire.downloadLocation = state.downloadLocation;
+    wire.customDirUri = state.customDirUri;
+    wire.customDirName = state.customDirName;
+    return JSON.stringify(wire);
+  }
+
   /** 解析失败（空文件、被截断、根本不是 JSON）返回 `undefined`，由调用方决定兜底策略。 */
   static parse(raw: string): SavedState | undefined {
     try {
