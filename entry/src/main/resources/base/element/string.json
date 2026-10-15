@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "图片下载管理"
+    },
+    {
+      "name": "pasteboard_reason",
+      "value": "读取剪贴板里的链接，粘贴到地址栏后打开"
     }
   ]
 }

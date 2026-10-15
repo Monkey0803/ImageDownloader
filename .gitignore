@@ -16,3 +16,6 @@
 
 # device screenshots pulled while verifying the UI
 /.screenshots
+
+# 验证过程中从设备取回的临时恢复文件
+/.recovery

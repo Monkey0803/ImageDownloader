@@ -12,7 +12,7 @@
     { "name": "font_primary", "value": "#E5FFFFFF" },
     { "name": "font_secondary", "value": "#99FFFFFF" },
     { "name": "font_tertiary", "value": "#66FFFFFF" },
-    { "name": "font_fourth", "value": "#42FFFFFF" },
+    { "name": "font_fourth", "value": "#33FFFFFF" },
     { "name": "font_on_primary", "value": "#FFFFFFFF" },
 
     { "name": "bg", "value": "#191A1C" },
@@ -34,8 +34,11 @@
     { "name": "danger_bg_press", "value": "#33D94838" },
     { "name": "toast_bg", "value": "#E6000000" },
     { "name": "viewer_bg", "value": "#F0000000" },
+    { "name": "privacy_veil", "value": "#E0191A1C" },
 
     { "name": "seg_on", "value": "#24FFFFFF" },
+
+    { "name": "select_on_bg", "value": "#E7EFFE" },
 
     { "name": "sheen", "value": "#33FFFFFF" },
 

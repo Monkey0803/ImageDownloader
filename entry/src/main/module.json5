@@ -8,7 +8,21 @@
       "phone"
     ],
     "requestPermissions": [
-      { "name": "ohos.permission.INTERNET" }
+      { "name": "ohos.permission.INTERNET" },
+      // 地址栏「粘贴」要读系统剪贴板；user_grant，首次点粘贴时弹窗申请。
+      { "name": "ohos.permission.READ_PASTEBOARD", "reason": "$string:pasteboard_reason",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" } },
+      // 智感握姿要读系统的握持手状态（motion 模块的 holdingHandChanged）。
+      // normal + system_grant：装机即授予，不需要运行时弹窗，也不需要证书 ACL。
+      { "name": "ohos.permission.DETECT_GESTURE" },
+      // 防窥保护（dlpAntiPeep）要读系统的窥视状态与系统开关。
+      // system_grant + availableLevel: system_basic：装机即授予、没有运行时弹窗，但因为等级
+      // 高于普通应用，证书的 allowed-acls 里必须有它，否则 hdc install 报 9568289。
+      { "name": "ohos.permission.DLP_GET_HIDE_STATUS" },
+      // 「下载位置 → 自定义目录」把目录选择器那一次的临时授权持久化
+      // （fileShare.persistPermission / activatePermission）。normal + system_grant：
+      // 装机即授予，不需要运行时弹窗，也不需要证书 ACL。
+      { "name": "ohos.permission.FILE_ACCESS_PERSIST" }
     ],
     "deliveryWithInstall": true,
     "installationFree": false,

@@ -1,1509 +1,338 @@
-import { common, ConfigurationConstant } from '@kit.AbilityKit';
-import { webview } from '@kit.ArkWeb';
-import { picker, fileIo as fs, fileUri } from '@kit.CoreFileKit';
-import { photoAccessHelper } from '@kit.MediaLibraryKit';
-import { systemShare } from '@kit.ShareKit';
-import { uniformTypeDescriptor as utd } from '@kit.ArkData';
-import { display, uiMaterial } from '@kit.ArkUI';
-import { BatchItem, DownloadItem, PictureItem, ZipItem } from '../model/Models';
+import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { DownloadItem } from '../model/Models';
+import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
-import { Font, formatBytes, kindOf, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
-import { Glyph } from '../view/Icons';
-import { ArchiveCard, batchViewOf, BatchCard, BatchView, ImageViewer, SelectTile, ShotTile, TaskCard } from '../view/Cards';
-import {
-  Card, EmptyState, HintRow, IconButton, ListRow, MATERIAL_OPTIONS, MODE_OPTIONS, PillButton, RenameDialog,
-  SectionHead, Segmented, StackedRow, TabBar, THEME_OPTIONS, TitleBar, ToastPill
-} from '../view/Widgets';
-
-interface ScanImage {
-  url: string;
-  description: string;
-}
-
-interface ScanData {
-  title: string;
-  url: string;
-  images: ScanImage[];
-}
+import { UiPort } from '../service/UiPort';
+import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
+import { DeviceViewModel } from '../viewmodel/DeviceViewModel';
+import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
+import { SettingsViewModel } from '../viewmodel/SettingsViewModel';
+import { TasksViewModel } from '../viewmodel/TasksViewModel';
+import { Layout, Palette, Space } from '../theme/Tokens';
+import { ScreenMetrics } from '../theme/Metrics';
+import { ToastLatch } from '../util/Toast';
+import { DiscoverScreen } from '../view/screens/DiscoverScreen';
+import { LibraryScreen } from '../view/screens/LibraryScreen';
+import { SettingsScreen } from '../view/screens/SettingsScreen';
+import { TasksScreen } from '../view/screens/TasksScreen';
+import { GripChip, PrivacyVeil, SelectionDock, ToTopButton } from '../view/shell/Chrome';
+import { RenameDialog, TabBar, ToastPill } from '../view/Widgets';
 
 /**
- * 微博正文这类页面在 onPageEnd 时文档还是空的，图片由页内脚本稍后渲染出来。
- * 所以扫描不会一次定论：扫到 0 张、或张数还在变，就按下面的节奏再看几次，
- * 直到张数连续 SCAN_STABLE_ROUNDS 轮不变，或者用完 SCAN_RETRY_LIMIT 次。
+ * 应用外壳（Index）。
+ *
+ * 这里**只做四件事**，页面内容全部交给四个 Screen 组件：
+ *
+ * 1. **壳层状态**：当前页签、Toast 文案与它的定时器、页面是否在前台；
+ * 2. **装配 ViewModel**：五个 ViewModel 在这里各建一次，并共用一个 `UiPort`
+ *    （提示、Context、推预览页、切页签、确认框的唯一出口，见 service/UiPort.ets）；
+ * 3. **数据同步**：订阅 `DownloadStore` 的变更，把 ViewModel 拉回一致；
+ * 4. **浮层与页签栏**：返回顶部按钮、选择条、握姿胶囊、防窥遮罩、Toast、改名弹窗 ——
+ *    这些定位在滚动内容之外，只能由壳来画。
+ *
+ * 拆分前这个文件有 2393 行，四个页面加全部业务逻辑都长在同一个 `struct` 里；
+ * 现在它只负责「谁在什么时候显示」。
  */
-const SCAN_RETRY_LIMIT: number = 8;
-const SCAN_RETRY_DELAY: number = 500;
-const SCAN_STABLE_ROUNDS: number = 2;
-
 @Entry
 @Component
 struct Index {
-  private browser: webview.WebviewController = new webview.WebviewController();
-  private noticeTimer: number = -1;
-  /** 排队中的重扫；-1 表示当前没有等待中的重扫。 */
-  private scanTimer: number = -1;
-  /** 上一轮扫到的张数，以及张数连续没变的轮数，用来判断页面是否渲染完。 */
-  private scanSeen: number = -1;
-  private scanStable: number = 0;
-  /** 每次打开新链接自增，用来丢弃属于上一个页面的扫描结果。 */
-  private scanGeneration: number = 0;
-  /** Viewport height in vp — see the minHeight guard on each screen's scroller. */
-  private screenHeight: number =
-    display.getDefaultDisplaySync().height / display.getDefaultDisplaySync().densityPixels;
+  /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
+  private pageVisible: boolean = true;
+  /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
+  private toast: ToastLatch = new ToastLatch();
+  /**
+   * 五个 ViewModel。必须是 `@State`：子组件用 `@ObjectLink` 收它们，而 `@ObjectLink` 只认
+   * 状态变量（或另一个 `@ObjectLink`）—— 写成普通成员时编译器直接报
+   * 「regular property cannot be assigned to @ObjectLink property」。
+   * 类都是 `@Observed`，所以第一层属性变化会同时刷到壳和各个子组件。
+   */
+  @State private discover: DiscoverViewModel = new DiscoverViewModel();
+  @State private tasks: TasksViewModel = new TasksViewModel();
+  @State private library: LibraryViewModel = new LibraryViewModel();
+  @State private settings: SettingsViewModel = new SettingsViewModel();
+  @State private device: DeviceViewModel = new DeviceViewModel();
 
   @StorageProp('safeTop') safeTop: number = 0;
   @StorageProp('safeBottom') safeBottom: number = 0;
+  /** 软键盘高度（vp，0 = 没弹）；由 EntryAbility 的 avoidAreaChange 写入。 */
+  @StorageProp('keyboardHeight') keyboardHeight: number = 0;
 
-  @State private currentTab: number = 0;
-  @State private address: string = '';
-  @State private pageUrl: string = '';
-  @State private pageTitle: string = '';
-  @State private pictures: PictureItem[] = [];
-  @State private downloads: DownloadItem[] = [];
-  @State private zips: ZipItem[] = [];
-  @State private batches: BatchItem[] = [];
-  @State private concurrency: number = 3;
-  @State private mode: string = 'single';
-  @State private query: string = '';
-  @State private density: number = 2;
-  @State private scanning: boolean = false;
-  @State private previewId: string = '';
+  @State private currentTab: number = TAB_DISCOVER;
   @State private notice: string = '';
-  @State private themeMode: string = 'system';
-  @State private materialType: string = 'adaptive';
-  @State private lightEffect: boolean = true;
-  /** Rename overlay: shown while renameId is non-empty. */
-  @State private renameKind: string = '';
-  @State private renameId: string = '';
-  @State private renameName: string = '';
+
+  /**
+   * 商店的刷新回调。
+   *
+   * 必须是**具名字段**而不是 `initialize(context, () => ...)` 里的内联箭头函数：
+   * `DownloadStore.initialize` 会把它存进 `listeners`，而注销要求传同一个引用。
+   * 内联写法根本拿不到那个引用，页面销毁后回调仍会被调用（往已销毁的组件上写 @State）。
+   */
+  private listener: () => void = (): void => {
+    this.storeChanged();
+  };
 
   aboutToAppear(): void {
-    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    DownloadStore.initialize(context, (): void => {
-      this.sync();
+    const context: common.UIAbilityContext = this.hostContext();
+    this.toast.bind((text: string): void => {
+      this.notice = text;
     });
-    this.sync();
-    this.applyTheme();
-  }
-
-  private sync(): void {
-    this.downloads = DownloadStore.downloads.slice();
-    this.zips = DownloadStore.zips.slice();
-    this.batches = DownloadStore.batches.slice();
-    this.concurrency = DownloadStore.concurrency;
-    this.themeMode = DownloadStore.themeMode;
-    this.materialType = DownloadStore.materialType;
-    this.lightEffect = DownloadStore.lightEffect;
-  }
-
-  private say(text: string): void {
-    this.notice = text;
-    if (this.noticeTimer >= 0) {
-      clearTimeout(this.noticeTimer);
-    }
-    this.noticeTimer = setTimeout((): void => {
-      this.notice = '';
-    }, 2600);
-  }
-
-  // ---------------------------------------------------------------- geometry
-
-  private topInset(tall: boolean): number {
-    return this.safeTop + (tall ? Layout.tbLayerSecondary : Layout.tbLayerNormal) + Layout.tbGap;
-  }
-
-  /** Vertical space the floating tab bar occupies. */
-  private tabBarSpace(): number {
-    return Layout.tabBarHeight + Layout.tabBarTopPad + this.safeBottom;
-  }
-
-  private bottomInset(extra: number): number {
-    return this.tabBarSpace() + Space.s12 + extra;
-  }
-
-  // ---------------------------------------------------------------- browsing
-
-  private visit(): void {
-    let input: string = this.address.trim();
-    if (input.length === 0) {
-      return;
-    }
-    this.cancelScan();
-    this.scanGeneration++;
-    if (!input.startsWith('http://') && !input.startsWith('https://')) {
-      input = 'https://' + input;
-    }
-    this.address = input;
-    this.pageUrl = input;
-    this.pictures = [];
-    if (new RegExp('\\.(png|jpe?g|webp|gif|heic|avif)(\\?|#|$)', 'i').test(input)) {
-      const picture: PictureItem = new PictureItem();
-      picture.id = input;
-      picture.url = input;
-      picture.selected = true;
-      picture.name = DownloadStore.suggestedName(input, '', 1);
-      this.pictures = [picture];
-      this.pageTitle = '图片';
-      this.say('这是一个图片地址');
-      return;
-    }
-    this.pageTitle = '';
-    this.scanning = true;
-    try {
-      this.browser.loadUrl(input);
-    } catch (error) {
-      this.scanning = false;
-      this.say('无法打开该链接：' + String(error));
-    }
-  }
-
-  private static parseScan(raw: string): ScanData {
-    let parsed: Object = JSON.parse(raw) as Object;
-    if (typeof parsed === 'string') {
-      parsed = JSON.parse(parsed as string) as Object;
-    }
-    const data: ScanData = parsed as ScanData;
-    if (typeof data.url !== 'string') {
-      data.url = '';
-    }
-    if (typeof data.title !== 'string') {
-      data.title = '';
-    }
-    if (!Array.isArray(data.images)) {
-      data.images = [];
-    }
-    return data;
-  }
-
-  /** 取消排队中的重扫：换了页面或用户手动重扫时，旧的循环必须停下。 */
-  private cancelScan(): void {
-    if (this.scanTimer >= 0) {
-      clearTimeout(this.scanTimer);
-      this.scanTimer = -1;
-    }
+    const port: UiPort = this.buildPort();
+    this.discover.attach(port);
+    this.tasks.attach(port);
+    this.library.attach(port);
+    this.settings.attach(port);
+    this.device.attach(port);
+    // 先挂听握姿和防窥，再初始化数据：initialize() 会按持久化的开关恢复订阅，订阅结果要能刷到界面。
+    this.device.start();
+    DownloadStore.initialize(context, this.listener);
+    this.storeChanged();
+    this.settings.applyTheme();
   }
 
   /**
-   * 扫描浏览器当前页面的图片。
-   *
-   * 微博正文这类 SPA 在 onPageEnd 之后才把图片渲染进文档，所以“扫到 0 张”或“张数还在涨”
-   * 都不算最终结果：保持“正在扫描”，隔一小段时间重扫，直到张数稳定或用完重试次数。
+   * 图库预览页推上来时 Index 会 onPageHide：这一页要停掉「取走商店提示」这件事。
+   * 两个页面都挂了商店的刷新回调，谁先跑谁把 pendingNotice 拿走 —— 后取的那个
+   * 才有机会说出口，被盖住的 Index 先抢走就等于这条提示没人看见。
    */
-  private async scan(attempt: number = 0): Promise<void> {
-    if (attempt === 0) {
-      this.scanSeen = -1;
-      this.scanStable = 0;
-    }
-    this.cancelScan();
-    const generation: number = this.scanGeneration;
-    const script: string = `(() => {
-      const found = new Map();
-      for (const img of document.images) {
-        const sources = [img.currentSrc, img.getAttribute('data-src'), img.getAttribute('data-original'), img.src];
-        for (const raw of sources) {
-          if (!raw) continue;
-          try {
-            const url = new URL(raw, document.baseURI).href;
-            if (url.startsWith('http://') || url.startsWith('https://'))
-              found.set(url, { url: url, description: img.alt || img.title || '' });
-          } catch (_) {}
-        }
-      }
-      return JSON.stringify({ title: document.title || '', url: location.href, images: Array.from(found.values()) });
-    })()`;
-    this.scanning = true;
-    try {
-      const result: webview.JsMessageExt = await this.browser.runJavaScriptExt(script);
-      if (generation !== this.scanGeneration) {
-        // 结果属于上一个页面：交给当前这一轮扫描处理，这里直接丢掉。
-        return;
-      }
-      const data: ScanData = Index.parseScan(result.getString());
-      // about:blank and error pages report a non-http URL; scanning one would
-      // both mislabel the page and overwrite the address the user typed.
-      if (!data.url.startsWith('http://') && !data.url.startsWith('https://')) {
-        this.scanning = false;
-        return;
-      }
-      this.pageUrl = data.url;
-      this.address = data.url;
-      this.pageTitle = data.title;
-      const found: Map<string, PictureItem> = new Map<string, PictureItem>();
-      for (const old of this.pictures) {
-        found.set(old.url, old);
-      }
-      for (let i: number = 0; i < data.images.length; i++) {
-        const image: ScanImage = data.images[i];
-        if (found.has(image.url)) {
-          continue;
-        }
-        const picture: PictureItem = new PictureItem();
-        picture.id = image.url;
-        picture.url = image.url;
-        picture.description = image.description;
-        picture.name = DownloadStore.suggestedName(image.url, image.description, i + 1);
-        found.set(image.url, picture);
-      }
-      this.pictures = Array.from(found.values());
-      const total: number = data.images.length;
-      this.scanStable = total > 0 && total === this.scanSeen ? this.scanStable + 1 : 0;
-      this.scanSeen = total;
-      const settled: boolean = total > 0 && this.scanStable >= SCAN_STABLE_ROUNDS;
-      if (!settled && attempt < SCAN_RETRY_LIMIT) {
-        // 页面还没渲染完：继续显示“正在扫描”，过一会儿再看一次。
-        this.scanTimer = setTimeout((): void => {
-          this.scanTimer = -1;
-          if (generation !== this.scanGeneration) {
-            return;
+  onPageShow(): void {
+    this.pageVisible = true;
+    this.flushNotice();
+  }
+
+  onPageHide(): void {
+    this.pageVisible = false;
+  }
+
+  /**
+   * 页面销毁时把挂出去的东西都摘掉：商店回调、传感器回调、排队中的重扫、Toast 定时器。
+   *
+   * 重扫最多 8×500ms，页面没了还继续注入脚本是白跑；
+   * 商店回调不摘的话，之后每次数据变化都会打到已经销毁的组件上。
+   */
+  aboutToDisappear(): void {
+    DownloadStore.unsubscribe(this.listener);
+    this.device.stop();
+    this.discover.cancelScan();
+    // 提示的定时器与「销毁后不再弹」一起收掉。
+    this.toast.release();
+  }
+
+  private hostContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  // ------------------------------------------------------------------ 装配
+
+  /**
+   * 把 ViewModel 需要的界面能力收成一个端口交给它们。
+   *
+   * 用 `UiPort` 而不是五个 ViewModel 各持一堆回调，是为了让「谁能碰界面」只有一个答案；
+   * 默认实现是空操作，这里逐项换成真实现。
+   */
+  private buildPort(): UiPort {
+    const port: UiPort = new UiPort();
+    port.say = (text: string): void => {
+      this.say(text);
+    };
+    port.context = (): common.UIAbilityContext => this.hostContext();
+    port.switchTab = (index: number): void => {
+      this.currentTab = index;
+    };
+    port.focusLibrary = (name: string): void => {
+      this.library.focus(name);
+      this.currentTab = TAB_LIBRARY;
+    };
+    port.openViewer = (item: DownloadItem, rename: boolean, siblings: string[]): void => {
+      this.openViewer(item, rename, siblings);
+    };
+    port.confirm = (title: string, message: string, confirmText: string, onConfirm: () => void): void => {
+      this.getUIContext().showAlertDialog({
+        title: title,
+        message: message,
+        primaryButton: {
+          value: '取消', action: (): void => {
           }
-          this.scan(attempt + 1);
-        }, SCAN_RETRY_DELAY);
-        return;
-      }
-      this.say(total === 0
-        ? '暂未扫描到图片，滚动页面后点刷新可再试'
-        : '找到 ' + this.pictures.length.toString() + ' 张图片');
-    } catch (error) {
-      this.say('扫描失败，请等待页面加载后重试');
-    }
-    this.scanning = false;
-  }
-
-  private selectedCount(): number {
-    return this.pictures.filter((item: PictureItem): boolean => item.selected).length;
-  }
-
-  private togglePicture(picture: PictureItem): void {
-    picture.selected = !picture.selected;
-    this.pictures = this.pictures.slice();
-  }
-
-  private selectAll(selected: boolean): void {
-    for (const item of this.pictures) {
-      item.selected = selected;
-    }
-    this.pictures = this.pictures.slice();
-  }
-
-  private invertSelection(): void {
-    if (this.pictures.length === 0) {
-      this.say('还没有扫描到图片');
-      return;
-    }
-    for (const item of this.pictures) {
-      item.selected = !item.selected;
-    }
-    this.pictures = this.pictures.slice();
-    this.say('已反选，选中 ' + this.selectedCount().toString() + ' 张');
-  }
-
-  private enqueue(): void {
-    if (this.selectedCount() === 0) {
-      this.say('请先选择图片');
-      return;
-    }
-    const zipMode: boolean = this.mode === 'zip';
-    DownloadStore.add(this.pictures, this.pageUrl, this.pageTitle, zipMode);
-    this.currentTab = 1;
-    this.say(zipMode ? '已把所选图片加入打包队列' : '已加入下载任务');
-  }
-
-  // ---------------------------------------------------------------- tasks
-
-  private plainTasks(): DownloadItem[] {
-    return this.downloads.filter((item: DownloadItem): boolean => item.batchId.length === 0);
-  }
-
-  private activeTasks(): DownloadItem[] {
-    return this.plainTasks().filter((item: DownloadItem): boolean =>
-      item.status === 'running' || item.status === 'starting' || item.status === 'queued');
-  }
-
-  private settledTasks(): DownloadItem[] {
-    return this.plainTasks().filter((item: DownloadItem): boolean =>
-      item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled');
-  }
-
-  private batchViews(): BatchView[] {
-    const views: BatchView[] = [];
-    for (const batch of this.batches) {
-      const members: DownloadItem[] =
-        this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
-      const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
-      const failed: number = members.filter((item: DownloadItem): boolean =>
-        item.status === 'failed' || item.status === 'cancelled').length;
-      views.push(batchViewOf(batch, members, done, failed));
-    }
-    return views;
-  }
-
-  /** Downloads waiting to run plus packs in flight — the tab badge. */
-  private runningCount(): number {
-    return this.downloads.filter((item: DownloadItem): boolean =>
-      item.status === 'running' || item.status === 'starting' || item.status === 'queued').length
-      + this.batches.filter((batch: BatchItem): boolean =>
-        batch.status === 'downloading' || batch.status === 'packing').length;
-  }
-
-  private cancelTask(task: DownloadItem): void {
-    DownloadStore.cancel(task);
-    this.say('已取消 ' + task.name);
-  }
-
-  private retryTask(task: DownloadItem): void {
-    DownloadStore.retry(task);
-    this.say('重新加入队列');
-  }
-
-  private retryBatch(batch: BatchView): void {
-    DownloadStore.retryBatch(batch.id);
-    this.say('重新打包 ' + batch.name);
-  }
-
-  private dismissBatch(batch: BatchView): void {
-    DownloadStore.dismissBatch(batch.id);
-    this.say('已解散 ' + batch.name + '，图片回到任务列表');
-  }
-
-  private locate(task: DownloadItem): void {
-    this.currentTab = 2;
-    this.query = task.name.replace(new RegExp('\\.[^.]+$'), '');
-    this.say('已在图库中定位');
-  }
-
-  // ---------------------------------------------------------------- gallery
-
-  private galleryItems(): DownloadItem[] {
-    const needle: string = this.query.trim().toLowerCase();
-    return this.downloads.filter((item: DownloadItem): boolean => item.status === 'completed'
-      && item.batchId.length === 0
-      && item.name.toLowerCase().includes(needle));
-  }
-
-  private galleryCount(): number {
-    return this.downloads.filter((item: DownloadItem): boolean =>
-      item.status === 'completed' && item.batchId.length === 0).length;
-  }
-
-  private galleryBytes(): number {
-    let total: number = 0;
-    for (const item of this.downloads) {
-      if (item.status === 'completed' && item.batchId.length === 0) {
-        total += item.size;
-      }
-    }
-    return total;
-  }
-
-  private previewItem(): DownloadItem | undefined {
-    return this.downloads.find((item: DownloadItem): boolean => item.id === this.previewId);
-  }
-
-  private previewSrc(): string {
-    const item: DownloadItem | undefined = this.previewItem();
-    return item === undefined ? '' : fileUri.getUriFromPath(item.path);
-  }
-
-  private previewName(): string {
-    const item: DownloadItem | undefined = this.previewItem();
-    return item === undefined ? '' : item.name;
-  }
-
-  private previewKind(): string {
-    const item: DownloadItem | undefined = this.previewItem();
-    return item === undefined ? 'IMG' : kindOf(item.name);
-  }
-
-  // ---------------------------------------------------------------- actions
-
-  private startRename(kind: string, id: string, name: string): void {
-    this.renameKind = kind;
-    this.renameId = id;
-    this.renameName = name;
-  }
-
-  private applyRename(name: string): void {
-    const kind: string = this.renameKind;
-    const id: string = this.renameId;
-    this.renameKind = '';
-    this.renameId = '';
-    if (id.length === 0) {
-      return;
-    }
-    if (kind === 'zip') {
-      const zip: ZipItem | undefined = this.zips.find((item: ZipItem): boolean => item.id === id);
-      if (zip !== undefined) {
-        this.say(DownloadStore.renameZip(zip, name) ? '重命名完成' : '名称已存在');
-      }
-      return;
-    }
-    const download: DownloadItem | undefined = this.downloads.find((item: DownloadItem): boolean => item.id === id);
-    if (download !== undefined) {
-      this.say(DownloadStore.renameDownload(download, name) ? '重命名完成' : '名称已存在');
-    }
-  }
-
-  private confirmDeleteImage(item: DownloadItem): void {
-    this.getUIContext().showAlertDialog({
-      title: '删除图片',
-      message: '将同时删除应用内文件和下载记录，已导出的副本不受影响。',
-      primaryButton: {
-        value: '取消', action: (): void => {
+        },
+        secondaryButton: {
+          value: confirmText, action: onConfirm
         }
-      },
-      secondaryButton: {
-        value: '删除', action: (): void => {
-          DownloadStore.deleteDownload(item);
-          if (this.previewId === item.id) {
-            this.previewId = '';
-          }
-          this.say('已删除图片');
-        }
-      }
-    });
-  }
-
-  private confirmDeleteZip(item: ZipItem): void {
-    this.getUIContext().showAlertDialog({
-      title: '删除压缩包',
-      message: '将同时删除压缩包文件和记录，已导出的副本不受影响。',
-      primaryButton: {
-        value: '取消', action: (): void => {
-        }
-      },
-      secondaryButton: {
-        value: '删除', action: (): void => {
-          DownloadStore.deleteZip(item);
-          this.say('已删除压缩包');
-        }
-      }
-    });
-  }
-
-  private confirmClearAll(): void {
-    this.getUIContext().showAlertDialog({
-      title: '清空全部记录',
-      message: '将删除应用内的全部图片、压缩包与下载记录。已导出的副本不受影响。',
-      primaryButton: {
-        value: '取消', action: (): void => {
-        }
-      },
-      secondaryButton: {
-        value: '删除', action: (): void => {
-          this.previewId = '';
-          DownloadStore.clearAll();
-          this.say('已清空全部记录');
-        }
-      }
-    });
-  }
-
-  private cleanTemp(): void {
-    const freed: number = DownloadStore.cleanStaging();
-    this.say('暂存目录已清理 · 释放 ' + formatBytes(freed));
-  }
-
-  private async exportFile(path: string, name: string): Promise<void> {
-    try {
-      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
-      const options: picker.DocumentSaveOptions = { newFileNames: [name] };
-      const targets: string[] = await savePicker.save(options);
-      if (targets.length === 0) {
-        return;
-      }
-      const source: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
-      const target: fs.File = fs.openSync(targets[0], fs.OpenMode.WRITE_ONLY);
-      await fs.copyFile(source.fd, target.fd);
-      fs.closeSync(source);
-      fs.closeSync(target);
-      this.say('已导出文件');
-    } catch (error) {
-      this.say('导出失败：' + String(error));
-    }
-  }
-
-  private async saveToGallery(item: DownloadItem): Promise<void> {
-    try {
-      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const helper: photoAccessHelper.PhotoAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
-      const dot: number = item.name.lastIndexOf('.');
-      const extension: string = dot > 0 ? item.name.substring(dot + 1).toLowerCase() : 'jpg';
-      // @SuppressWarnings permission
-      const uri: string = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, extension);
-      const source: fs.File = fs.openSync(item.path, fs.OpenMode.READ_ONLY);
-      const target: fs.File = fs.openSync(uri, fs.OpenMode.WRITE_ONLY);
-      await fs.copyFile(source.fd, target.fd);
-      fs.closeSync(source);
-      fs.closeSync(target);
-      this.say('已保存到系统相册');
-    } catch (error) {
-      this.say('保存相册失败：' + String(error));
-    }
-  }
-
-  private async shareFile(path: string, name: string, isZip: boolean): Promise<void> {
-    try {
-      const typeId: string = isZip ? utd.UniformDataType.ZIP_ARCHIVE : utd.UniformDataType.IMAGE;
-      const data: systemShare.SharedData = new systemShare.SharedData({
-        utd: typeId,
-        uri: fileUri.getUriFromPath(path),
-        title: name
       });
-      const controller: systemShare.ShareController = new systemShare.ShareController(data);
-      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      await controller.show(context, {
-        selectionMode: systemShare.SelectionMode.SINGLE,
-        previewMode: systemShare.SharePreviewMode.DEFAULT
-      });
-    } catch (error) {
-      this.say('分享失败：' + String(error));
+    };
+    return port;
+  }
+
+  /** 商店里的数据变了：把 ViewModel 拉回一致，再取一次攒下的提示。 */
+  private storeChanged(): void {
+    this.tasks.sync();
+    this.library.sync();
+    this.settings.sync();
+    this.device.sync();
+    this.flushNotice();
+  }
+
+  /**
+   * 打开大图预览页。
+   *
+   * 预览必须走 **router 新页面**，不能在 Index 上再盖一层浮层：系统返回键只认页面栈，
+   * 浮层时代按返回键直接退出应用（本需求的起因）。页面自己负责取记录、改名与文件操作，
+   * 这里只把「看哪一条」「给不给改名」和**可以左右滑的那一批**传过去。
+   */
+  private openViewer(item: DownloadItem, rename: boolean, siblings: string[]): void {
+    // 先把自己标成「不在前台」再推页：pushUrl 到对面 onPageShow 之间有几毫秒，
+    // 这期间若有个投递失败触发了 notify，本页会先把商店里的提示取走、弹在一个马上被盖住的
+    // Toast 上，预览页再取就是空串 —— 提示等于被吞了。回来时 onPageShow 会重新置 true。
+    this.pageVisible = false;
+    // 用 UIContext 上的 Router，不用全局 router 模块：后者在 API 18 起已废弃。
+    this.getUIContext().getRouter().pushUrl({
+      url: 'pages/Viewer',
+      params: { id: item.id, rename: rename, ids: siblings }
+    }).catch((error: BusinessError): void => {
+      this.pageVisible = true;
+      this.say('无法打开预览：' + error.message);
+    });
+  }
+
+  // ------------------------------------------------------------------ 提示
+
+  /** 商店里攒下的提示（投递失败之类）由当前可见的那一页负责弹一次。 */
+  private flushNotice(): void {
+    if (!this.pageVisible) {
+      return;
+    }
+    const text: string = DownloadStore.takeNotice();
+    if (text.length > 0) {
+      this.say(text);
     }
   }
 
-  // ---------------------------------------------------------------- settings
-
-  private pickTheme(value: string): void {
-    DownloadStore.setThemeMode(value);
-    this.sync();
-    this.applyTheme();
+  /** 弹一句提示；停留时长与定时器管理都在 ToastLatch 里。 */
+  private say(text: string): void {
+    this.toast.show(text);
   }
 
-  private applyTheme(): void {
-    const mode: ConfigurationConstant.ColorMode = DownloadStore.themeMode === 'dark'
-      ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-      : DownloadStore.themeMode === 'light'
-        ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-        : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
-    try {
-      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      context.getApplicationContext().setColorMode(mode);
-    } catch (error) {
+  // ------------------------------------------------------------------ 返回顶部
+
+  /** 当前页签自己的「滚远了没有」；设置页没有列表，永远 false。 */
+  private topVisible(): boolean {
+    if (this.currentTab === TAB_DISCOVER) {
+      return this.discover.scrolled;
     }
-  }
-
-  /** Device compute tier; the app reads it but cannot change it. */
-  private deviceLevelName(): string {
-    try {
-      const level: uiMaterial.MaterialLevel = uiMaterial.getGlobalMaterialLevel();
-      if (level === uiMaterial.MaterialLevel.EXQUISITE) {
-        return '精致 · 高算力';
-      }
-      if (level === uiMaterial.MaterialLevel.GENTLE) {
-        return '均衡 · 中算力';
-      }
-      return '轻盈 · 低算力';
-    } catch (error) {
-      return '未知';
+    if (this.currentTab === TAB_TASKS) {
+      return this.tasks.scrolled;
     }
-  }
-
-  private immersiveSupported(): boolean {
-    try {
-      return uiMaterial.isImmersiveMaterialSupported();
-    } catch (error) {
-      return false;
+    if (this.currentTab === TAB_LIBRARY) {
+      return this.library.scrolled;
     }
+    return false;
   }
 
-  // ---------------------------------------------------------------- grid math
-
-  private rowsOfPicture(items: PictureItem[], columns: number): PictureItem[][] {
-    const rows: PictureItem[][] = [];
-    for (let start: number = 0; start < items.length; start += columns) {
-      rows.push(items.slice(start, start + columns));
+  private scrollToTop(): void {
+    if (this.currentTab === TAB_TASKS) {
+      this.tasks.scrollToTop();
+      return;
     }
-    return rows;
-  }
-
-  private rowsOfDownload(items: DownloadItem[], columns: number): DownloadItem[][] {
-    const rows: DownloadItem[][] = [];
-    for (let start: number = 0; start < items.length; start += columns) {
-      rows.push(items.slice(start, start + columns));
+    if (this.currentTab === TAB_LIBRARY) {
+      this.library.scrollToTop();
+      return;
     }
-    return rows;
+    this.discover.scrollToTop();
   }
 
-  private filler(count: number, columns: number): number[] {
-    const missing: number = (columns - (count % columns)) % columns;
-    const cells: number[] = [];
-    for (let i: number = 0; i < missing; i++) {
-      cells.push(i);
-    }
-    return cells;
+  /**
+   * 返回顶部按钮离底边的距离。
+   *
+   * 发现页底部还叠着握姿胶囊和选择条，按钮得排在它们上面，否则会压住下载按钮 ——
+   * 用和滚动内容同一套「底部预留」算法，见 DiscoverScreen 的 padding。
+   */
+  private toTopBottomInset(): number {
+    const extra: number = this.currentTab === TAB_DISCOVER
+      ? (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
+      : 0;
+    return ScreenMetrics.tabBarSpace(this.safeBottom) + Space.s12 + extra;
   }
 
-  // ---------------------------------------------------------------- 发现
-
-  @Builder
-  private browserCard() {
-    Column() {
-      Row({ space: Space.s4 }) {
-        Row({ space: Space.s4 }) {
-          Circle().width(7).height(7).fill(Palette.divider)
-          Circle().width(7).height(7).fill(Palette.divider)
-          Circle().width(7).height(7).fill(Palette.divider)
-        }
-        .flexShrink(0)
-
-        Row({ space: Space.s6 }) {
-          Glyph({ glyph: 'globe', glyphSize: 12, glyphTone: Palette.fontTertiary, glyphWeight: 2 })
-          Text(this.pageUrl.length > 0 ? this.pageUrl : '输入网址后在这里浏览网页')
-            .fontSize(11.5)
-            .fontColor(Palette.fontTertiary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-        }
-        .height(26)
-        .padding({ left: Space.s10, right: Space.s10 })
-        .borderRadius(Radius.full)
-        .backgroundColor(Palette.cardSunken)
-        .layoutWeight(1)
-
-        IconButton({
-          glyph: 'refresh', glyphSize: 16, diameter: 30, plain: true,
-          onAction: (): void => {
-            this.scan();
-          }
-        })
-      }
-      .width('100%')
-      .height(42)
-      .padding({ left: Space.s14, right: Space.s10 })
-
-      Stack({ alignContent: Alignment.Bottom }) {
-        Web({ src: 'about:blank', controller: this.browser })
-          .javaScriptAccess(true)
-          .domStorageAccess(true)
-          .width('100%')
-          .height('100%')
-          .onPageEnd((): void => {
-            this.scan();
-          })
-
-        if (this.scanning) {
-          Row({ space: Space.s6 }) {
-            LoadingProgress().width(16).height(16).color(Palette.white)
-            Text('正在扫描当前网页…')
-              .fontSize(Font.caption)
-              .fontColor(Palette.white)
-          }
-          .padding({ left: Space.s10, right: Space.s12, top: Space.s6, bottom: Space.s6 })
-          .borderRadius(Radius.full)
-          .backgroundColor('#8C000000')
-          .margin({ bottom: Space.s8 })
-        }
-      }
-      .width('100%')
-      .height(200)
-      .backgroundColor(Palette.cardSunken)
-
-      Row({ space: Space.s8 }) {
-        Text(this.pageTitle.length > 0 ? this.pageTitle : '尚未打开网页')
-          .fontSize(Font.body)
-          .lineHeight(Font.bodyLine)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-        Row({ space: Space.s2 }) {
-          Glyph({ glyph: 'image', glyphSize: 13, glyphTone: Palette.fontTertiary, glyphWeight: 2 })
-          Text(this.pictures.length.toString() + ' 张')
-            .fontSize(Font.caption)
-            .fontColor(Palette.fontTertiary)
-        }
-      }
-      .width('100%')
-      .padding({ left: Space.s12, right: Space.s12, top: Space.s10, bottom: Space.s12 })
-    }
-    .width('100%')
-    .borderRadius(Radius.r8)
-    .backgroundColor(Palette.card)
-    .shadow(Shadow.card())
-    .clip(true)
-  }
-
-  @Builder
-  private discoverScreen() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: Space.s16 }) {
-          Row({ space: Space.s8 }) {
-            Glyph({ glyph: 'globe', glyphSize: 18, glyphTone: Palette.fontTertiary, glyphWeight: 1.7 })
-            TextInput({ placeholder: '输入网页或图片链接', text: this.address })
-              .placeholderColor(Palette.fontSecondary)
-              .caretColor(Palette.brand)
-              .fontSize(Font.body)
-              .fontColor(Palette.fontPrimary)
-              .backgroundColor(Color.Transparent)
-              .padding(0)
-              .height(36)
-              .layoutWeight(1)
-              .onChange((value: string): void => {
-                this.address = value;
-              })
-              .onSubmit((key: EnterKeyType): void => {
-                this.visit();
-              })
-            PillButton({
-              label: '打开', variant: 'primary', active: this.address.trim().length > 0,
-              onAction: (): void => {
-                this.visit();
-              }
-            })
-          }
-          .width('100%')
-          .height(44)
-          .padding({ left: Space.s14, right: Space.s4 })
-          .borderRadius(Radius.full)
-          .backgroundColor(Palette.card)
-          .shadow(Shadow.card())
-
-          this.browserCard()
-
-          Column({ space: Space.s10 }) {
-            SectionHead({
-              heading: '选择要下载的图片',
-              meta: this.selectedCount() > 0
-                ? '已选 ' + this.selectedCount().toString()
-                : this.pictures.length.toString() + ' 张',
-              actionLabel: '全选',
-              secondLabel: '反选',
-              thirdLabel: '清空',
-              onAction: (): void => {
-                this.selectAll(true);
-              },
-              onSecond: (): void => {
-                this.invertSelection();
-              },
-              onThird: (): void => {
-                this.selectAll(false);
-              }
-            })
-
-            if (this.pictures.length > 0) {
-              Column({ space: Space.s8 }) {
-                ForEach(this.rowsOfPicture(this.pictures, 3), (row: PictureItem[], rowIndex: number) => {
-                  Row({ space: Space.s8 }) {
-                    ForEach(row, (cell: PictureItem, colIndex: number) => {
-                      Column() {
-                        SelectTile({
-                          picture: cell,
-                          index: rowIndex * 3 + colIndex,
-                          onToggle: (picture: PictureItem): void => {
-                            this.togglePicture(picture);
-                          }
-                        })
-                      }
-                      .layoutWeight(1)
-                    }, (cell: PictureItem) => cell.id + (cell.selected ? ':1' : ':0'))
-
-                    ForEach(this.filler(row.length, 3), (pad: number) => {
-                      Column().layoutWeight(1)
-                    }, (pad: number) => 'pad' + pad.toString())
-                  }
-                  .width('100%')
-                  .alignItems(VerticalAlign.Top)
-                }, (row: PictureItem[], rowIndex: number) => rowIndex.toString()
-                  + ':' + row.map((cell: PictureItem): string =>
-                    cell.id + (cell.selected ? ':1' : ':0')).join(','))
-              }
-              .width('100%')
-            } else {
-              Text('还没有扫描到图片。在上面的浏览器中打开网页，加载完成后会自动扫描。')
-                .fontSize(Font.aux)
-                .lineHeight(Font.subtitleLine)
-                .fontColor(Palette.fontTertiary)
-                .textAlign(TextAlign.Center)
-                .width('100%')
-                .padding({ top: Space.s20, bottom: Space.s20 })
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-
-          HintRow({
-            glyph: 'sparkle',
-            text: '扫描只读取当前页面的图片地址；滚动页面后重新扫描可以发现更多。'
-          })
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: this.screenHeight })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: this.topInset(true),
-          bottom: this.bottomInset(this.selectedCount() > 0 ? 68 : 0)
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-
-      TitleBar({
-        heading: '发现',
-        caption: this.scanning ? '正在扫描当前网页…' : '',
-        layer: Layout.tbLayerSecondary
-      })
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  @Builder
-  private selectionDock() {
-    Row({ space: Space.s10 }) {
-      Column({ space: 1 }) {
-        Text('已选 ' + this.selectedCount().toString() + ' 张')
-          .fontSize(Font.body)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary)
-        Text(this.mode === 'zip' ? '打包为 ZIP' : '保存为单独文件')
-          .fontSize(Font.chip)
-          .fontColor(Palette.fontTertiary)
-          .maxLines(1)
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-
-      Segmented({
-        options: MODE_OPTIONS,
-        selected: this.mode,
-        onSelect: (value: string): void => {
-          this.mode = value;
-        }
-      })
-
-      PillButton({
-        label: '下载',
-        variant: 'primary',
-        icon: this.mode === 'zip' ? 'layers' : 'download',
-        onAction: (): void => {
-          this.enqueue();
-        }
-      })
-    }
-    .width('100%')
-    .padding({ left: Space.s16, right: Space.s8, top: Space.s8, bottom: Space.s8 })
-    .borderRadius(Radius.full)
-    .backgroundColor(Palette.glassStrong)
-    .backdropBlur(30)
-    .shadow(Shadow.float())
-  }
-
-  // ---------------------------------------------------------------- 任务
-
-  @Builder
-  private concurrencyCard() {
-    Card({ pad: Space.s12 }) {
-      Column({ space: Space.s10 }) {
-        Row({ space: Space.s8 }) {
-          Text('同时下载')
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Palette.fontPrimary)
-          Blank()
-          Text('超过并发的任务自动排队')
-            .fontSize(Font.caption)
-            .lineHeight(Font.captionLine)
-            .fontColor(Palette.fontTertiary)
-        }
-        .width('100%')
-
-        Slider({ value: this.concurrency, min: 1, max: 10, step: 1, style: SliderStyle.OutSet })
-          .width('100%')
-          .trackThickness(4)
-          .selectedColor(Palette.brand)
-          .trackColor(Palette.cardSunken)
-          .blockColor(Palette.white)
-          .blockBorderWidth(5)
-          .blockBorderColor(Palette.brand)
-          .onChange((value: number): void => {
-            DownloadStore.setConcurrency(Math.round(value));
-          })
-
-        Text(this.concurrency.toString() + ' 个任务同时进行')
-          .fontSize(Font.body)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Palette.brand)
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-    }
-  }
-
-  @Builder
-  private taskList(tasks: DownloadItem[]) {
-    Column({ space: Space.s12 }) {
-      ForEach(tasks, (task: DownloadItem) => {
-        TaskCard({
-          task: task,
-          onCancel: (item: DownloadItem): void => {
-            this.cancelTask(item);
-          },
-          onRetry: (item: DownloadItem): void => {
-            this.retryTask(item);
-          },
-          onLocate: (item: DownloadItem): void => {
-            this.locate(item);
-          },
-          onRename: (item: DownloadItem): void => {
-            this.startRename('task', item.id, item.name);
-          }
-        })
-      }, (task: DownloadItem) => task.id)
-    }
-    .width('100%')
-  }
-
-  @Builder
-  private tasksScreen() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: Space.s16 }) {
-          this.concurrencyCard()
-
-          if (this.batchViews().length > 0) {
-            Column({ space: Space.s10 }) {
-              SectionHead({ heading: '打包任务', meta: 'ZIP' })
-              Column({ space: Space.s12 }) {
-                ForEach(this.batchViews(), (view: BatchView) => {
-                  BatchCard({
-                    view: view,
-                    onRetry: (batch: BatchView): void => {
-                      this.retryBatch(batch);
-                    },
-                    onDismiss: (batch: BatchView): void => {
-                      this.dismissBatch(batch);
-                    }
-                  })
-                }, (view: BatchView) => view.id + '|' + view.status + '|'
-                  + view.done.toString() + '|' + view.failed.toString())
-              }
-              .width('100%')
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Start)
-          }
-
-          if (this.activeTasks().length > 0) {
-            Column({ space: Space.s10 }) {
-              SectionHead({ heading: '进行中', meta: this.activeTasks().length.toString() })
-              this.taskList(this.activeTasks())
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Start)
-          }
-
-          if (this.settledTasks().length > 0) {
-            Column({ space: Space.s10 }) {
-              SectionHead({ heading: '已完成 / 失败', meta: this.settledTasks().length.toString() })
-              this.taskList(this.settledTasks())
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Start)
-          }
-
-          if (this.runningCount() === 0 && this.settledTasks().length === 0) {
-            EmptyState({
-              glyph: 'inbox',
-              heading: '还没有下载任务',
-              body: '回到「发现」，扫描网页并选择要保存的图片。'
-            })
-          }
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: this.screenHeight })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: this.topInset(true),
-          bottom: this.bottomInset(0)
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-
-      TitleBar({
-        heading: '任务',
-        caption: this.runningCount() > 0
-          ? this.runningCount().toString() + ' 个任务进行中 · 并发 ' + this.concurrency.toString()
-          : '队列为空',
-        layer: Layout.tbLayerSecondary
-      })
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  // ---------------------------------------------------------------- 图库
-
-  @Builder
-  private searchPill() {
-    Row({ space: Space.s8 }) {
-      Glyph({ glyph: 'search', glyphSize: 18, glyphTone: Palette.fontTertiary, glyphWeight: 1.7 })
-      TextInput({ placeholder: '搜索文件名', text: this.query })
-        .placeholderColor(Palette.fontSecondary)
-        .caretColor(Palette.brand)
-        .fontSize(Font.body)
-        .fontColor(Palette.fontPrimary)
-        .backgroundColor(Color.Transparent)
-        .padding(0)
-        .height(36)
-        .layoutWeight(1)
-        .onChange((value: string): void => {
-          this.query = value;
-        })
-    }
-    .width('100%')
-    .height(44)
-    .padding({ left: Space.s14, right: Space.s14 })
-    .borderRadius(Radius.full)
-    .backgroundColor(Palette.card)
-    .shadow(Shadow.card())
-  }
-
-  @Builder
-  private galleryGrid() {
-    Column({ space: Space.s12 }) {
-      ForEach(this.rowsOfDownload(this.galleryItems(), this.density),
-        (row: DownloadItem[], rowIndex: number) => {
-          Row({ space: this.density === 3 ? Space.s6 : Space.s12 }) {
-            ForEach(row, (cell: DownloadItem, colIndex: number) => {
-              Column() {
-                ShotTile({
-                  image: cell,
-                  dense: this.density === 3,
-                  onOpen: (item: DownloadItem): void => {
-                    this.previewId = item.id;
-                  }
-                })
-              }
-              .layoutWeight(1)
-            }, (cell: DownloadItem) => cell.id)
-
-            ForEach(this.filler(row.length, this.density), (pad: number) => {
-              Column().layoutWeight(1)
-            }, (pad: number) => 'pad' + pad.toString())
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Top)
-        }, (row: DownloadItem[], rowIndex: number) => rowIndex.toString()
-          + ':' + row.map((cell: DownloadItem): string => cell.id).join(','))
-    }
-    .width('100%')
-  }
-
-  @Builder
-  private galleryScreen() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: Space.s16 }) {
-          this.searchPill()
-
-          if (this.galleryItems().length > 0) {
-            this.galleryGrid()
-          } else {
-            EmptyState({
-              glyph: 'image',
-              heading: this.query.length > 0 ? '没有匹配的图片' : '图库还是空的',
-              body: this.query.length > 0 ? '换一个关键词试试。' : '下载完成的图片会出现在这里。'
-            })
-          }
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: this.screenHeight })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: this.topInset(true),
-          bottom: this.bottomInset(0)
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-
-      TitleBar({
-        heading: '图库',
-        caption: this.galleryCount().toString() + ' 张图片 · ' + formatBytes(this.galleryBytes()),
-        actionGlyph: 'grid',
-        layer: Layout.tbLayerSecondary,
-        onAction: (): void => {
-          this.density = this.density === 2 ? 3 : 2;
-        }
-      })
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  // ---------------------------------------------------------------- 打包
-
-  @Builder
-  private archivesScreen() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: Space.s12 }) {
-          if (this.zips.length === 0) {
-            EmptyState({
-              glyph: 'archive',
-              heading: '还没有压缩包',
-              body: '在「发现」里打开 ZIP 模式，把选中的图片打包成一个压缩包。'
-            })
-          }
-
-          ForEach(this.zips, (zip: ZipItem) => {
-            ArchiveCard({
-              zip: zip,
-              onRename: (item: ZipItem): void => {
-                this.startRename('zip', item.id, item.name);
-              },
-              onExport: (item: ZipItem): void => {
-                this.exportFile(item.path, item.name);
-              },
-              onShare: (item: ZipItem): void => {
-                this.shareFile(item.path, item.name, true);
-              },
-              onDelete: (item: ZipItem): void => {
-                this.confirmDeleteZip(item);
-              }
-            })
-          }, (zip: ZipItem) => zip.id)
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: this.screenHeight })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: this.topInset(true),
-          bottom: this.bottomInset(0)
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-
-      TitleBar({
-        heading: '打包',
-        caption: this.zips.length.toString() + ' 个压缩包',
-        layer: Layout.tbLayerSecondary
-      })
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  // ---------------------------------------------------------------- 设置
-
-  @Builder
-  private sliderRow() {
-    Slider({ value: this.concurrency, min: 1, max: 10, step: 1, style: SliderStyle.OutSet })
-      .width('100%')
-      .trackThickness(4)
-      .selectedColor(Palette.brand)
-      .trackColor(Palette.cardSunken)
-      .blockColor(Palette.white)
-      .blockBorderWidth(5)
-      .blockBorderColor(Palette.brand)
-      .onChange((value: number): void => {
-        DownloadStore.setConcurrency(Math.round(value));
-      })
-  }
-
-  @Builder
-  private settingsScreen() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: Space.s20 }) {
-          Column({ space: Space.s10 }) {
-            SectionHead({ heading: '外观' })
-            Card({ pad: 0 }) {
-              StackedRow({
-                glyph: this.themeMode === 'dark' ? 'moon' : 'sun',
-                heading: '主题',
-                aux: this.themeMode === 'system'
-                  ? '跟随系统'
-                  : (this.themeMode === 'dark' ? '固定为深色' : '固定为浅色')
-              }) {
-                Segmented({
-                  options: THEME_OPTIONS,
-                  selected: this.themeMode,
-                  onSelect: (value: string): void => {
-                    this.pickTheme(value);
-                  }
-                })
-              }
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-
-          Column({ space: Space.s10 }) {
-            SectionHead({ heading: '系统特性', meta: 'HarmonyOS' })
-            Card({ pad: 0 }) {
-              Column() {
-                ListRow({
-                  glyph: 'sparkle',
-                  brandTone: true,
-                  heading: '沉浸光感',
-                  aux: '触摸时材质表面被点亮，并带交互形变'
-                }) {
-                  Toggle({ type: ToggleType.Switch, isOn: this.lightEffect })
-                    .selectedColor(Palette.brand)
-                    .onChange((value: boolean): void => {
-                      DownloadStore.setLightEffect(value);
-                      this.sync();
-                    })
-                }
-
-                Divider().color(Palette.divider).margin({ left: 60 })
-
-                StackedRow({
-                  glyph: 'layers',
-                  heading: '材质类型',
-                  aux: this.materialType === 'immersive'
-                    ? (this.immersiveSupported()
-                      ? '沉浸式材质 · 含边缘流光'
-                      : '本机不支持沉浸式材质，将回退为静态模糊')
-                    : '由系统按场景自动选择材质风格'
-                }) {
-                  Segmented({
-                    options: MATERIAL_OPTIONS,
-                    selected: this.materialType,
-                    onSelect: (value: string): void => {
-                      DownloadStore.setMaterialType(value);
-                      this.sync();
-                    }
-                  })
-                }
-
-                Divider().color(Palette.divider).margin({ left: 60 })
-
-                ListRow({
-                  glyph: 'sliders',
-                  heading: '材质等级',
-                  aux: '由设备算力决定，应用只读取、不修改'
-                }) {
-                  Text(this.deviceLevelName())
-                    .fontSize(Font.aux)
-                    .fontColor(Palette.fontSecondary)
-                }
-              }
-              .width('100%')
-            }
-
-            HintRow({
-              glyph: 'sparkle',
-              text: '沉浸光感与材质来自 UI Design Kit 的 uiMaterial：按设备算力等级生效，'
-                + '低算力设备会自动降级为静态模糊。'
-            })
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-
-          Column({ space: Space.s10 }) {
-            SectionHead({ heading: '下载' })
-            Card({ pad: 0 }) {
-              Column() {
-                StackedRow({
-                  glyph: 'download',
-                  heading: '同时下载数量',
-                  aux: '超出的任务自动排队，范围 1–10'
-                }) {
-                  this.sliderRow()
-                }
-
-                Divider().color(Palette.divider).margin({ left: 60 })
-
-                ListRow({
-                  glyph: 'folder',
-                  heading: '文件名来源',
-                  aux: '优先用服务器返回的文件名，其次用网页描述'
-                }) {
-                  Text('服务器优先')
-                    .fontSize(Font.aux)
-                    .fontColor(Palette.fontSecondary)
-                }
-
-                Divider().color(Palette.divider).margin({ left: 60 })
-
-                ListRow({
-                  glyph: 'archive',
-                  heading: '下载位置',
-                  aux: '应用文件 · 图片与压缩包分开存放'
-                }) {
-                  Text('应用文件')
-                    .fontSize(Font.aux)
-                    .fontColor(Palette.fontSecondary)
-                }
-              }
-              .width('100%')
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-
-          Column({ space: Space.s10 }) {
-            SectionHead({
-              heading: '数据',
-              meta: DownloadStore.usedBytes() > 0 ? '占用 ' + formatBytes(DownloadStore.usedBytes()) : ''
-            })
-            Card({ pad: 0 }) {
-              Column() {
-                ListRow({
-                  glyph: 'trash',
-                  heading: '清理临时文件',
-                  aux: '打包中断后残留在暂存目录的图片',
-                  onAction: (): void => {
-                    this.cleanTemp();
-                  }
-                }) {
-                  Text('清理')
-                    .fontSize(Font.aux)
-                    .fontColor(Palette.brand)
-                }
-
-                Divider().color(Palette.divider).margin({ left: 60 })
-
-                ListRow({
-                  glyph: 'xCircle',
-                  heading: '清空全部下载记录',
-                  aux: '删除应用内的文件与记录，已导出的副本不受影响',
-                  onAction: (): void => {
-                    this.confirmClearAll();
-                  }
-                }) {
-                  Text('清空')
-                    .fontSize(Font.aux)
-                    .fontColor(Palette.warning)
-                }
-              }
-              .width('100%')
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-
-          Text('图片下载管理 · 1.0.0')
-            .fontSize(Font.caption)
-            .fontColor(Palette.fontTertiary)
-            .textAlign(TextAlign.Center)
-            .width('100%')
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: this.screenHeight })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: this.topInset(false),
-          bottom: this.bottomInset(0)
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-
-      TitleBar({ heading: '设置', layer: Layout.tbLayerNormal })
-    }
-    .width('100%')
-    .height('100%')
-  }
-
-  // ---------------------------------------------------------------- shell
+  // ------------------------------------------------------------------ 视图
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // The browser tab stays mounted so the page in it survives a tab switch.
+      // 四个页签一律「保持挂载 + 切 visibility」，不用 if 换节点：
+      // 挂载中的 Scroll 会记住自己的滚动位置，用户从别处切回来不会跳回顶部。
+      // 发现页额外要留住浏览器里已经加载的网页，所以它本来就这么挂。
       Column() {
-        this.discoverScreen()
+        DiscoverScreen({
+          discover: this.discover,
+          settings: this.settings,
+          device: this.device
+        })
       }
       .width('100%')
       .height('100%')
-      .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.None)
+      .visibility(this.currentTab === TAB_DISCOVER ? Visibility.Visible : Visibility.None)
 
-      if (this.currentTab === 1) {
-        this.tasksScreen()
+      Column() {
+        TasksScreen({ tasks: this.tasks })
       }
-      if (this.currentTab === 2) {
-        this.galleryScreen()
-      }
-      if (this.currentTab === 3) {
-        this.archivesScreen()
-      }
-      if (this.currentTab === 4) {
-        this.settingsScreen()
-      }
+      .width('100%')
+      .height('100%')
+      .visibility(this.currentTab === TAB_TASKS ? Visibility.Visible : Visibility.None)
 
-      if (this.previewId.length > 0 && this.previewItem() !== undefined) {
-        ImageViewer({
-          src: this.previewSrc(),
-          heading: this.previewName(),
-          label: this.previewKind(),
-          onClose: (): void => {
-            this.previewId = '';
-          },
-          onRename: (): void => {
-            const item: DownloadItem | undefined = this.previewItem();
-            if (item !== undefined) {
-              this.startRename('image', item.id, item.name);
-            }
-          },
-          onSaveToGallery: (): void => {
-            const item: DownloadItem | undefined = this.previewItem();
-            if (item !== undefined) {
-              this.saveToGallery(item);
-            }
-          },
-          onShare: (): void => {
-            const item: DownloadItem | undefined = this.previewItem();
-            if (item !== undefined) {
-              this.shareFile(item.path, item.name, false);
-            }
-          },
-          onExport: (): void => {
-            const item: DownloadItem | undefined = this.previewItem();
-            if (item !== undefined) {
-              this.exportFile(item.path, item.name);
-            }
-          },
-          onDelete: (): void => {
-            const item: DownloadItem | undefined = this.previewItem();
-            if (item !== undefined) {
-              this.confirmDeleteImage(item);
-            }
+      Column() {
+        LibraryScreen({ library: this.library, settings: this.settings })
+      }
+      .width('100%')
+      .height('100%')
+      .visibility(this.currentTab === TAB_LIBRARY ? Visibility.Visible : Visibility.None)
+
+      Column() {
+        SettingsScreen({
+          settings: this.settings,
+          device: this.device,
+          tasks: this.tasks
+        })
+      }
+      .width('100%')
+      .height('100%')
+      .visibility(this.currentTab === TAB_SETTINGS ? Visibility.Visible : Visibility.None)
+
+      // 大图预览已改成独立页面（pages/Viewer.ets，见 openViewer）：
+      // 这里不再画浮层，否则系统返回键会绕过预览直接退出应用。
+
+      if (this.topVisible()) {
+        ToTopButton({
+          mirror: this.device.gripLeft(),
+          bottomSpace: this.toTopBottomInset(),
+          onTap: (): void => {
+            this.scrollToTop();
           }
         })
       }
 
-      if (this.currentTab === 0 && this.selectedCount() > 0) {
-        Column() {
-          this.selectionDock()
+      if (this.currentTab === TAB_DISCOVER && (this.discover.selectedTotal > 0 || this.device.gripChipVisible())) {
+        Column({ space: Space.s8 }) {
+          if (this.device.gripChipVisible()) {
+            GripChip({ device: this.device })
+          }
+          if (this.discover.selectedTotal > 0) {
+            SelectionDock({ discover: this.discover, device: this.device })
+          }
         }
         .width('100%')
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          bottom: this.tabBarSpace() + Space.s12
+          bottom: ScreenMetrics.tabBarSpace(this.safeBottom) + Space.s12
         })
+      }
+
+      // 防窥遮罩排在页签栏之前：后画的 TabBar 落在它上面，被盖住时用户仍能切页签。
+      if (this.device.peeking) {
+        PrivacyVeil({ device: this.device })
       }
 
       TabBar({
         active: this.currentTab,
-        badge: this.runningCount(),
+        badge: this.tasks.running,
         onSelect: (index: number): void => {
           this.currentTab = index;
         }
@@ -1514,18 +343,30 @@ struct Index {
           ToastPill({ text: this.notice })
         }
         .width('100%')
-        .padding({ left: Layout.pagePad, right: Layout.pagePad, bottom: this.tabBarSpace() + 88 })
+        // 没键盘时贴在页签栏上方 88（原型 .toast 的定位）。键盘弹起时窗口被压矮，
+        // 页面底部就是键盘上沿 —— 这时只留 16 的间隙让 toast 压在键盘上，
+        // 否则同一段 188 的内边距会把它顶到屏幕中部去（看起来像浮在内容正中）。
+        .padding({
+          left: Layout.pagePad,
+          right: Layout.pagePad,
+          bottom: this.keyboardHeight > 0 ? Space.s16 : ScreenMetrics.tabBarSpace(this.safeBottom) + 88
+        })
+        // 这层盒子横跨整屏宽：键盘收起时它还把页签栏整个盖住。它纯粹是装饰，
+        // 没有任何可点内容，所以整层退出命中测试：不设的话 toast 一出现，
+        // 盖住的那条区域（页签栏、浮动下载条）在 2.6 秒里点不动，像卡死。
+        .hitTestBehavior(HitTestMode.None)
       }
 
-      if (this.renameId.length > 0) {
+      // 只剩压缩包会用到这个弹窗；图片改名跟着大图预览页走（pages/Viewer.ets）。
+      if (this.library.renameId.length > 0) {
         RenameDialog({
-          heading: this.renameKind === 'zip' ? '重命名压缩包' : '重命名图片',
-          initial: this.renameName,
+          heading: '重命名压缩包',
+          initial: this.library.renameName,
           onSave: (name: string): void => {
-            this.applyRename(name);
+            this.library.applyZipRename(name);
           },
           onClose: (): void => {
-            this.renameId = '';
+            this.library.cancelRename();
           }
         })
       }

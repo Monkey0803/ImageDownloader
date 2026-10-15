@@ -41,7 +41,16 @@ export class Palette {
   static readonly dangerBgPress: Resource = $r('app.color.danger_bg_press');
   static readonly toastBg: Resource = $r('app.color.toast_bg');
   static readonly viewerBg: Resource = $r('app.color.viewer_bg');
+  /** 防窥遮罩的底色，见 .privacy-veil。 */
+  static readonly privacyVeil: Resource = $r('app.color.privacy_veil');
   static readonly segOn: Resource = $r('app.color.seg_on');
+  /**
+   * 下拉菜单里「选中项」的底色（`Select.selectedOptionBgColor`）。
+   *
+   * 浅色是品牌淡蓝，叠在白色卡片上呈现 #E7EFFE；深色直接给这枚不透明值 —— 同一层
+   * 半透明蓝叠在深色卡片 #202224 上几乎是黑的，选中项根本看不出来。两个主题看起来一致。
+   */
+  static readonly selectOnBg: Resource = $r('app.color.select_on_bg');
   static readonly sheen: Resource = $r('app.color.sheen');
 
   static readonly shadowCard: Resource = $r('app.color.shadow_card');
@@ -103,6 +112,12 @@ export class Layout {
   static readonly tabBarHeight: number = 56;
   static readonly tabBarTopPad: number = 16;
   static readonly homeIndicator: number = 28;
+  /**
+   * Width of the floating tab pill, centred instead of stretched edge to edge.
+   * The design kit's `.hm-bottomtab__bar--N` gives 160 / 236 / 328 / 328 for
+   * 2 / 3 / 4 / 5 tabs, so 4 and 5 share this one and the tabs flex inside it.
+   */
+  static readonly tabBarWidth: number = 328;
 }
 
 /** Type scale used across the screens. */

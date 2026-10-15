@@ -17,10 +17,21 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display, window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
+import { DownloadStore } from '../service/DownloadStore';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
+  /**
+   * 主窗口引用与键盘监听的注销函数。
+   *
+   * `main.on('avoidAreaChange', ...)` 在 `onWindowStageDestroy` 时没有 `off` 的话，
+   * 回调会留在已销毁的窗口上：它往 AppStorage 写的是全局状态，一次不会立刻出事，
+   * 但窗口重建（多窗口 / 分屏）时会叠加多份监听，键盘高度被写多次。
+   */
+  private mainWindow: window.Window | undefined = undefined;
+  private keyboardWatch: ((data: window.AvoidAreaOptions) => void) | undefined = undefined;
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'testTag', 'Ability onCreate, bundleName: %{public}s, launchReason: %{public}d',
       want.bundleName ?? '', launchParam.launchReason);
@@ -40,6 +51,9 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    // 页面已经不在了，但商店里可能还挂着「待存相册」的防抖定时器与合并写盘的定时器：
+    // 前者会在别的应用上弹系统确认框，后者会让最后一次进度没落盘。
+    DownloadStore.shutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
@@ -54,7 +68,7 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
-    EntryAbility.publishInsets(windowStage);
+    this.publishInsets(windowStage);
   }
 
   /**
@@ -65,13 +79,33 @@ export default class EntryAbility extends UIAbility {
    * assumes: the floating title bar owns the top edge and pads itself by
    * `safeTop`, and the tab bar pads itself by `safeBottom`.
    */
-  private static publishInsets(windowStage: window.WindowStage): void {
+  private publishInsets(windowStage: window.WindowStage): void {
     try {
       const main: window.Window = windowStage.getMainWindowSync();
       EntryAbility.applyFullScreen(main);
+      this.watchKeyboard(main);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to read the main window. Cause: %{public}s', JSON.stringify(err));
     }
+  }
+
+  /**
+   * 把软键盘的高度也发到 AppStorage。
+   *
+   * 键盘弹起时窗口会被压矮（默认 avoid 模式是 resize），页面里所有「贴底」的东西
+   * 都会跟着往上跳 —— toast 就是这么跑到屏幕中部的。页面拿到这个高度才能判断
+   * 「现在有没有键盘」，从而把 toast 压在键盘上沿而不是浮在内容中间。
+   */
+  private watchKeyboard(main: window.Window): void {
+    this.mainWindow = main;
+    this.keyboardWatch = (data: window.AvoidAreaOptions): void => {
+      if (data.type !== window.AvoidAreaType.TYPE_KEYBOARD) {
+        return;
+      }
+      const density: number = display.getDefaultDisplaySync().densityPixels;
+      AppStorage.setOrCreate('keyboardHeight', data.area.bottomRect.height / density);
+    };
+    main.on('avoidAreaChange', this.keyboardWatch);
   }
 
   private static async applyFullScreen(main: window.Window): Promise<void> {
@@ -98,6 +132,15 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
+    if (this.mainWindow !== undefined && this.keyboardWatch !== undefined) {
+      try {
+        this.mainWindow.off('avoidAreaChange', this.keyboardWatch);
+      } catch (err) {
+        hilog.error(DOMAIN, 'testTag', 'Failed to unwatch the keyboard. Cause: %{public}s', JSON.stringify(err));
+      }
+      this.keyboardWatch = undefined;
+      this.mainWindow = undefined;
+    }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }
 
