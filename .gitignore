@@ -26,3 +26,10 @@
 
 # DevEco 的 IDE 内部文件（计划草稿等），不属于源码
 /.deveco
+
+# HarmonyOS Symbol 字体（1.7 MB 的字体资产）：不随仓库分发。
+# 设计系统与 HTML 原型按相对路径引用 assets/HMSymbolVF_1.ttf，自行放入即可生效。
+**/assets/HMSymbolVF_1.ttf
+
+# ArkTS 编译器/检查器的构建缓存（.tsbuildinfo、arkts-check）
+/.cache

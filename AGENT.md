@@ -246,7 +246,8 @@ hdc -t 127.0.0.1:5555 shell "aa test -b com.example.imagedownloader -m entry_tes
 
 ### 真机验证基线（HUAWEI Mate 70 Pro / PLR-AL00 / API 26 / 1316×2832）
 
-走 `./scripts/device.sh <cmd> 10.155.89.11:45679`（不带目标就是这台）。已经实测过的：
+走 `DEVICE_TARGET=<设备>:<端口> ./scripts/device.sh <cmd>`；不设 `DEVICE_TARGET` 就落到模拟器
+（`127.0.0.1:5555`）。**仓库里不写任何设备地址**。下面这份基线是在一台 HUAWEI Mate 70 Pro 上跑的：
 
 - 主包与测试包都能用现有调试签名装上（两条 `system_basic` 权限的 ACL 已就位）；
 - 单测 **67/67 通过**（迁移到 V2 后又跑了一遍，含新增的落盘往返用例）；

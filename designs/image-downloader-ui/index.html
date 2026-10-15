@@ -1694,7 +1694,11 @@ img.is-loading { background: var(--card-sunken); }
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
-/* HMSymbol — the HarmonyOS icon font that icons.jsx draws its glyphs with. */
+/*
+ * HMSymbol — the HarmonyOS icon font that icons.jsx draws its glyphs with.
+ * NOT vendored: put your own `HMSymbolVF_1.ttf` in `assets/` (see the design-system
+ * readme). Without it the browser ignores this @font-face and icons fall back to text.
+ */
 @font-face {
   font-family: "HMSymbol";
   font-style: normal;

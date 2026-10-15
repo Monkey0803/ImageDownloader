@@ -51,7 +51,7 @@ Everything here is derived from the in-repo HarmonyOS reference library at
   (which documents colours as **ARGB**)
 - `references/3.component/` — 13 component specs
 - `references/4.template/` — 13 component HTML templates, translated byte-for-byte
-- `references/assets/` — `HMSymbolVF_1.ttf`, the eight status bar PNGs
+- `references/assets/` — the eight status bar PNGs (`HMSymbolVF_1.ttf` is **not** vendored, see below)
 
 The component CSS is **not retyped**: `tools/import-template-css.mjs` translates the
 templates (`.harmony-` → `.hm-`) and strips their `@import`/`@font-face`, leaving every
@@ -116,7 +116,8 @@ should match it rather than invent a voice.
 ## ICONOGRAPHY
 
 - **HMSymbol only.** The reference forbids hand-drawn inline SVG for any glyph the
-  official dictionary already contains. `assets/HMSymbolVF_1.ttf` (1.7 MB) is the font;
+  official dictionary already contains. The font is `HMSymbolVF_1.ttf` (1.7 MB) — **drop your own
+  copy into `assets/`**, it is not in this repo;
   `assets/hmsymbol-map.json` is the full official name → codepoint dictionary.
 - **Line variants only.** When a semantic name has both an outline and a filled form,
   use the outline. Never mix `*_fill` into a line set.
@@ -157,8 +158,9 @@ Stated plainly, because a silently narrowed rule is worse than a known gap.
    reference defines a canvas size for `phone-portrait` only. Pass explicit
    `width` / `height` for other form factors.
 2. **The bell has no line variant** (see Iconography).
-3. **`HMSymbolVF_1.ttf` is 1.7 MB** and is copied into every consuming project.
-   Subsetting is a possible follow-up.
+3. **`HMSymbolVF_1.ttf` is not vendored.** It is a 1.7 MB HarmonyOS font asset, so the repo
+   only references it by relative path: put your own copy in `assets/` and the prototypes work
+   unchanged. Subsetting it is a possible follow-up.
 4. **2.4 MB of colour-emoji fonts were deliberately omitted.** The reference ships
    `HMOSColorEmojiCompat.ttf` and `HMOSColorEmojiFlags.ttf`; emoji rendering falls back
    to the host font.

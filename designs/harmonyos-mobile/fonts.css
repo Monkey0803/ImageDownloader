@@ -11,6 +11,12 @@
  * rather than an @font-face, so it is deliberately absent here.
  */
 
+/*
+ * HMSymbol is NOT vendored in this repo: `HMSymbolVF_1.ttf` (1.7 MB) is a HarmonyOS
+ * font asset, so it is deliberately kept out of version control. Drop your own copy at
+ * `assets/HMSymbolVF_1.ttf` next to this file and the prototype picks it up as before;
+ * without it the browser simply ignores this @font-face and glyphs fall back to text.
+ */
 @font-face {
   font-family: "HMSymbol";
   font-style: normal;

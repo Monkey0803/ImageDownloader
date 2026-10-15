@@ -179,7 +179,7 @@ The fixture is now a **sibling directory**, outside the design system tree.
 | Repeating the StatusBar inside the titlebar when the frame already reserves 36px | That band would be reserved twice. Use the titlebar's own status row **or** the frame's slot, not both. |
 | Faking 沉浸光感 in ArkTS with a gradient | The system draws it when the setting is on; a hand-rolled glow is wrong precisely when the user disabled it. |
 | Drawing a line-variant notification bell | It does not exist in the dictionary (only `bell_fill` / `bell_slash` / `bell_slash_fill`). Recorded as a gap. |
-| Subsetting `HMSymbolVF_1.ttf` (1.7 MB) | It is copied into every consuming project. Subsetting is a possible follow-up, not a correctness issue. |
+| `HMSymbolVF_1.ttf` (1.7 MB) is not vendored | It is a HarmonyOS font asset, so it stays out of the repo (referenced by relative path; drop your own copy in `assets/`). Subsetting is a possible follow-up, not a correctness issue. |
 
 ---
 
