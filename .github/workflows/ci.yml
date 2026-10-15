@@ -1,0 +1,51 @@
+name: CI
+
+# 这个仓库的**真实构建**是 ArkTS：需要 DevEco Studio 的 HarmonyOS SDK（hvigor、签名工具），
+# GitHub 托管的 runner 上既没有、也没有公开可分发的安装源 —— 所以这里**不编 HAP**，别把绿灯
+# 当成「应用编译通过」。
+#
+# 本地怎么跑完整验证（AGENT.md「构建与测试」一节）：
+#   ./scripts/build.sh clean assembleHap                                  # 主包
+#   hvigorw assembleHap -p module=entry@ohosTest -p product=default       # 测试包
+#   hdc install -r entry-ohosTest-signed.hap && aa test -b com.example.imagedownloader \
+#       -m entry_test -s unittest OpenHarmonyTestRunner                   # 67 个用例
+#
+# 本工作流只覆盖**不依赖 SDK** 的部分：设计系统的生成物一致性 + 仓库守卫。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  design-system:
+    name: 设计系统生成物一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 生成物与源是否一致（0 stale）
+        working-directory: designs/harmonyos-mobile
+        run: |
+          node tools/build-token-har.mjs --check
+          node tools/annotate-tokens.mjs --check
+          node tools/emit-ohos-resources.mjs --dry-run
+      # 另外三个生成器（gen-icon-map / sync-tokens / import-template-css）要从
+      # ~/.agents/skills/hmos-design-visual-mobile 读 HarmonyOS 参考库；那份资料不随仓库分发，
+      # 所以只能在本地按 compliance.md 的 pre-commit 清单跑。
+
+  guards:
+    name: 仓库守卫
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 守卫检查（V2 不回流 / 落盘线格式 / 私有资产 / 私网地址）
+        run: ./scripts/check-guards.sh
+      - name: device.sh 语法
+        run: bash -n scripts/device.sh
