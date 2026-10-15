@@ -1,6 +1,34 @@
 # 图片下载管理
 
+[![CI](https://github.com/Monkey0803/ImageDownloader/actions/workflows/ci.yml/badge.svg)](https://github.com/Monkey0803/ImageDownloader/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![ArkTS](https://img.shields.io/badge/ArkTS-state%20management%20V2-blue)
+![Platform](https://img.shields.io/badge/platform-HarmonyOS%20%2F%20API%2026-lightgrey)
+
 鸿蒙手机应用，可在内置浏览器中扫描当前网页图片，选择单张保存或打包为 ZIP。支持 1–10 个同时下载任务、失败重试、图片与 ZIP 重命名、图库预览、分享和导出，下载位置可选应用文件 / 系统相册 / 自定义目录。
+
+## 仓库结构
+
+这个仓库不只装着一个应用，还装着它的设计系统与起新应用用的脚手架 —— 四块内容各有各的文档：
+
+| 目录 | 是什么 | 文档 |
+|------|--------|------|
+| `entry/` | **图片下载管理**应用本体（ArkTS，状态管理 V2 + MVVM 分层） | 本 README 的「界面 / 构建」两节 |
+| `designs/image-downloader-ui/` | 本应用的高保真原型（HTML/JSX），界面就是照它实现的 | 浏览器打开 `index.html`（字体自备，见下）|
+| `designs/harmonyos-mobile/` | HarmonyOS 设计系统：设计令牌、组件模板、一致性校验工具 | `designs/harmonyos-mobile/readme.md`、`compliance.md` |
+| `apps/harmony-starter/` | 起新应用用的脚手架（`cp -R apps/harmony-starter apps/<新应用>`） | `apps/harmony-starter/README.md` |
+| `harmonyos-tokens/` | 把设计令牌打成 HAR 供其它工程依赖 | `harmonyos-tokens/README.md` |
+| `scripts/` | 构建、设备操作（`device.sh`）、仓库守卫（`check-guards.sh`） | 脚本头部注释 |
+
+两点注意：
+
+- **设备地址走环境变量**：`device.sh` 默认连模拟器（`127.0.0.1:5555`），真机用
+  `DEVICE_TARGET=<设备>:<端口> ./scripts/device.sh ...`，仓库里不留私网地址。
+- **`HMSymbolVF_1.ttf` 不随仓库分发**（HarmonyOS 字体资产）。设计系统与原型按相对路径引用
+  `assets/HMSymbolVF_1.ttf`，把你的副本放进对应的 `assets/` 目录即可生效。
+
+CI 只跑**不依赖 SDK** 的部分（设计系统生成物一致性 + 仓库守卫）；ArkTS 编译与单测要
+DevEco Studio 的 HarmonyOS SDK，按「构建」一节在本地跑。
 
 ## 界面
 
