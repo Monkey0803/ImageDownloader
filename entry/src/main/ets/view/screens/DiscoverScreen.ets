@@ -19,7 +19,8 @@ import { SCREEN_INSETS } from '../../theme/Metrics';
  * - `settings`：只有一处用 —— 扫描时要读「下载图片质量」当前档位；
  * - `device`：只有一处用 —— 左手握持时把「选择要下载的图片」那一行镜像过去。
  *
- * 安全区高度由 `@StorageProp` 直接读 `AppStorage`（EntryAbility 写入），不再层层透传。
+ * 安全区高度直接读 `SCREEN_INSETS` 单例（EntryAbility 写入，字段是 `@Trace`），不再层层透传；
+ * 迁移前这里是 `@StorageProp` —— V2 里它非法（报 10905339）。
  * 四个页面始终挂载、只切 `visibility`，所以浏览器里已加载的网页和滚动位置都留得住。
  */
 @ComponentV2

@@ -66,8 +66,8 @@ export class ScreenMetrics {
  * 组件在 build 里读它就会自动订阅、自动刷新，**不需要层层透传**
  * （而这正是当初改用全局态的理由）。
  *
- * 过渡期 `EntryAbility` **两边都写**：`AppStorage` 留给还没迁到 V2 的组件，
- * 等最后一个 `@StorageProp` 消失后，把那一半连同 7 处声明一起删掉。
+ * 迁移期曾让 `EntryAbility` 两边都写（`AppStorage` 留给还没迁完的组件）；现在七个读者全在 V2，
+ * 那一半已经删掉，**只写这个单例**。组件在 build 里读 `SCREEN_INSETS.safeTop` 即自动订阅。
  */
 @ObservedV2
 export class ScreenInsets {
