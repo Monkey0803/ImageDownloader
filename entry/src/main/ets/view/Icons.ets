@@ -140,19 +140,18 @@ function symbolWeight(glyphWeight: number): FontWeight {
  * which keeps the stroke proportional to the glyph exactly the way the
  * prototype's SVG did.
  */
-@Component
+@ComponentV2
 export struct Glyph {
   // Prefixed member names: size, name and friends are universal component
   // attributes, and a struct member may not shadow one.
   //
-  // All four are @Prop. ArkUI V1 does not refresh an undecorated child member
-  // when the parent re-renders, and callers do swap icons at runtime (设置页
-  // 「主题」行的 sun ↔ moon、任务卡片的 clock → checkCircle…): without @Prop the
-  // glyph keeps whatever it was first built with.
-  @Prop glyph: string = 'dot';
-  @Prop glyphSize: number = 24;
-  @Prop glyphTone: ResourceColor = $r('app.color.font_primary');
-  @Prop glyphWeight: number = 1.7;
+  // All four are @Param. 它们会在运行时被调用方改（设置页「主题」行的 sun ↔ moon、
+  // 任务卡片的 clock → checkCircle…），所以必须是装饰成员 —— V2 里裸成员**根本传不进来**
+  // （实测报 10905324：The 'regular' property ... cannot be initialized here）。
+  @Param glyph: string = 'dot';
+  @Param glyphSize: number = 24;
+  @Param glyphTone: ResourceColor = $r('app.color.font_primary');
+  @Param glyphWeight: number = 1.7;
 
   private density: number = display.getDefaultDisplaySync().densityPixels;
 

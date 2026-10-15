@@ -18,6 +18,7 @@ import { SettingsScreen } from '../view/screens/SettingsScreen';
 import { TasksScreen } from '../view/screens/TasksScreen';
 import { GripChip, PrivacyVeil, SelectionDock, ToTopButton } from '../view/shell/Chrome';
 import { RenameDialog, TabBar, ToastPill } from '../view/Widgets';
+import { SCREEN_INSETS } from '../theme/Metrics';
 
 /**
  * 应用外壳（Index）。
@@ -35,7 +36,7 @@ import { RenameDialog, TabBar, ToastPill } from '../view/Widgets';
  * 现在它只负责「谁在什么时候显示」。
  */
 @Entry
-@Component
+@ComponentV2
 struct Index {
   /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
   private pageVisible: boolean = true;
@@ -47,19 +48,19 @@ struct Index {
    * 「regular property cannot be assigned to @ObjectLink property」。
    * 类都是 `@Observed`，所以第一层属性变化会同时刷到壳和各个子组件。
    */
-  @State private discover: DiscoverViewModel = new DiscoverViewModel();
-  @State private tasks: TasksViewModel = new TasksViewModel();
-  @State private library: LibraryViewModel = new LibraryViewModel();
-  @State private settings: SettingsViewModel = new SettingsViewModel();
-  @State private device: DeviceViewModel = new DeviceViewModel();
+  @Local private discover: DiscoverViewModel = new DiscoverViewModel();
+  @Local private tasks: TasksViewModel = new TasksViewModel();
+  @Local private library: LibraryViewModel = new LibraryViewModel();
+  @Local private settings: SettingsViewModel = new SettingsViewModel();
+  @Local private device: DeviceViewModel = new DeviceViewModel();
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   /** 软键盘高度（vp，0 = 没弹）；由 EntryAbility 的 avoidAreaChange 写入。 */
-  @StorageProp('keyboardHeight') keyboardHeight: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
-  @State private currentTab: number = TAB_DISCOVER;
-  @State private notice: string = '';
+  @Local private currentTab: number = TAB_DISCOVER;
+  @Local private notice: string = '';
 
   /**
    * 商店的刷新回调。
@@ -249,7 +250,7 @@ struct Index {
     const extra: number = this.currentTab === TAB_DISCOVER
       ? (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
       : 0;
-    return ScreenMetrics.tabBarSpace(this.safeBottom) + Space.s12 + extra;
+    return ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12 + extra;
   }
 
   // ------------------------------------------------------------------ 视图
@@ -321,7 +322,7 @@ struct Index {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          bottom: ScreenMetrics.tabBarSpace(this.safeBottom) + Space.s12
+          bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
         })
       }
 
@@ -349,7 +350,7 @@ struct Index {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          bottom: this.keyboardHeight > 0 ? Space.s16 : ScreenMetrics.tabBarSpace(this.safeBottom) + 88
+          bottom: SCREEN_INSETS.keyboardHeight > 0 ? Space.s16 : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + 88
         })
         // 这层盒子横跨整屏宽：键盘收起时它还把页签栏整个盖住。它纯粹是装饰，
         // 没有任何可点内容，所以整层退出命中测试：不设的话 toast 一出现，

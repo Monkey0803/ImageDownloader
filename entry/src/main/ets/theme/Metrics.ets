@@ -55,3 +55,29 @@ export class ScreenMetrics {
     return ScreenMetrics.height() * 0.5;
   }
 }
+
+/**
+ * 安全区与键盘高度的全局单例（**V2 写法**）。
+ *
+ * V1 的做法是 `AppStorage` + `@StorageProp`，让七个组件各自订阅这份全局状态。
+ * 但 `@StorageProp` 在 V2 里是**非法**的 —— 实测报 10905339：
+ * `The '@StorageProp' decorator can only be used in a 'struct' decorated with '@Component'.`
+ * V2 的等价做法就是这个 `@ObservedV2` 单例：`EntryAbility` 直接写 `@Trace` 字段，
+ * 组件在 build 里读它就会自动订阅、自动刷新，**不需要层层透传**
+ * （而这正是当初改用全局态的理由）。
+ *
+ * 过渡期 `EntryAbility` **两边都写**：`AppStorage` 留给还没迁到 V2 的组件，
+ * 等最后一个 `@StorageProp` 消失后，把那一半连同 7 处声明一起删掉。
+ */
+@ObservedV2
+export class ScreenInsets {
+  /** 状态栏高度（vp）：浮动标题栏据此下移。 */
+  @Trace safeTop: number = 0;
+  /** 底部导航条高度（vp）：浮动页签栏据此上抬。 */
+  @Trace safeBottom: number = 0;
+  /** 软键盘高度（vp），0 表示没有键盘；Toast 据此决定压在键盘上沿还是贴底。 */
+  @Trace keyboardHeight: number = 0;
+}
+
+/** 全局唯一实例：`EntryAbility` 写，组件在 build 里读。 */
+export const SCREEN_INSETS: ScreenInsets = new ScreenInsets();

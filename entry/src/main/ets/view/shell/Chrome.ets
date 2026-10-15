@@ -5,6 +5,7 @@ import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { IconButton, MODE_OPTIONS, PillButton, Segmented } from '../Widgets';
+import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
  * 发现页的三块浮层与全局的返回顶部按钮。
@@ -20,10 +21,10 @@ import { IconButton, MODE_OPTIONS, PillButton, Segmented } from '../Widgets';
  * 智感握姿：左手握持时整行反向，下载按钮落到左手拇指一侧，内边距跟着镜像。
  * 这里用 `reverse` 是刻意的 —— 要的就是整行换边（见 AGENT.md 坑 4）。
  */
-@Component
+@ComponentV2
 export struct SelectionDock {
-  @ObjectLink discover: DiscoverViewModel;
-  @ObjectLink device: DeviceViewModel;
+  @Require @Param discover: DiscoverViewModel;
+  @Require @Param device: DeviceViewModel;
 
   build() {
     Row({ space: Space.s10 }) {
@@ -81,9 +82,9 @@ export struct SelectionDock {
  * 「识别中 / 未握持」不再显示：系统第一次订阅时要连点数次才上报，这段时间里
  * 「识别中」等同于没有信息；手机平放时更是常驻的「未握持」。两种都只会变成噪音。
  */
-@Component
+@ComponentV2
 export struct GripChip {
-  @ObjectLink device: DeviceViewModel;
+  @Require @Param device: DeviceViewModel;
 
   build() {
     Row({ space: Space.s4 }) {
@@ -113,12 +114,12 @@ export struct GripChip {
  * 轻点即 `acknowledge()`：识别会误报（海报、路人扫一眼都可能触发），必须给用户一个
  * 一键解除的出口，不能变成单向陷阱。
  */
-@Component
+@ComponentV2
 export struct PrivacyVeil {
-  @ObjectLink device: DeviceViewModel;
+  @Require @Param device: DeviceViewModel;
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   build() {
     Column({ space: Space.s6 }) {
@@ -154,8 +155,8 @@ export struct PrivacyVeil {
     .padding({
       left: 40,
       right: 40,
-      top: ScreenMetrics.topInset(this.safeTop, false),
-      bottom: ScreenMetrics.tabBarSpace(this.safeBottom)
+      top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, false),
+      bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom)
     })
     .backgroundColor(Palette.privacyVeil)
     .backdropBlur(30)
@@ -172,13 +173,13 @@ export struct PrivacyVeil {
  * 这一层横跨整屏、只为一颗按钮存在：让空白处退出命中测试（`HitTestMode.Transparent`），
  * 否则它会盖住下面那一条内容（浮动的下载条、页签栏）点不动。
  */
-@Component
+@ComponentV2
 export struct ToTopButton {
   /** 智感握姿的左手镜像：按钮贴左上而不是右上。 */
-  @Prop mirror: boolean = false;
+  @Param mirror: boolean = false;
   /** 离底边的距离，由 Index 按当前页签与浮层情况算好。 */
-  @Prop bottomSpace: number = 0;
-  onTap: () => void = (): void => {
+  @Param bottomSpace: number = 0;
+  @Event onTap: () => void = (): void => {
   };
 
   build() {

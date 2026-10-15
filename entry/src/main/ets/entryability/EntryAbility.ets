@@ -17,6 +17,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display, window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
+import { SCREEN_INSETS } from '../theme/Metrics';
 import { DownloadStore } from '../service/DownloadStore';
 
 const DOMAIN = 0x0000;
@@ -103,7 +104,9 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       const density: number = display.getDefaultDisplaySync().densityPixels;
-      AppStorage.setOrCreate('keyboardHeight', data.area.bottomRect.height / density);
+      const height: number = data.area.bottomRect.height / density;
+      AppStorage.setOrCreate('keyboardHeight', height);
+      SCREEN_INSETS.keyboardHeight = height;
     };
     main.on('avoidAreaChange', this.keyboardWatch);
   }
@@ -125,6 +128,8 @@ export default class EntryAbility extends UIAbility {
         main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR).bottomRect.height / density;
       AppStorage.setOrCreate('safeTop', top);
       AppStorage.setOrCreate('safeBottom', bottom);
+      SCREEN_INSETS.safeTop = top;
+      SCREEN_INSETS.safeBottom = bottom;
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to read the window insets. Cause: %{public}s', JSON.stringify(err));
     }

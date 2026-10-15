@@ -20,41 +20,45 @@ import {
 } from '../theme/Tokens';
 import { Glyph } from './Icons';
 import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
+import { SCREEN_INSETS } from '../theme/Metrics';
 
 /** Image with a type-badge fallback, mirroring the prototype's <Img>. */
-@Component
+@ComponentV2
 export struct Thumb {
   /**
-   * @Prop：预览页改名后路径会变，普通成员在 V1 下刷不进子组件（见 AGENT.md 坑 3）。
-   * @Watch：**换 src 必须把 failed 复位**。任务页进预览时 src 先是远程地址
-   * （那一张不带 Referer/Cookie，防盗链站会 onError），落盘后 src 换成沙箱文件 URI；
-   * 不复位的话组件被复用、`failed` 粘在 true 上，大图永远停在那个「IMG」文字块上。
+   * @Param：预览页改名后路径会变，裸成员在 V2 里既传不进来也不刷新。
+   * @Monitor（V2 的 @Watch，注意它装饰的是**处理方法**、监听 `src`）：**换 src 必须把 failed 复位**。
+   * 任务页进预览时 src 先是远程地址（那一张不带 Referer/Cookie，防盗链站会 onError），
+   * 落盘后 src 换成沙箱文件 URI；不复位的话组件被复用、`failed` 粘在 true 上，
+   * 大图永远停在那个「IMG」文字块上。
    */
-  @Prop @Watch('onSourceChanged') src: string = '';
-  @Prop label: string = 'IMG';
+  @Param src: string = '';
+  @Param label: string = 'IMG';
   /**
    * 非空时只画这个本地文件的**第 0 帧**。
    *
    * ArkUI 的 Image 会自己播放 GIF / WebP 动图，没有「只播首帧」的开关：图库里几十个格子
    * 同时动画既费电又晃眼。所以动图格子把解码好的首帧交给这里静态绘制（见 service/StillFrames）。
    */
-  @Prop @Watch('onFirstFrameChanged') firstFramePath: string = '';
+  @Param firstFramePath: string = '';
   /** 右下角角标（「动图」「实况」「GIF」…）；空串不画。 */
-  @Prop badge: string = '';
-  fit: ImageFit = ImageFit.Cover;
+  @Param badge: string = '';
+  @Param fit: ImageFit = ImageFit.Cover;
 
-  @State private failed: boolean = false;
-  @State private frame: image.PixelMap | undefined = undefined;
+  @Local private failed: boolean = false;
+  @Local private frame: image.PixelMap | undefined = undefined;
 
   aboutToAppear(): void {
     this.loadFrame();
   }
 
-  private onSourceChanged(): void {
+  @Monitor('src')
+  private onSourceChanged(monitor: IMonitor): void {
     this.failed = false;
   }
 
-  private onFirstFrameChanged(): void {
+  @Monitor('firstFramePath')
+  private onFirstFrameChanged(monitor: IMonitor): void {
     this.loadFrame();
   }
 
@@ -130,10 +134,10 @@ export struct Thumb {
 }
 
 /** One selectable tile of the discover image grid. */
-@Component
+@ComponentV2
 export struct SelectTile {
-  @ObjectLink picture: PictureItem;
-  index: number = 0;
+  @Require @Param picture: PictureItem;
+  @Param index: number = 0;
   /**
    * 回调只传 **uid**，不把 `this.picture` 这个引用交出去。
    *
@@ -144,7 +148,7 @@ export struct SelectTile {
    *
    * 所以子组件只报「哪一个」（uid），由父组件回到自己的列表里再取一次那个引用去写。
    */
-  onToggle: (uid: string) => void = () => {
+  @Event onToggle: (uid: string) => void = () => {
   };
 
   /**
@@ -215,12 +219,12 @@ export struct SelectTile {
 }
 
 /** One completed download in the gallery grid. */
-@Component
+@ComponentV2
 export struct ShotTile {
-  @ObjectLink image: DownloadItem;
+  @Require @Param image: DownloadItem;
   /** @Prop：密度是运行时切换的（标题栏那颗九宫格按钮），普通成员刷不进来。 */
-  @Prop dense: boolean = false;
-  onOpen: (image: DownloadItem) => void = () => {
+  @Param dense: boolean = false;
+  @Event onOpen: (image: DownloadItem) => void = () => {
   };
 
   /**
@@ -301,14 +305,14 @@ export struct ShotTile {
 }
 
 /** One single (non-batch) download task. */
-@Component
+@ComponentV2
 export struct TaskCard {
-  @ObjectLink task: DownloadItem;
-  onCancel: (task: DownloadItem) => void = () => {
+  @Require @Param task: DownloadItem;
+  @Event onCancel: (task: DownloadItem) => void = () => {
   };
-  onRetry: (task: DownloadItem) => void = () => {
+  @Event onRetry: (task: DownloadItem) => void = () => {
   };
-  onLocate: (task: DownloadItem) => void = () => {
+  @Event onLocate: (task: DownloadItem) => void = () => {
   };
   /**
    * 点缩略图看大图。
@@ -316,7 +320,7 @@ export struct TaskCard {
    * 任务页不再提供改名入口（`onRename` 已删）：这里是下载队列，改名归图库 ——
    * 大图页从任务进来时也不显示「重命名」。
    */
-  onOpen: (task: DownloadItem) => void = () => {
+  @Event onOpen: (task: DownloadItem) => void = () => {
   };
 
   private isActive(): boolean {
@@ -460,16 +464,16 @@ export struct TaskCard {
 
 
 /** The ZIP batch in flight, with its stacked member preview. */
-@Component
+@ComponentV2
 export struct BatchCard {
   /**
    * @Prop：批次进度（done / failed / status）是运行时变的，普通成员在 V1 下刷不进来。
    * 之前只是「碰巧」能更新 —— 外层 ForEach 的 key 里带了 done/failed，数字一变就整卡重建。
    */
-  @Prop view: BatchView = new BatchView();
-  onRetry: (view: BatchView) => void = () => {
+  @Param view: BatchView = new BatchView();
+  @Event onRetry: (view: BatchView) => void = () => {
   };
-  onDismiss: (view: BatchView) => void = () => {
+  @Event onDismiss: (view: BatchView) => void = () => {
   };
   /**
    * 点这摞缩略图看大图，入口规则和单任务卡一致（`openViewer(..., false)`：不给改名）。
@@ -477,7 +481,7 @@ export struct BatchCard {
    * 打包卡只会出现在「还在下载 / 打包失败」这两种状态 —— 打成功的批次已经变成压缩包、
    * 从任务页消失了，那时成员图也已被删除。所以这里总是能取到至少一个成员。
    */
-  onOpen: (view: BatchView) => void = () => {
+  @Event onOpen: (view: BatchView) => void = () => {
   };
 
   /** A failed batch explains itself instead of showing a progress line. */
@@ -605,9 +609,10 @@ export struct BatchCard {
 }
 
 /** Stacked preview of an archive's members. */
-@Component
+@ComponentV2
 export struct ArchiveStack {
-  thumbs: string[] = [];
+  /** @Param：父组件传缩略图路径列表。 */
+  @Param thumbs: string[] = [];
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
@@ -639,16 +644,16 @@ export struct ArchiveStack {
 }
 
 /** One ZIP archive. */
-@Component
+@ComponentV2
 export struct ArchiveCard {
-  @ObjectLink zip: ZipItem;
-  onRename: (zip: ZipItem) => void = () => {
+  @Require @Param zip: ZipItem;
+  @Event onRename: (zip: ZipItem) => void = () => {
   };
-  onExport: (zip: ZipItem) => void = () => {
+  @Event onExport: (zip: ZipItem) => void = () => {
   };
-  onShare: (zip: ZipItem) => void = () => {
+  @Event onShare: (zip: ZipItem) => void = () => {
   };
-  onDelete: (zip: ZipItem) => void = () => {
+  @Event onDelete: (zip: ZipItem) => void = () => {
   };
 
   build() {
@@ -755,15 +760,15 @@ export interface ViewerSlide {
  *
  * 失败不是错误：MOV/HEVC 能不能解，取决于设备解码器；能看的封面图一定会画出来。
  */
-@Component
+@ComponentV2
 export struct LivePhotoSlide {
   /** 沙箱路径，不是 URI：`LivePhoto.load` 只认路径（见 service/LivePhoto.ets）。
    *  名字避开 `motionPath` —— 那是 ArkUI 通用属性（路径动画），会报成员冲突。 */
-  @Prop stillFile: string = '';
-  @Prop motionFile: string = '';
-  @State private movingPhoto: photoAccessHelper.MovingPhoto | undefined = undefined;
+  @Param stillFile: string = '';
+  @Param motionFile: string = '';
+  @Local private movingPhoto: photoAccessHelper.MovingPhoto | undefined = undefined;
   /** 动态部分装不起来时的那句说明；空串不显示。 */
-  @State private problem: string = '';
+  @Local private problem: string = '';
   /**
    * 播放控制器。
    *
@@ -844,35 +849,38 @@ export struct LivePhotoSlide {
  * 由独立的预览页（pages/Viewer.ets）使用：**不要在 Index 里当浮层用** —— 那样系统返回键
  * 会直接退出应用（页面栈里只有 Index），需求就是为此改成推一个新页面。
  *
- * `slides` / `index` 用 @Link：左右滑动由中间的 Swiper 驱动 index，预览页据此换标题、
- * 提示与文件操作的目标；列表本身也会随商店刷新（改名、删除）而变，所以两边都要联动。
- * `hint` / `renameAllowed` / `actionable` 仍是 @Prop（见 AGENT.md 坑 3）。
+ * `slides` / `index` 改成 **`@Param` + `@Event onIndexChange`**（V2 没有 `@Link`）：`index` 由预览页
+ * 传下来单向驱动，左右滑动由中间的 Swiper 通过 `onIndexChange` 回写，预览页据此换标题、提示与
+ * 文件操作的目标；列表本身也会随商店刷新（改名、删除）而变，两边照样联动。
+ * `hint` / `renameAllowed` / `actionable` 是 `@Param`。
  */
-@Component
+@ComponentV2
 export struct ImageViewer {
   /** 可以左右滑的那一批图；只有一张时就是普通大图。 */
-  @Link slides: ViewerSlide[];
-  /** 当前是第几张，滑动手势会写回来。 */
-  @Link index: number;
+  @Require @Param slides: ViewerSlide[];
+  /** 当前是第几张；滑动手势通过 `onIndexChange` 回写，这里只读。 */
+  @Require @Param index: number;
   /** 改名只在图库里开放；从任务页进来的预览不显示这一项。 */
-  @Prop renameAllowed: boolean = true;
+  @Param renameAllowed: boolean = true;
   /** 文件还没落盘（任务还在下载 / 已失败）时只放大图，不给文件操作。 */
-  @Prop actionable: boolean = true;
+  @Param actionable: boolean = true;
   /** 操作区被收起时的解释文案；空则不显示。 */
-  @Prop hint: string = '';
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
-  onClose: () => void = () => {
+  @Param hint: string = '';
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  /** 滑动换图时把新下标交回预览页（V2 里双向数据流的标准写法）。 */
+  @Event onIndexChange: (index: number) => void = () => {
   };
-  onRename: () => void = () => {
+  @Event onClose: () => void = () => {
   };
-  onSaveToGallery: () => void = () => {
+  @Event onRename: () => void = () => {
   };
-  onShare: () => void = () => {
+  @Event onSaveToGallery: () => void = () => {
   };
-  onExport: () => void = () => {
+  @Event onShare: () => void = () => {
   };
-  onDelete: () => void = () => {
+  @Event onExport: () => void = () => {
+  };
+  @Event onDelete: () => void = () => {
   };
 
   /** 当前这一页；列表为空或索引越界时返回 undefined（调用处用 ?? 兜底）。 */
@@ -937,7 +945,7 @@ export struct ImageViewer {
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
-      .padding({ left: Space.s16, right: Space.s16, top: this.safeTop + Space.s16, bottom: Space.s8 })
+      .padding({ left: Space.s16, right: Space.s16, top: SCREEN_INSETS.safeTop + Space.s16, bottom: Space.s8 })
 
       Stack({ alignContent: Alignment.Center }) {
         // Swiper 负责左右滑动换图：slide 的增减只换 ForEach 的 key，Swiper 自身不会被重建。
@@ -964,7 +972,8 @@ export struct ImageViewer {
         .indicator(false)
         .cachedCount(1)
         .onChange((value: number): void => {
-          this.index = value;
+          // @Param 不能写：回传给预览页，由它改自己的状态再传下来（V2 的单向数据流）。
+          this.onIndexChange(value);
         })
       }
       .layoutWeight(1)
@@ -993,10 +1002,10 @@ export struct ImageViewer {
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceAround)
-        .padding({ top: Space.s10, bottom: this.safeBottom + Space.s16 })
+        .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
       } else {
         Column()
-          .height(this.safeBottom + Space.s16)
+          .height(SCREEN_INSETS.safeBottom + Space.s16)
       }
     }
     .width('100%')

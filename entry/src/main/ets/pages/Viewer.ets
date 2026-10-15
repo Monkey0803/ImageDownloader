@@ -31,7 +31,7 @@ interface ViewerParams {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct Viewer {
   /** 页面是否在前台；不在前台时不要把商店里的提示取走，否则那条提示谁也看不见。 */
   private visible: boolean = false;
@@ -54,20 +54,20 @@ struct Viewer {
    * 不直接用商店里的全部记录：调用方传进来的才是它**正在显示**的那一批 ——
    * 图库搜索后点开预览，左右滑动的范围也该是搜索出来的这几张。
    */
-  @State private order: string[] = [];
+  @Local private order: string[] = [];
   /** 交给 ImageViewer 画的页数据；随商店刷新重建，交给 @Link 推给子组件。 */
-  @State private slides: ViewerSlide[] = [];
+  @Local private slides: ViewerSlide[] = [];
   /** 当前是第几张；滑动时由子组件写回。 */
-  @State private index: number = 0;
-  @State private renameAllowed: boolean = true;
-  @State private missing: boolean = false;
+  @Local private index: number = 0;
+  @Local private renameAllowed: boolean = true;
+  @Local private missing: boolean = false;
   /** 文件真的落在应用沙箱里（任务还没下完 / 已失败时只有远程地址）。 */
-  @State private local: boolean = false;
+  @Local private local: boolean = false;
   /** 记录已经是「已完成」；用来区分「还没下完」和「下完了但沙箱里的文件没了」。 */
-  @State private completed: boolean = false;
-  @State private notice: string = '';
-  @State private renaming: boolean = false;
-  @State private renameDraft: string = '';
+  @Local private completed: boolean = false;
+  @Local private notice: string = '';
+  @Local private renaming: boolean = false;
+  @Local private renameDraft: string = '';
 
   aboutToAppear(): void {
     this.toast.bind((text: string): void => {
@@ -330,8 +330,12 @@ struct Viewer {
         this.missingState()
       } else {
         ImageViewer({
-          slides: $slides,
-          index: $index,
+          slides: this.slides,
+          index: this.index,
+          // V2 没有 @Link：滑动换图由子组件回传，这里改自己的状态再传下去（单向数据流）。
+          onIndexChange: (next: number): void => {
+            this.index = next;
+          },
           renameAllowed: this.renameAllowed,
           actionable: this.local,
           hint: this.localHint(),

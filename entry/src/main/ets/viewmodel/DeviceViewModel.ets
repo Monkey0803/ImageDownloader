@@ -15,28 +15,28 @@ import { UiPort } from '../service/UiPort';
  * - 「开关数据怎么落盘、订阅什么时候挂」全在这一层，界面不再直接碰系统 kit
  *   （AGENT.md 坑 5：任何 `dlpAntiPeep` 调用都必须过 syscap 守卫，守卫就在 AntiPeep 里）。
  */
-@Observed
+@ObservedV2
 export class DeviceViewModel {
   /** UI 出口，页面在 `attach` 时注入；默认是安全空实现。 */
   private ui: UiPort = new UiPort();
 
   /** 智感握姿开关；与 DownloadStore.gripEnabled 同步。 */
-  grip: boolean = false;
+  @Trace grip: boolean = false;
   /** 系统识别出的握持手：'left' | 'right' | 'both' | 'none' | 'unknown'。 */
-  gripHand: string = 'unknown';
+  @Trace gripHand: string = 'unknown';
   /** 本机是否支持智感握姿；订阅返回 801 时为 false。 */
-  gripSupported: boolean = true;
+  @Trace gripSupported: boolean = true;
   /** 智感握姿「开着但没生效」的原因，写在设置行里（不再靠 Toast）。 */
-  gripProblem: string = '';
+  @Trace gripProblem: string = '';
 
   /** 防窥保护开关；与 DownloadStore.antiPeepEnabled 同步。 */
-  antiPeep: boolean = false;
+  @Trace antiPeep: boolean = false;
   /** 系统当前是否报告有人窥视；true 时整屏内容被遮罩。 */
-  peeking: boolean = false;
+  @Trace peeking: boolean = false;
   /** 本机是否支持防窥保护；没有 DlpAntiPeep syscap 时为 false。 */
-  antiPeepSupported: boolean = true;
+  @Trace antiPeepSupported: boolean = true;
   /** 防窥保护「开着但没生效」的原因，写在设置行里。 */
-  antiPeepProblem: string = '';
+  @Trace antiPeepProblem: string = '';
 
   attach(ui: UiPort): void {
     this.ui = ui;

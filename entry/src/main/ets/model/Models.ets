@@ -1,5 +1,5 @@
 /** One image found by scanning a page, before it becomes a download. */
-@Observed
+@ObservedV2
 export class PictureItem {
   /**
    * 这个**实例**的身份，只给 ForEach 当 key 用。
@@ -14,16 +14,17 @@ export class PictureItem {
    * `scan()` 内部按 url 复用旧对象（`found.set(old.url, old)`），所以同一张图在多次扫描之间
    * 身份是稳定的，扫到更多图时也不会整屏重建。
    *
-   * 由 Index 在每次 `new` 之后用 `nextPictureUid()` 赋值 —— 不放构造函数里，避免 `@Observed`
-   * 的实例包装和构造期赋值搅在一起（这个字段只是给 ForEach 看的，越普通越好）。
+   * 由 Index 在每次 `new` 之后用 `nextPictureUid()` 赋值 —— 不放构造函数里：构造期写字段会绕开
+   * 观察代理（V1 的 `@Observed` 与 V2 的 `@ObservedV2` 都一样，只是 V2 的代理按 `@Trace` 逐个字段
+   * 记录，所以下面每个字段都要单独标）。
    */
-  uid: string = '';
-  id: string = '';
-  url: string = '';
-  name: string = '';
-  description: string = '';
-  selected: boolean = false;
-  userNamed: boolean = false;
+  @Trace uid: string = '';
+  @Trace id: string = '';
+  @Trace url: string = '';
+  @Trace name: string = '';
+  @Trace description: string = '';
+  @Trace selected: boolean = false;
+  @Trace userNamed: boolean = false;
   /**
    * 'image' | 'livephoto'，见 `MediaFormat.mediaKindOf`。
    *
@@ -31,29 +32,29 @@ export class PictureItem {
    * 不进 ZIP 批次、不按图片扩展名改名、下完还要解包。类型在发现阶段就带下来，
    * 后面（下载 / 投递 / 预览）不再靠重新嗅探文件名来判断。
    */
-  kind: string = 'image';
+  @Trace kind: string = 'image';
 }
 
 /** One image download, from the queue through to the finished file. */
-@Observed
+@ObservedV2
 export class DownloadItem {
-  id: string = '';
-  url: string = '';
-  name: string = '';
-  userNamed: boolean = false;
-  path: string = '';
-  sourcePage: string = '';
-  batchId: string = '';
-  taskId: string = '';
-  status: string = 'queued';
-  processed: number = 0;
-  total: number = 0;
+  @Trace id: string = '';
+  @Trace url: string = '';
+  @Trace name: string = '';
+  @Trace userNamed: boolean = false;
+  @Trace path: string = '';
+  @Trace sourcePage: string = '';
+  @Trace batchId: string = '';
+  @Trace taskId: string = '';
+  @Trace status: string = 'queued';
+  @Trace processed: number = 0;
+  @Trace total: number = 0;
   /** Final on-disk byte count, recorded when the download completes. */
-  size: number = 0;
-  error: string = '';
-  createdAt: number = 0;
+  @Trace size: number = 0;
+  @Trace error: string = '';
+  @Trace createdAt: number = 0;
   /** When the download finished, used for the gallery's timestamp. */
-  finishedAt: number = 0;
+  @Trace finishedAt: number = 0;
   /**
    * 'image' | 'livephoto'。
    *
@@ -61,42 +62,42 @@ export class DownloadItem {
    * （实况照片就是原始 `.livp` 包，导出、分享、改名、占用统计都以它为准）；
    * 解包出来的静图与视频另外记在 stillPath / motionPath 上。
    */
-  kind: string = 'image';
+  @Trace kind: string = 'image';
   /** 动图（GIF / WebP 且文件头带多帧标记）；图库网格据此改画静止首帧。 */
-  animated: boolean = false;
+  @Trace animated: boolean = false;
   /** 实况照片解出来的静图（封面、相册里的图片资源）。 */
-  stillPath: string = '';
+  @Trace stillPath: string = '';
   /** 实况照片解出来的视频（MovingPhotoView 的动态部分、相册里的视频资源）。 */
-  motionPath: string = '';
+  @Trace motionPath: string = '';
   /** 解包出来的字节数：size 只算原始包，占用统计要两个一起加，见 DownloadStore.usedBytes。 */
-  auxSize: number = 0;
+  @Trace auxSize: number = 0;
   /** 非致命说明（例如「实况照片包解压失败，已保留原文件」），预览页拿来当提示文案。 */
-  note: string = '';
+  @Trace note: string = '';
 }
 
 /** A ZIP archive produced by packing a batch. */
-@Observed
+@ObservedV2
 export class ZipItem {
-  id: string = '';
-  name: string = '';
-  path: string = '';
-  batchId: string = '';
-  imageCount: number = 0;
-  failedCount: number = 0;
-  size: number = 0;
-  createdAt: number = 0;
+  @Trace id: string = '';
+  @Trace name: string = '';
+  @Trace path: string = '';
+  @Trace batchId: string = '';
+  @Trace imageCount: number = 0;
+  @Trace failedCount: number = 0;
+  @Trace size: number = 0;
+  @Trace createdAt: number = 0;
   /** Source URLs of a few members, kept only to draw the stacked preview. */
-  thumbs: string[] = [];
+  @Trace thumbs: string[] = [];
 }
 
 /** A ZIP-in-progress: the batch groups its member downloads. */
-@Observed
+@ObservedV2
 export class BatchItem {
-  id: string = '';
-  name: string = '';
-  sourcePage: string = '';
-  status: string = 'downloading';
-  error: string = '';
+  @Trace id: string = '';
+  @Trace name: string = '';
+  @Trace sourcePage: string = '';
+  @Trace status: string = 'downloading';
+  @Trace error: string = '';
 }
 
 /** Everything that survives a restart. */

@@ -14,22 +14,22 @@ import { ScreenMetrics } from '../theme/Metrics';
  * 这里改成**派生状态只在 `sync()` 时算一次**存成字段，build 只读数组。`sync()` 由界面在
  * 商店通知（`DownloadStore` 的监听回调）里调，也就是「数据真的变了」的那一刻，而不是每一帧。
  */
-@Observed
+@ObservedV2
 export class TasksViewModel {
   private ui: UiPort = new UiPort();
   private scroller: Scroller = new Scroller();
 
   /** `DownloadStore` 的两张表在这里的镜像。 */
-  downloads: DownloadItem[] = [];
-  batches: BatchItem[] = [];
-  concurrency: number = 3;
-  scrolled: boolean = false;
+  @Trace downloads: DownloadItem[] = [];
+  @Trace batches: BatchItem[] = [];
+  @Trace concurrency: number = 3;
+  @Trace scrolled: boolean = false;
 
   /** 以下都是派生字段，只在 sync() 里重算。 */
-  active: DownloadItem[] = [];
-  settled: DownloadItem[] = [];
-  batchViews: BatchView[] = [];
-  running: number = 0;
+  @Trace active: DownloadItem[] = [];
+  @Trace settled: DownloadItem[] = [];
+  @Trace batchViews: BatchView[] = [];
+  @Trace running: number = 0;
 
   attach(ui: UiPort): void {
     this.ui = ui;

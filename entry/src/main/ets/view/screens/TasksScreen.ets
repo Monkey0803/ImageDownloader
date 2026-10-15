@@ -5,6 +5,7 @@ import { Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { BatchCard, TaskCard } from '../Cards';
 import { EmptyState, SectionHead, TitleBar } from '../Widgets';
+import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
  * 「任务」页：打包任务卡 + 进行中 + 已结束。
@@ -13,12 +14,12 @@ import { EmptyState, SectionHead, TitleBar } from '../Widgets';
  * `activeTasks()` / `settledTasks()` / `batchViews()`，一次渲染要扫好几遍 `downloads`；
  * 现在读的是 `TasksViewModel` 在 `sync()` 里算好的派生数组，build 里只有读取。
  */
-@Component
+@ComponentV2
 export struct TasksScreen {
-  @ObjectLink tasks: TasksViewModel;
+  @Require @Param tasks: TasksViewModel;
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
   private taskList(items: DownloadItem[]) {
@@ -118,8 +119,8 @@ export struct TasksScreen {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          top: ScreenMetrics.topInset(this.safeTop, true),
-          bottom: ScreenMetrics.bottomInset(this.safeBottom, 0)
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
         })
       }
       .width('100%')

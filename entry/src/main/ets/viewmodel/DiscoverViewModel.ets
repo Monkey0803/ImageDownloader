@@ -24,27 +24,27 @@ import { BusinessError } from '@kit.BasicServicesKit';
  * `browser` 与 `scroller` 是必须**先于首次 build** 存在的对象，所以在字段上直接建；
  * 它们是普通成员而不是状态 —— 组件重建时不该换控制器（换了浏览器里的网页就白加载了）。
  */
-@Observed
+@ObservedV2
 export class DiscoverViewModel {
   private ui: UiPort = new UiPort();
   private browser: webview.WebviewController = new webview.WebviewController();
   private scroller: Scroller = new Scroller();
   private scanner: PageScanner = new PageScanner();
 
-  address: string = '';
-  pageUrl: string = '';
-  pageTitle: string = '';
-  pictures: PictureItem[] = [];
+  @Trace address: string = '';
+  @Trace pageUrl: string = '';
+  @Trace pageTitle: string = '';
+  @Trace pictures: PictureItem[] = [];
   /**
    * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它 —— 必须在 build 里被
    * 真正读到，V1 才会重刷这一页（只写不读的 @State 不会触发刷新，真机实测踩过）。
    */
-  selectedTotal: number = 0;
-  scanning: boolean = false;
+  @Trace selectedTotal: number = 0;
+  @Trace scanning: boolean = false;
   /** 'single' | 'zip' */
-  mode: string = 'single';
+  @Trace mode: string = 'single';
   /** 这一页滚远了没有；返回顶部按钮据此出现。 */
-  scrolled: boolean = false;
+  @Trace scrolled: boolean = false;
 
   attach(ui: UiPort): void {
     this.ui = ui;

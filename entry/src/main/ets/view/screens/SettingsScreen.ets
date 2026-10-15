@@ -7,6 +7,7 @@ import {
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Card, ListRow, SectionHead, SettingSelect, StackedRow, TitleBar } from '../Widgets';
+import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
  * 「设置」页：外观 / 系统特性 / 下载 / 数据四节。
@@ -20,14 +21,14 @@ import { Card, ListRow, SectionHead, SettingSelect, StackedRow, TitleBar } from 
  * - `device`：智感握姿 / 防窥保护（只有它们要跟系统订阅打交道）；
  * - `tasks`：只有「同时下载数量」一行 —— 并发数属于下载队列，不属于外观设置。
  */
-@Component
+@ComponentV2
 export struct SettingsScreen {
-  @ObjectLink settings: SettingsViewModel;
-  @ObjectLink device: DeviceViewModel;
-  @ObjectLink tasks: TasksViewModel;
+  @Require @Param settings: SettingsViewModel;
+  @Require @Param device: DeviceViewModel;
+  @Require @Param tasks: TasksViewModel;
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
   private sliderRow() {
@@ -313,8 +314,8 @@ export struct SettingsScreen {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          top: ScreenMetrics.topInset(this.safeTop, false),
-          bottom: ScreenMetrics.bottomInset(this.safeBottom, 0)
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, false),
+          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
         })
       }
       .width('100%')

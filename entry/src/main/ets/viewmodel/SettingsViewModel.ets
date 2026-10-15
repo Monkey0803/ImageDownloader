@@ -21,30 +21,30 @@ import {
  * - 主题落盘后立刻 `ThemeController.apply`；
  * - 选「自定义目录」要先拉起系统目录选择器，选到了才真正落档，取消则**什么都不改**。
  */
-@Observed
+@ObservedV2
 export class SettingsViewModel {
   private ui: UiPort = new UiPort();
 
-  themeMode: string = 'system';
-  materialType: string = 'adaptive';
+  @Trace themeMode: string = 'system';
+  @Trace materialType: string = 'adaptive';
   /** 沉浸光感材质等级；与 DownloadStore.materialLevel 同步。 */
-  materialLevel: string = 'adaptive';
-  lightEffect: boolean = true;
+  @Trace materialLevel: string = 'adaptive';
+  @Trace lightEffect: boolean = true;
   /** 下载位置；与 DownloadStore.downloadLocation 同步。 */
-  downloadLocation: string = 'app';
+  @Trace downloadLocation: string = 'app';
   /** 扫描取图策略（「下载图片质量」那一行）；与 DownloadStore.pictureQuality 同步。 */
-  pictureQuality: string = 'all';
+  @Trace pictureQuality: string = 'all';
   /** 自定义目录的显示名，写在下拉行下面的说明里。 */
-  customDirName: string = '';
+  @Trace customDirName: string = '';
   /** 上次投递到相册 / 自定义目录失败的原因；非空时顶掉下载位置那行的说明文字。 */
-  destinationProblem: string = '';
+  @Trace destinationProblem: string = '';
   /** 下载位置下拉的强制重建号；用户选了「自定义目录」又取消时 +1，见 chooseCustomDir。 */
-  locationRevision: number = 0;
+  @Trace locationRevision: number = 0;
   /** 应用内已占用字节数与它的可读形式；「数据」那一节的 meta 用。 */
-  usedBytes: number = 0;
-  usedLabel: string = '';
+  @Trace usedBytes: number = 0;
+  @Trace usedLabel: string = '';
   /** 状态写盘失败的原因；非空时顶掉「数据」那一节的占用说明。 */
-  saveProblem: string = '';
+  @Trace saveProblem: string = '';
 
   attach(ui: UiPort): void {
     this.ui = ui;

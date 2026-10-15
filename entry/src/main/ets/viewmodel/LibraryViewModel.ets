@@ -15,28 +15,28 @@ import { ScreenMetrics } from '../theme/Metrics';
  *
  * 图片改名跟着大图预览页走（图库进预览可以改、任务页进预览不给改），所以这里只剩压缩包的改名。
  */
-@Observed
+@ObservedV2
 export class LibraryViewModel {
   private ui: UiPort = new UiPort();
   private scroller: Scroller = new Scroller();
 
-  downloads: DownloadItem[] = [];
-  zips: ZipItem[] = [];
-  query: string = '';
-  density: number = 2;
+  @Trace downloads: DownloadItem[] = [];
+  @Trace zips: ZipItem[] = [];
+  @Trace query: string = '';
+  @Trace density: number = 2;
   /** 'images' | 'zips' */
-  segment: string = LIBRARY_IMAGES;
-  scrolled: boolean = false;
+  @Trace segment: string = LIBRARY_IMAGES;
+  @Trace scrolled: boolean = false;
 
   /** 以下都是派生字段，只在 sync() / setQuery() 里重算。 */
-  images: DownloadItem[] = [];
-  archives: ZipItem[] = [];
-  imageCount: number = 0;
-  imageBytes: number = 0;
+  @Trace images: DownloadItem[] = [];
+  @Trace archives: ZipItem[] = [];
+  @Trace imageCount: number = 0;
+  @Trace imageBytes: number = 0;
 
   /** 压缩包改名弹窗：renameId 非空时显示。 */
-  renameId: string = '';
-  renameName: string = '';
+  @Trace renameId: string = '';
+  @Trace renameName: string = '';
 
   attach(ui: UiPort): void {
     this.ui = ui;

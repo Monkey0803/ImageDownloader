@@ -10,6 +10,7 @@ import {
 } from '@kit.ArkUI';
 import { MaterialSupport } from '../service/MaterialSupport';
 import { LIBRARY_IMAGES, LIBRARY_ZIPS, TAB_TASKS } from '../model/Navigation';
+import { SCREEN_INSETS } from '../theme/Metrics';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
 import { Glyph } from './Icons';
 
@@ -62,12 +63,12 @@ export const MODE_OPTIONS: SegmentOption[] = [
  * 用 @Prop 而不是普通入参，也不是 `@Builder` 传值：ArkUI V1 不会把父组件的新值刷进没有
  * 装饰器的成员，`@Builder` 按值传参同样不刷新——而档位/类型是会变的，见 AGENT.md 的坑 3。
  */
-@Component
+@ComponentV2
 export struct SettingSelect {
-  @Prop options: SelectOption[] = [];
-  @Prop selectedIndex: number = 0;
+  @Param options: SelectOption[] = [];
+  @Param selectedIndex: number = 0;
   /** 收起时显示的文字，取当前档位的界面名。 */
-  @Prop label: string = '';
+  @Param label: string = '';
   /**
    * 强制这个控件重建一次的版本号，默认 0 就是「不用」。
    *
@@ -85,8 +86,8 @@ export struct SettingSelect {
    * （试过 `.key('...' + revision)`：效果一样，但编译器会 Warn「'key' can only be used for testing
    * directories」—— 那是给测试框架定位节点用的 API，不适合放在生产路径上。）
    */
-  @Prop revision: number = 0;
-  onPick: (index: number) => void = () => {
+  @Param revision: number = 0;
+  @Event onPick: (index: number) => void = () => {
   };
 
   @Builder
@@ -131,16 +132,21 @@ export struct SettingSelect {
  * Floating title bar: a big title over a translucent gradient that fades the
  * content scrolling underneath it.
  */
-@Component
+@ComponentV2
 export struct TitleBar {
-  @Prop heading: string = '';
-  @Prop caption: string = '';
-  /** Empty means no action button. @Prop: 图库在压缩包段要把它收起来。 */
-  @Prop actionGlyph: string = '';
-  /** Layout.tbLayerSecondary for screens with a subtitle, Normal without. */
-  layer: number = Layout.tbLayerSecondary;
-  @StorageProp('safeTop') safeTop: number = 0;
-  onAction: () => void = () => {
+  @Param heading: string = '';
+  @Param caption: string = '';
+  /** Empty means no action button. @Param: 图库在压缩包段要把它收起来。 */
+  @Param actionGlyph: string = '';
+  /**
+   * Layout.tbLayerSecondary for screens with a subtitle, Normal without.
+   *
+   * 必须是 `@Param`：V2 不允许父组件初始化「普通成员」（实测报 10905324
+   * `The 'regular' property 'layer' ... cannot be initialized here`）。
+   */
+  @Param layer: number = Layout.tbLayerSecondary;
+  /** 父组件传的回调同理，用 `@Event`（V2 里回调的标准写法）。 */
+  @Event onAction: () => void = () => {
   };
 
   build() {
@@ -172,7 +178,7 @@ export struct TitleBar {
       }
       .width('100%')
       .alignItems(VerticalAlign.Top)
-      .padding({ left: Layout.pagePad, right: Layout.pagePad, top: this.safeTop + Layout.tbPadTop })
+      .padding({ left: Layout.pagePad, right: Layout.pagePad, top: SCREEN_INSETS.safeTop + Layout.tbPadTop })
     }
     .width('100%')
     .padding({ bottom: Layout.tbFade })
@@ -194,15 +200,15 @@ export struct TitleBar {
 }
 
 /** Floating circular icon button (the HarmonyOS title bar action). */
-@Component
+@ComponentV2
 export struct IconButton {
-  glyph: string = 'dot';
-  glyphSize: number = 21;
-  tone: ResourceColor = $r('app.color.font_primary');
-  diameter: number = 40;
+  @Param glyph: string = 'dot';
+  @Param glyphSize: number = 21;
+  @Param tone: ResourceColor = $r('app.color.font_primary');
+  @Param diameter: number = 40;
   /** No glass fill or shadow — used inside cards and dark overlays. */
-  plain: boolean = false;
-  onAction: () => void = () => {
+  @Param plain: boolean = false;
+  @Event onAction: () => void = () => {
   };
 
   build() {
@@ -222,12 +228,12 @@ export struct IconButton {
 }
 
 /** The glass pill bottom tab bar. */
-@Component
+@ComponentV2
 export struct TabBar {
-  @Prop active: number = 0;
-  @Prop badge: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
-  onSelect: (index: number) => void = () => {
+  @Param active: number = 0;
+  @Param badge: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  @Event onSelect: (index: number) => void = () => {
   };
 
   build() {
@@ -286,7 +292,7 @@ export struct TabBar {
       .shadow(Shadow.float())
     }
     .width('100%')
-    .padding({ top: Layout.tabBarTopPad, left: Layout.pagePad, right: Layout.pagePad, bottom: this.safeBottom })
+    .padding({ top: Layout.tabBarTopPad, left: Layout.pagePad, right: Layout.pagePad, bottom: SCREEN_INSETS.safeBottom })
     .linearGradient({
       angle: 180,
       colors: [[Palette.fadeNone, 0], [Palette.fadeSoft, 0.45], [Palette.fadeSolid, 1]]
@@ -295,9 +301,9 @@ export struct TabBar {
 }
 
 /** Status pill: a pulsing dot while the task is in flight, a glyph when settled. */
-@Component
+@ComponentV2
 export struct StatusChip {
-  @Prop status: string = 'queued';
+  @Param status: string = 'queued';
 
   private label(): string {
     if (this.status === 'queued') {
@@ -387,13 +393,13 @@ export struct StatusChip {
 }
 
 /** Thin progress track. */
-@Component
+@ComponentV2
 export struct ProgressBar {
-  @Prop value: number = 0;
+  @Param value: number = 0;
   /** 'brand' | 'ok' | 'warn' */
   tone: string = 'brand';
   /** Sweeping fill used while packing. */
-  striped: boolean = false;
+  @Param striped: boolean = false;
 
   private fill(): Resource {
     if (this.tone === 'ok') {
@@ -438,11 +444,11 @@ export struct ProgressBar {
 }
 
 /** Segmented control. */
-@Component
+@ComponentV2
 export struct Segmented {
-  options: SegmentOption[] = [];
-  @Prop selected: string = '';
-  onSelect: (value: string) => void = () => {
+  @Param options: SegmentOption[] = [];
+  @Param selected: string = '';
+  @Event onSelect: (value: string) => void = () => {
   };
 
   build() {
@@ -478,10 +484,10 @@ export struct Segmented {
  * 不用材质时（本机不支持沉浸式材质，或用户选了「无材质效果」）退回设计稿原来的不透明胶囊：
  * 浅底 + 白色药丸。
  */
-@Component
+@ComponentV2
 export struct LibrarySegment {
   /** 当前段，取值与 LIBRARY_OPTIONS 一致。 */
-  @Prop selected: string = 'images';
+  @Param selected: string = 'images';
   /**
    * 用户在设置里选了「无材质效果」。
    *
@@ -489,8 +495,8 @@ export struct LibrarySegment {
    * 用 @Prop 深拷贝它不可靠；而当普通成员又刷不动（AGENT.md 坑 3）—— 「无材质效果」选了
    * 以后图库分段永远保持旧观感。所以这里只收一个布尔量，材质在本组件内现算。
    */
-  @Prop materialOff: boolean = false;
-  onSelect: (value: string) => void = () => {
+  @Param materialOff: boolean = false;
+  @Event onSelect: (value: string) => void = () => {
   };
 
   /** 选项直接由 LIBRARY_OPTIONS 生成，标签只有一处定义。 */
@@ -650,22 +656,22 @@ export struct LibrarySegment {
 }
 
 /** Pill button: primary / tonal / ghost / danger. */
-@Component
+@ComponentV2
 export struct PillButton {
-  label: string = '';
+  @Param label: string = '';
   /** 'primary' | 'tonal' | 'ghost' | 'danger' */
-  variant: string = 'ghost';
+  @Param variant: string = 'ghost';
   /** @Prop so a caller may flip the icon at runtime (e.g. single / ZIP mode). */
-  @Prop icon: string = '';
-  small: boolean = false;
+  @Param icon: string = '';
+  @Param small: boolean = false;
   /** Stretch to the full width of its parent. */
-  block: boolean = false;
+  @Param block: boolean = false;
   /**
    * Whether the button responds; an inactive primary greys out.
    * @Prop (not a plain member) so a caller's state change re-renders the button.
    */
-  @Prop active: boolean = true;
-  onAction: () => void = () => {
+  @Param active: boolean = true;
+  @Event onAction: () => void = () => {
   };
 
   private surfaceColor(): ResourceColor {
@@ -750,9 +756,9 @@ export struct PillButton {
 }
 
 /** Card surface. */
-@Component
+@ComponentV2
 export struct Card {
-  pad: number = Space.s12;
+  @Param pad: number = Space.s12;
   @BuilderParam content: () => void = this.slot;
 
   @Builder
@@ -773,24 +779,24 @@ export struct Card {
 }
 
 /** Section heading with up to three trailing text actions. */
-@Component
+@ComponentV2
 export struct SectionHead {
-  heading: string = '';
+  @Param heading: string = '';
   /** @Prop: callers pass live counters ("已选 3" / occupancy) into this slot. */
-  @Prop meta: string = '';
-  actionLabel: string = '';
-  secondLabel: string = '';
-  thirdLabel: string = '';
+  @Param meta: string = '';
+  @Param actionLabel: string = '';
+  @Param secondLabel: string = '';
+  @Param thirdLabel: string = '';
   /**
    * @Prop：智感握姿开启且系统识别到握持左手时，把三个文字操作移到左侧，
    * 让它们落在拇指够得着的一侧。
    */
-  @Prop mirror: boolean = false;
-  onAction: () => void = () => {
+  @Param mirror: boolean = false;
+  @Event onAction: () => void = () => {
   };
-  onSecond: () => void = () => {
+  @Event onSecond: () => void = () => {
   };
-  onThird: () => void = () => {
+  @Event onThird: () => void = () => {
   };
 
   /** 标题与计数；计数永远跟在标题后面，镜像时整块靠右。 */
@@ -868,12 +874,12 @@ export struct SectionHead {
 }
 
 /** Centred empty state. */
-@Component
+@ComponentV2
 export struct EmptyState {
-  glyph: string = 'inbox';
+  @Param glyph: string = 'inbox';
   /** @Prop: the gallery swaps this between "图库还是空的" and "没有匹配的图片". */
-  @Prop heading: string = '';
-  @Prop body: string = '';
+  @Param heading: string = '';
+  @Param body: string = '';
 
   build() {
     Column({ space: Space.s12 }) {
@@ -906,9 +912,9 @@ export struct EmptyState {
 }
 
 /** Transient confirmation pill. */
-@Component
+@ComponentV2
 export struct ToastPill {
-  @Prop text: string = '';
+  @Param text: string = '';
 
   build() {
     if (this.text.length > 0) {
@@ -929,10 +935,10 @@ export struct ToastPill {
 }
 
 /** Inline hint row with a leading glyph. */
-@Component
+@ComponentV2
 export struct HintRow {
-  glyph: string = 'sparkle';
-  text: string = '';
+  @Param glyph: string = 'sparkle';
+  @Param text: string = '';
 
   build() {
     Row({ space: Space.s4 }) {
@@ -962,15 +968,15 @@ export struct HintRow {
  * 必须长成同一副样子。原来只有「沉浸光感 / 智感握姿 / 防窥保护」三行是品牌色，其余是灰底
  * 灰字，同一个卡片里两种观感；现在统一按沉浸光感那一版处理，见 README「图标」。
  */
-@Component
+@ComponentV2
 export struct ListRow {
   /** @Prop: 主题行会随深浅色在 sun / moon 之间切。 */
-  @Prop glyph: string = 'dot';
-  heading: string = '';
+  @Param glyph: string = 'dot';
+  @Param heading: string = '';
   /** @Prop: 少数行的描述会跟着状态变（如防窥保护、下载位置）。 */
-  @Prop aux: string = '';
+  @Param aux: string = '';
   @BuilderParam trailing: () => void = this.slot;
-  onAction: () => void = () => {
+  @Event onAction: () => void = () => {
   };
 
   @Builder
@@ -1021,13 +1027,13 @@ export struct ListRow {
 }
 
 /** A settings row: leading glyph, title, description, then a control below. */
-@Component
+@ComponentV2
 export struct StackedRow {
   /** @Prop：入参会在运行时变时必须这样声明，V1 不会把新值刷进普通成员。 */
-  @Prop glyph: string = 'dot';
-  heading: string = '';
+  @Param glyph: string = 'dot';
+  @Param heading: string = '';
   /** @Prop: the subtitle describes the current value. */
-  @Prop aux: string = '';
+  @Param aux: string = '';
   @BuilderParam control: () => void = this.slot;
 
   @Builder
@@ -1073,16 +1079,16 @@ export struct StackedRow {
 }
 
 /** The prototype's rename dialog: a scrim, a card and a text field. */
-@Component
+@ComponentV2
 export struct RenameDialog {
-  heading: string = '';
-  initial: string = '';
-  onSave: (name: string) => void = () => {
+  @Param heading: string = '';
+  @Param initial: string = '';
+  @Event onSave: (name: string) => void = () => {
   };
-  onClose: () => void = () => {
+  @Event onClose: () => void = () => {
   };
 
-  @State private draft: string = '';
+  @Local private draft: string = '';
 
   aboutToAppear(): void {
     this.draft = this.initial;

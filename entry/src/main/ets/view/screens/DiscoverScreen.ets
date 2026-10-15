@@ -8,6 +8,7 @@ import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { SelectTile } from '../Cards';
 import { HintRow, IconButton, PillButton, SectionHead, TitleBar } from '../Widgets';
+import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
  * 「发现」页：地址栏 + 内嵌浏览器 + 扫描结果网格 + 选择工具条。
@@ -21,14 +22,14 @@ import { HintRow, IconButton, PillButton, SectionHead, TitleBar } from '../Widge
  * 安全区高度由 `@StorageProp` 直接读 `AppStorage`（EntryAbility 写入），不再层层透传。
  * 四个页面始终挂载、只切 `visibility`，所以浏览器里已加载的网页和滚动位置都留得住。
  */
-@Component
+@ComponentV2
 export struct DiscoverScreen {
-  @ObjectLink discover: DiscoverViewModel;
-  @ObjectLink settings: SettingsViewModel;
-  @ObjectLink device: DeviceViewModel;
+  @Require @Param discover: DiscoverViewModel;
+  @Require @Param settings: SettingsViewModel;
+  @Require @Param device: DeviceViewModel;
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   /** 浏览器卡片：伪地址条 + Web 视图 + 页面标题与扫描结果计数。 */
   @Builder
@@ -246,8 +247,8 @@ export struct DiscoverScreen {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          top: ScreenMetrics.topInset(this.safeTop, true),
-          bottom: ScreenMetrics.bottomInset(this.safeBottom,
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom,
             (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0))
         })
       }

@@ -7,6 +7,7 @@ import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { ArchiveCard, ShotTile } from '../Cards';
 import { EmptyState, LibrarySegment, TitleBar } from '../Widgets';
+import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
  * 「图库」页：图片 / 压缩包分段 + 搜索 + 密度切换。
@@ -15,13 +16,13 @@ import { EmptyState, LibrarySegment, TitleBar } from '../Widgets';
  * `LibraryViewModel` 里预算好（`images` / `archives`），这里只负责画；
  * 「空」和「搜不到」两种空态的区分由 `query` 是否为空决定。
  */
-@Component
+@ComponentV2
 export struct LibraryScreen {
-  @ObjectLink library: LibraryViewModel;
-  @ObjectLink settings: SettingsViewModel;
+  @Require @Param library: LibraryViewModel;
+  @Require @Param settings: SettingsViewModel;
 
-  @StorageProp('safeTop') safeTop: number = 0;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
+  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
   private searchPill() {
@@ -168,8 +169,8 @@ export struct LibraryScreen {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          top: ScreenMetrics.topInset(this.safeTop, true),
-          bottom: ScreenMetrics.bottomInset(this.safeBottom, 0)
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
         })
       }
       .width('100%')
