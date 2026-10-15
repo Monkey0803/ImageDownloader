@@ -37,138 +37,32 @@ const DS = path.resolve(HERE, '..');
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
-const option = (n, d) => { const i = argv.indexOf(n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
+/* An explicitly empty value must be honoured: `--prefix ""` is a legitimate
+   request for un-prefixed resource names, and `"" || fallback` would silently
+   ignore it. Check for the argument's presence, not its truthiness. */
+const option = (n, d) => {
+  const i = argv.indexOf(n);
+  return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : d;
+};
 
 const OUT = path.resolve(option('--out', path.join(DS, 'ohos-resources', 'entry', 'src', 'main', 'resources')));
 const PREFIX = option('--prefix', 'hm_');
 const DRY = flag('--dry-run');
 const FORCE = flag('--force');
 
-/* ---------------------------------------------------------------- parsing */
+/* ------------------------------------------------- parsing + conversion
+   Shared with build-token-har.mjs so the two cannot disagree about how a token
+   becomes a resource value. */
+import { readTokenBlocks, convertTokens } from './lib/ohos-tokens.mjs';
+
 const TOKENS_DIR = path.join(DS, 'tokens');
 if (!fs.existsSync(TOKENS_DIR)) {
   console.error(`emit-ohos-resources: no tokens/ directory at ${DS}`);
   process.exit(2);
 }
 
-const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
-
-/** Parse `selector { --name: value; }` blocks from every token file. */
-function readTokenFiles() {
-  const files = fs.readdirSync(TOKENS_DIR).filter((f) => f.endsWith('.css')).sort();
-  const blocks = [];
-  for (const file of files) {
-    const clean = stripComments(fs.readFileSync(path.join(TOKENS_DIR, file), 'utf8'));
-    for (const m of clean.matchAll(/([^{}]+)\{([\s\S]*?)\n\}/g)) {
-      const selector = m[1].trim();
-      const decls = [];
-      for (const d of m[2].matchAll(/(--[A-Za-z0-9_-]+)\s*:\s*([^;]+);/g)) {
-        decls.push({ name: d[1], value: d[2].trim() });
-      }
-      blocks.push({ file, selector, decls });
-    }
-  }
-  return blocks;
-}
-
-const blocks = readTokenFiles();
-const allValues = new Map();
-for (const b of blocks) { for (const d of b.decls) { if (!allValues.has(d.name)) { allValues.set(d.name, d.value); } } }
-
-/** Collect the declarations of the blocks whose selector matches. */
-function collect(match) {
-  const out = new Map();
-  for (const b of blocks) { if (!match(b.selector)) { continue; } for (const d of b.decls) { out.set(d.name, d.value); } }
-  return out;
-}
-
-const light = collect((s) => s === ':root' && !s.includes('dark'));
-const dark = collect((s) => /\[data-theme=["']?dark/.test(s));
-
-/* ---------------------------------------------------------- conversions */
-/** Resolve var(--x) chains down to a literal. */
-function resolve(value, depth = 0) {
-  if (depth > 8) { return null; }
-  const v = String(value).trim();
-  const whole = /^var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([\s\S]+))?\)$/.exec(v);
-  if (whole) {
-    const next = allValues.get(whole[1]);
-    if (next !== undefined) { return resolve(next, depth + 1); }
-    return whole[2] ? resolve(whole[2], depth + 1) : null;
-  }
-  return v;
-}
-
-const hex2 = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0').toUpperCase();
-
-/** Any CSS colour → `#AARRGGBB`, the reference's and color.json's native format. */
-function toArgb(input) {
-  const value = resolve(input);
-  if (!value) { return null; }
-
-  const rgba = /^rgba?\(([^)]+)\)$/.exec(value);
-  if (rgba) {
-    const parts = rgba[1].split(/[\s,/]+/).filter(Boolean);
-    if (parts.length < 3) { return null; }
-    const [r, g, b] = parts.slice(0, 3).map((p) => (p.endsWith('%') ? parseFloat(p) * 2.55 : parseFloat(p)));
-    let a = parts[3] !== undefined
-      ? (parts[3].endsWith('%') ? parseFloat(parts[3]) / 100 : parseFloat(parts[3]))
-      : 1;
-    /* CSS alpha is 0..1; a few reference values carry float noise (0.8980392218). */
-    a = Math.max(0, Math.min(1, a));
-    return `#${hex2(a * 255)}${hex2(r)}${hex2(g)}${hex2(b)}`;
-  }
-
-  const hex = /^#([0-9a-fA-F]{3,8})$/.exec(value);
-  if (hex) {
-    let h = hex[1];
-    if (h.length === 3) { h = h.split('').map((c) => c + c).join(''); }
-    if (h.length === 6) { return `#FF${h.toUpperCase()}`; }
-    if (h.length === 8) { return `#${h.toUpperCase()}`; }
-    return null;
-  }
-
-  if (value === 'transparent') { return '#00000000'; }
-  return null;
-}
-
-/** A `px` length → the unitless number ArkTS reads as vp (or fp for font sizes).
- *  `calc()` is evaluated, because those results are exactly the numbers a native
- *  screen needs (--harmony-titlebar-layer-normal is calc(12px + 40px) = 52). */
-function toNumber(input, depth = 0) {
-  const value = resolve(input);
-  if (!value || depth > 8) { return null; }
-  const literal = /^(-?[\d.]+)px$/.exec(value);
-  if (literal) { return parseFloat(literal[1]); }
-  const calc = /^calc\(([\s\S]+)\)$/.exec(value);
-  if (!calc) { return null; }
-  let unresolved = false;
-  const expr = calc[1]
-    .replace(/\s+/g, ' ')
-    .replace(/var\(\s*(--[A-Za-z0-9_-]+)\s*\)/g, (whole, ref) => {
-      const inner = allValues.get(ref);
-      const num = inner === undefined ? null : toNumber(inner, depth + 1);
-      if (num === null) { unresolved = true; return whole; }
-      return String(num);
-    });
-  if (unresolved || !/^[\d\s.+*()/-]+$/.test(expr)) { return null; }
-  try {
-    const out = Function('"use strict";return (' + expr + ');')();
-    return typeof out === 'number' && Number.isFinite(out) ? out : null;
-  } catch { return null; }
-}
-
-/* ----------------------------------------------------------------- naming */
-/* `--harmony-font-primary` → `hm_font_primary`. Resource names must be valid
-   ArkTS identifiers, so hyphens become underscores and a leading digit is
-   escaped. */
-function resourceName(token) {
-  let base = token.replace(/^--/, '').replace(/^harmony-/, '').replace(/[^A-Za-z0-9_]/g, '_');
-  if (/^\d/.test(base)) { base = '_' + base; }
-  return PREFIX + base;
-}
-
-const isFontSize = (token) => /font-size|font_size/.test(token);
+const blocks = readTokenBlocks(TOKENS_DIR);
+const { colors, darkColors, floats, skipped } = convertTokens(blocks, PREFIX);
 
 /* ------------------------------------------------------------ file merge */
 function mergeInto(file, entries, expectedKey) {
@@ -239,47 +133,14 @@ function selfCheck(file, entries) {
 }
 
 /* ------------------------------------------------------------------ emit */
-const lightColors = new Map();
-const darkColors = new Map();
-const floats = new Map();
-const skipped = [];
-
-for (const [token, raw] of light) {
-  if (token.endsWith('_')) { continue; }                       // legacy aliases
-  const name = resourceName(token);
-  const argb = toArgb(raw);
-  if (argb) { lightColors.set(name, argb); continue; }
-  const num = toNumber(raw);
-  if (num !== null) {
-    if (isFontSize(token)) { floats.set(name, num); }
-    else { floats.set(name, num); }
-    continue;
-  }
-  skipped.push({ token, raw, why: 'not a colour or a px length' });
-}
-
-for (const [token, raw] of dark) {
-  if (token.endsWith('_')) { continue; }
-  const argb = toArgb(raw);
-  const name = resourceName(token);
-  if (argb) { darkColors.set(name, argb); continue; }
-  /* Dark files hold colours only — a dimension is theme-invariant, so it stays in
-     base/float.json and must NOT be duplicated into the dark directory. */
-}
-
-/* Only emit dark entries for tokens the light set actually contains as colours. */
-for (const name of [...darkColors.keys()]) {
-  if (!lightColors.has(name)) { darkColors.delete(name); }
-}
-
 const targets = [
-  { file: path.join(OUT, 'base', 'element', 'color.json'), entries: lightColors, label: 'base/element/color.json', key: 'color' },
+  { file: path.join(OUT, 'base', 'element', 'color.json'), entries: colors, label: 'base/element/color.json', key: 'color' },
   { file: path.join(OUT, 'dark', 'element', 'color.json'), entries: darkColors, label: 'dark/element/color.json', key: 'color' },
   { file: path.join(OUT, 'base', 'element', 'float.json'), entries: floats, label: 'base/element/float.json', key: 'float' },
 ];
 
 console.log(`emit-ohos-resources · out=${path.relative(DS, OUT) || OUT} · prefix="${PREFIX}"${DRY ? ' · DRY RUN' : ''}`);
-console.log(`  tokens read: ${light.size} light · ${dark.size} dark\n`);
+console.log(`  tokens: ${colors.size} colour(s) · ${floats.size} dimension(s) · ${darkColors.size} dark override(s)\n`);
 
 let failed = false;
 for (const { file, entries, label, key } of targets) {
@@ -301,12 +162,12 @@ for (const { file, entries, label, key } of targets) {
 
 if (skipped.length) {
   console.log(`\n  skipped ${skipped.length} token(s) that are neither colours nor px lengths:`);
-  for (const s of skipped.slice(0, 10)) { console.log(`    ${s.token} = ${s.raw} (${s.why})`); }
-  if (skipped.length > 10) { console.log(`    … and ${skipped.length - 10} more (see --dry-run output in full)`); }
+  for (const sk of skipped.slice(0, 10)) { console.log(`    ${sk.token} = ${sk.raw} (${sk.why})`); }
+  if (skipped.length > 10) { console.log(`    … and ${skipped.length - 10} more`); }
 }
 
-console.log(`\n  note: float.json values are unitless vp. Font sizes are named *_font_size_* —`);
-console.log(`        apply them with .fp in ArkTS (see guidelines/arkui-mapping.md).`);
-if (!FORCE) { console.log(`  note: existing names are preserved, never dropped. Pass --force to overwrite the whole directory instead.`); }
+console.log(`\n  note: float.json values carry an explicit unit (vp for dimensions, fp for font`);
+console.log(`        sizes), matching the convention already used in this project.`);
+if (!FORCE) { console.log(`  note: existing names are preserved, never dropped (use --force to replace).`); }
 
 process.exit(failed ? 1 : 0);

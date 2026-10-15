@@ -60,7 +60,7 @@ function MiniBrowser(props) {
 
 function DiscoverScreen(props) {
   const {
-    address, onAddressChange, onOpen,
+    address, onAddressChange, onOpen, onPaste,
     images, selectedIds, onToggle, onSelectAll, onInvert, onClearAll,
     mode, onModeChange, onDownload,
     scanning, onRescan, notice,
@@ -85,7 +85,9 @@ function DiscoverScreen(props) {
           placeholder="输入网页或图片链接"
           onChange={onAddressChange}
           onSubmit={onOpen}
+          onPaste={onPaste}
           actionLabel="打开"
+          actionIcon="arrowRight"
           icon="globe"
         />
 
@@ -151,9 +153,11 @@ function DiscoverScreen(props) {
               { value: 'zip', label: 'ZIP' },
             ]}
           />
+          {/* 按钮只做一件事：把选中的图片下载下来。ZIP 只是打包方式，模式由左边的分段控件
+              表达，图标不跟着模式换（原来 ZIP 下会变成 layers，容易被读成「图层」）。 */}
           <Btn
             variant="primary"
-            icon={mode === 'zip' ? 'layers' : 'download'}
+            icon="download"
             onClick={onDownload}
           >
             下载

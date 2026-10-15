@@ -114,7 +114,7 @@ function BatchCard(props) {
 }
 
 function TasksScreen(props) {
-  const { tasks, batches, concurrency, onConcurrency, onCancel, onRetry, onLocate, onRename } = props;
+  const { tasks, batches, concurrency, onCancel, onRetry, onLocate, onRename } = props;
 
   const running = tasks.filter((task) => KD.ACTIVE_STATUS.indexOf(task.status) >= 0 && task.status !== 'queued');
   const queued = tasks.filter((task) => task.status === 'queued');
@@ -129,15 +129,6 @@ function TasksScreen(props) {
       />
 
       <div className="scroll">
-        <Card className="card--pad">
-          <div className="row" style={{ marginBottom: 'var(--sp-5)' }}>
-            <span className="list__title" lang="zh">同时下载</span>
-            <span className="spacer" />
-            <span className="tiny" lang="zh">超过并发的任务自动排队</span>
-          </div>
-          <Slider value={concurrency} min={1} max={10} onChange={onConcurrency} />
-        </Card>
-
         {batches.length > 0 ?
           <div>
             <SectionHead title="打包任务" meta="ZIP" />
@@ -165,7 +156,9 @@ function TasksScreen(props) {
 
         {settled.length > 0 ?
           <div>
-            <SectionHead title="已完成 / 失败" meta={String(settled.length)} />
+            {/* meta 是 settled 的总数（已完成 + 失败 + 已取消）；标题只能给一个名字，
+                写成「已完成 / 失败」会让数字看起来同时属于两个状态。 */}
+            <SectionHead title="已结束" meta={String(settled.length)} />
             <div className="col-gap">
               {settled.map((task) =>
                 <TaskRow
@@ -181,11 +174,14 @@ function TasksScreen(props) {
           </div> : null}
 
         {activeCount === 0 && settled.length === 0 ?
-          <Empty
-            icon="inbox"
-            title="还没有下载任务"
-            body="回到「发现」，扫描网页并选择要保存的图片。"
-          /> : null}
+          /* 页面没有其它卡片时，空态直接顶在标题栏下面会显得挤（对应 ArkTS 里那层 32vp 内边距） */
+          <div style={{ marginTop: 'var(--sp-16)' }}>
+            <Empty
+              icon="inbox"
+              title="还没有下载任务"
+              body="回到「发现」，扫描网页并选择要保存的图片。"
+            />
+          </div> : null}
       </div>
     </div>
   );

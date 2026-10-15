@@ -1,0 +1,9 @@
+{
+  "name": "@yostar/harmony-tokens",
+  "version": "1.0.0",
+  "description": "Generated HarmonyOS design tokens from designs/harmonyos-mobile. Do not edit by hand.",
+  "main": "src/main/ets/Index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

@@ -6,23 +6,23 @@
     },
     {
       "name": "hm_background_emphasize",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_background_fourth",
-      "value": "#FFD1D1D6"
+      "value": "#FF2E3033"
     },
     {
       "name": "hm_background_primary",
-      "value": "#FFFFFFFF"
+      "value": "#FFE5E5E5"
     },
     {
       "name": "hm_background_secondary",
-      "value": "#FFF1F3F5"
+      "value": "#FF191A1C"
     },
     {
       "name": "hm_background_tertiary",
-      "value": "#FFE5E5EA"
+      "value": "#FF202224"
     },
     {
       "name": "hm_bg_elevated",
@@ -50,67 +50,67 @@
     },
     {
       "name": "hm_comp_background_emphasize",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_comp_background_focus",
-      "value": "#FFF1F3F5"
+      "value": "#FF000000"
     },
     {
       "name": "hm_comp_background_gray",
-      "value": "#FFF1F3F5"
+      "value": "#FFE5E5EA"
     },
     {
       "name": "hm_comp_background_neutral",
-      "value": "#FF000000"
+      "value": "#FFFFFFFF"
     },
     {
       "name": "hm_comp_background_primary",
-      "value": "#FFFFFFFF"
+      "value": "#FF202224"
     },
     {
       "name": "hm_comp_background_primary_contrary",
-      "value": "#FFFFFFFF"
+      "value": "#FFE5E5E5"
     },
     {
       "name": "hm_comp_background_secondary",
-      "value": "#19000000"
+      "value": "#19FFFFFF"
     },
     {
       "name": "hm_comp_background_tertiary",
-      "value": "#0C000000"
+      "value": "#0CFFFFFF"
     },
     {
       "name": "hm_comp_common_contrary",
-      "value": "#FFFFFFFF"
+      "value": "#FF000000"
     },
     {
       "name": "hm_comp_divider",
-      "value": "#33000000"
+      "value": "#33FFFFFF"
     },
     {
       "name": "hm_comp_emphasize_secondary",
-      "value": "#330A59F7"
+      "value": "#33317AF7"
     },
     {
       "name": "hm_comp_emphasize_tertiary",
-      "value": "#190A59F7"
+      "value": "#19317AF7"
     },
     {
       "name": "hm_comp_focused_primary",
-      "value": "#E5000000"
+      "value": "#E5FFFFFF"
     },
     {
       "name": "hm_comp_focused_secondary",
-      "value": "#99000000"
+      "value": "#99FFFFFF"
     },
     {
       "name": "hm_comp_focused_tertiary",
-      "value": "#66000000"
+      "value": "#66FFFFFF"
     },
     {
       "name": "hm_comp_foreground_primary",
-      "value": "#FF000000"
+      "value": "#FFE5E5E5"
     },
     {
       "name": "hm_confirm",
@@ -122,11 +122,11 @@
     },
     {
       "name": "hm_font_emphasize",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_font_fourth",
-      "value": "#33000000"
+      "value": "#33FFFFFF"
     },
     {
       "name": "hm_font_on_fourth",
@@ -146,15 +146,15 @@
     },
     {
       "name": "hm_font_primary",
-      "value": "#E5000000"
+      "value": "#E5FFFFFF"
     },
     {
       "name": "hm_font_secondary",
-      "value": "#99000000"
+      "value": "#99FFFFFF"
     },
     {
       "name": "hm_font_tertiary",
-      "value": "#66000000"
+      "value": "#66FFFFFF"
     },
     {
       "name": "hm_icon_btn_bg",
@@ -162,11 +162,11 @@
     },
     {
       "name": "hm_icon_emphasize",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_icon_fourth",
-      "value": "#33000000"
+      "value": "#33FFFFFF"
     },
     {
       "name": "hm_icon_on_fourth",
@@ -186,43 +186,43 @@
     },
     {
       "name": "hm_icon_primary",
-      "value": "#E5000000"
+      "value": "#E5FFFFFF"
     },
     {
       "name": "hm_icon_secondary",
-      "value": "#99000000"
+      "value": "#99FFFFFF"
     },
     {
       "name": "hm_icon_sub_emphasize",
-      "value": "#660A59F7"
+      "value": "#66317AF7"
     },
     {
       "name": "hm_icon_tertiary",
-      "value": "#66000000"
+      "value": "#66FFFFFF"
     },
     {
       "name": "hm_interactive_active",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_interactive_click",
-      "value": "#19000000"
+      "value": "#19FFFFFF"
     },
     {
       "name": "hm_interactive_focus",
-      "value": "#FF0A59F7"
+      "value": "#FF317AF7"
     },
     {
       "name": "hm_interactive_hover",
-      "value": "#0C000000"
+      "value": "#0CFFFFFF"
     },
     {
       "name": "hm_interactive_pressed",
-      "value": "#19000000"
+      "value": "#19FFFFFF"
     },
     {
       "name": "hm_interactive_select",
-      "value": "#330A59F7"
+      "value": "#33317AF7"
     },
     {
       "name": "hm_overlay_bg",

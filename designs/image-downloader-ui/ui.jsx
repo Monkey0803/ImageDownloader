@@ -86,7 +86,7 @@ function TabBar(props) {
 
 /* ---------- search pill ---------- */
 function SearchPill(props) {
-  const { value, placeholder, onChange, onSubmit, actionLabel, icon } = props;
+  const { value, placeholder, onChange, onSubmit, actionLabel, actionIcon, icon, onPaste } = props;
   const [focus, setFocus] = useState(false);
   return (
     <div className={'search' + (focus ? ' search--focus' : '')}>
@@ -101,9 +101,21 @@ function SearchPill(props) {
         onBlur={() => setFocus(false)}
         onKeyDown={(event) => { if (event.key === 'Enter' && onSubmit) { onSubmit(); } }}
       />
-      {actionLabel ?
-        <button className="search__go" type="button" onClick={onSubmit} disabled={!value || !value.trim()}>
-          {actionLabel}
+      {/* 地址栏右端是两个圆形图标按钮：粘贴（剪贴板）与前往（箭头），对应 arkTS 的 PillButton iconOnly */}
+      {onPaste ?
+        <button className="search__act" type="button" aria-label="粘贴" title="粘贴" data-light onClick={onPaste}>
+          <Icon name="paste" size={17} />
+        </button> : null}
+      {actionLabel || actionIcon ?
+        <button
+          className={'search__go' + (actionIcon ? ' search__go--icon' : '')}
+          type="button"
+          aria-label={actionLabel}
+          title={actionLabel}
+          onClick={onSubmit}
+          disabled={!value || !value.trim()}
+        >
+          {actionIcon ? <Icon name={actionIcon} size={17} /> : actionLabel}
         </button> : null}
     </div>
   );

@@ -10,9 +10,18 @@ The reference's mandatory values (the 8px titlebar gap, `100 = 16 + 56 + 28`, th
 locked pill widths) are encoded once and then *measured*, not restated in prose.
 
 > **Design-time only.** `_ds_bundle.js` is React/DOM code. It does not generate ArkTS
-> and cannot be shipped in an app. What crosses into a real project is the token layer
-> — see [`guidelines/arkui-mapping.md`](guidelines/arkui-mapping.md) and
-> `tools/emit-ohos-resources.mjs`.
+> and cannot be shipped in an app.
+>
+> What crosses into a real project is the **token layer**, packaged as a HAR so that N
+> apps share one copy instead of N copies:
+>
+> ```bash
+> node tools/build-token-har.mjs     # -> ../../harmonyos-tokens  (all generated)
+> ```
+>
+> An app then writes one line — `"@yostar/harmony-tokens": "file:../../harmonyos-tokens"`
+> — and imports `{ Palette, Metrics }`. See
+> [`guidelines/multi-app-architecture.md`](guidelines/multi-app-architecture.md).
 
 ---
 
@@ -23,7 +32,9 @@ locked pill widths) are encoded once and then *measured*, not restated in prose.
 | know the rules and the traps they came from | [`compliance.md`](compliance.md) |
 | build a screen that is correct by construction | [`ui_kits/card`](ui_kits/card/index.html) · `grid` · `list` · `settings` |
 | see a value's measured proof | the card that measures it, e.g. [`guidelines/geometry-anchors.html`](guidelines/geometry-anchors.html) |
-| ship tokens into an ArkTS app | [`guidelines/arkui-mapping.md`](guidelines/arkui-mapping.md) |
+| ship tokens into an ArkTS app | [`guidelines/arkui-mapping.md`](guidelines/arkui-mapping.md) — or just depend on the HAR |
+| run several apps off one design system | [`guidelines/multi-app-architecture.md`](guidelines/multi-app-architecture.md) |
+| copy a working app as a starting point | `../apps/harmony-starter/` (compiles; `./build.sh`) |
 | check the system is still conformant | `node tools/verify-harmony.mjs` |
 
 ---
@@ -195,9 +206,15 @@ tools/
   gen-icon-map.mjs          icon names → codepoints                 (--check)
   annotate-tokens.mjs       stamps @kind on the hand-written files  (--check)
   verify-harmony.mjs        12 conformance rules
-  emit-ohos-resources.mjs   tokens → ArkTS resource JSON
+  emit-ohos-resources.mjs   tokens → ArkTS resource JSON (one app's resources/)
+  build-token-har.mjs       tokens → a shareable HAR            (--check)
+  check-app-drift.mjs       does an app still match the tokens?
+  lib/ohos-tokens.mjs       shared token → resource conversion (one app's resources/)
+  build-token-har.mjs       tokens → a shareable HAR            (--check)
+  check-app-drift.mjs       does an app still match the tokens?
 
-guidelines/arkui-mapping.md   design tokens → ArkTS resources, and the honest gaps
+guidelines/arkui-mapping.md            tokens → ArkTS, and the honest gaps
+guidelines/multi-app-architecture.md   how N apps share one system (skill vs HAR)
 
 ohos-resources/         a generated sample of what emit-ohos-resources.mjs writes:
   entry/src/main/resources/
@@ -209,9 +226,12 @@ compliance.md           the rules and the 13 traps
 preview.html            every card in one self-contained file
 ```
 
-Sibling (deliberately outside this tree — any `.jsx` inside it would be bundled as a
-component): `../harmonyos-mobile-verify-fixture/`, the fixture that
-`verify-harmony.mjs` must **fail** on.
+Siblings outside this tree — a `.jsx` inside it would be bundled as a component, which
+is why neither of these lives here:
+
+- `harmonyos-tokens/` — the generated HAR that apps depend on
+- `harmonyos-mobile-verify-fixture/` — the fixture `verify-harmony.mjs` must **fail** on
+- `apps/harmony-starter/` — a compiling app that consumes the HAR
 
 ## Portable
 

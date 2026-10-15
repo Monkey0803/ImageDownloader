@@ -5,8 +5,7 @@
 const TAB_ITEMS = [
   { key: 'discover', label: '发现', icon: 'scan' },
   { key: 'tasks',    label: '任务', icon: 'download' },
-  { key: 'gallery',  label: '图库', icon: 'image' },
-  { key: 'zip',      label: '打包', icon: 'archive' },
+  { key: 'library',  label: '图库', icon: 'image' },
   { key: 'settings', label: '设置', icon: 'sliders' },
 ];
 
@@ -94,7 +93,7 @@ function App() {
 
   /* while protected, opening 图库 simulates a detection shortly after */
   useEffect(() => {
-    if (!antiPeek || tab !== 'gallery') { return; }
+    if (!antiPeek || tab !== 'library') { return; }
     const timer = window.setTimeout(() => setPeeking(true), 2800);
     return () => window.clearTimeout(timer);
   }, [antiPeek, tab]);
@@ -219,6 +218,20 @@ function App() {
     scan();
   };
 
+  /* 地址栏的「粘贴」：优先读系统剪贴板，浏览器不给读时退回示例链接 */
+  const pasteAddress = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        setAddress(text.trim().replace(/^https?:\/\//, ''));
+        showNotice('已粘贴剪贴板内容');
+        return;
+      }
+    } catch (_) { /* 没有剪贴板权限时走下面的兜底 */ }
+    setAddress('aozora.example.com/kyoto-autumn');
+    showNotice('已粘贴剪贴板内容');
+  };
+
   const toggleImage = (image) => {
     setSelectedIds((prev) =>
       prev.indexOf(image.id) >= 0 ? prev.filter((id) => id !== image.id) : prev.concat([image.id]));
@@ -338,6 +351,7 @@ function App() {
           address={address}
           onAddressChange={setAddress}
           onOpen={openAddress}
+          onPaste={pasteAddress}
           images={images}
           selectedIds={selectedIds}
           onToggle={toggleImage}
@@ -362,39 +376,33 @@ function App() {
           tasks={tasks}
           batches={batchViews}
           concurrency={concurrency}
-          onConcurrency={setConcurrency}
           onCancel={cancelTask}
           onRetry={retryTask}
-          onLocate={(task) => { setTab('gallery'); setQuery(task.name.replace(/\.[^.]+$/, '')); showNotice('已在图库中定位'); }}
+          onLocate={(task) => { setTab('library'); setQuery(task.name.replace(/\.[^.]+$/, '')); showNotice('已在图库中定位'); }}
           onRename={(task) => setDialog({ type: 'rename', payload: { kind: 'task', item: task } })}
         /> : null}
 
-      {tab === 'gallery' ?
-        <GalleryScreen
+      {tab === 'library' ?
+        <LibraryScreen
           {...screenProps}
           images={gallery}
+          zips={zips}
           query={query}
           onQuery={setQuery}
           density={density}
           onDensity={() => setDensity(density === 2 ? 3 : 2)}
-          onOpen={setViewer}
+          onOpenImage={setViewer}
           viewer={viewer}
           onCloseViewer={() => setViewer(null)}
-          onRename={(image) => setDialog({ type: 'rename', payload: { kind: 'image', item: image } })}
-          onDelete={(image) => setDialog({ type: 'confirm', payload: { action: 'delete-image', item: image } })}
+          onRenameImage={(image) => setDialog({ type: 'rename', payload: { kind: 'image', item: image } })}
+          onDeleteImage={(image) => setDialog({ type: 'confirm', payload: { action: 'delete-image', item: image } })}
           onSaveToGallery={() => showNotice('已保存到系统相册')}
-          onShare={() => showNotice('已调起系统分享')}
-          onExport={() => showNotice('已导出到所选位置')}
-        /> : null}
-
-      {tab === 'zip' ?
-        <ArchivesScreen
-          {...screenProps}
-          zips={zips}
-          onRename={(zip) => setDialog({ type: 'rename', payload: { kind: 'zip', item: zip } })}
-          onDelete={(zip) => setDialog({ type: 'confirm', payload: { action: 'delete-zip', item: zip } })}
-          onExport={() => showNotice('已导出到所选位置')}
-          onShare={() => showNotice('已调起系统分享')}
+          onShareImage={() => showNotice('已调起系统分享')}
+          onExportImage={() => showNotice('已导出到所选位置')}
+          onRenameZip={(zip) => setDialog({ type: 'rename', payload: { kind: 'zip', item: zip } })}
+          onDeleteZip={(zip) => setDialog({ type: 'confirm', payload: { action: 'delete-zip', item: zip } })}
+          onExportZip={() => showNotice('已导出到所选位置')}
+          onShareZip={() => showNotice('已调起系统分享')}
         /> : null}
 
       {tab === 'settings' ?

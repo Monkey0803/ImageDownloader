@@ -1,7 +1,52 @@
 /* ============================================================
-   icons.jsx — one consistent 24px line-icon set
-   (prototype stand-in for the HMSymbol glyph font)
+   icons.jsx — the prototype's icon surface.
+
+   Icons resolve to the HMSymbol glyph font through HMSYMBOL (name → codepoint
+   from the official HarmonyOS Symbol dictionary,
+   ../harmonyos-mobile/assets/hmsymbol-map.json). Names without a published
+   symbol keep the 24px line paths below — the same fallback the app uses.
+
+   The map mirrors SYMBOL_RES in entry/src/main/ets/view/Icons.ets; when an icon
+   moves, move both.
    ============================================================ */
+
+/** Glyph name → HarmonyOS Symbol codepoint (PUA; drawn with the HMSymbol font). */
+const HMSYMBOL = {
+  search: 0xF0029,
+  refresh: 0xF00C7,
+  check: 0xF0013,
+  close: 0xF0056,
+  download: 0xF089D,
+  image: 0xF0003,
+  layers: 0xF04A2,
+  archive: 0xF00DF,
+  sliders: 0xF0072,
+  trash: 0xF0001,
+  share: 0xF003D,
+  export: 0xF0420,
+  pencil: 0xF0073,
+  chevronRight: 0xF00D9,
+  grid: 0xF00E3,
+  chevronDown: 0xF00DB,
+  chevronUp: 0xF00D8,
+  play: 0xF00B4,
+  pause: 0xF086B,
+  retry: 0xF00C8,
+  plus: 0xF0035,
+  folder: 0xF00C5,
+  sun: 0xF0050,
+  moon: 0xF002D,
+  clock: 0xF03DD,
+  alert: 0xF0109,
+  checkCircle: 0xF000F,
+  xCircle: 0xF0055,
+  scan: 0xF0123,
+  inbox: 0xF089D,
+  sparkle: 0xF0037,
+  eye: 0xF0120,
+  paste: 0xF019D,
+  arrowRight: 0xF0231,
+};
 
 const ICONS = {
   search: (<><circle cx="11" cy="11" r="7" /><path d="M16.6 16.6 21 21" /></>),
@@ -21,6 +66,7 @@ const ICONS = {
   chevronRight: (<path d="M9.5 5.5 16 12l-6.5 6.5" />),
   grid: (<><rect x="4" y="4" width="7" height="7" rx="1.8" /><rect x="13" y="4" width="7" height="7" rx="1.8" /><rect x="4" y="13" width="7" height="7" rx="1.8" /><rect x="13" y="13" width="7" height="7" rx="1.8" /></>),
   chevronDown: (<path d="M5.5 9.5 12 16l6.5-6.5" />),
+  chevronUp: (<path d="M5.5 14.5 12 8l6.5 6.5" />),
   play: (<path d="M8.2 5.6v12.8L18.6 12z" />),
   pause: (<><path d="M9.4 5.5v13" /><path d="M14.6 5.5v13" /></>),
   retry: (<><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" /><path d="M3.5 4.6V10H9" /></>),
@@ -45,6 +91,21 @@ const ICONS = {
 
 function Icon(props) {
   const { name, size = 24, stroke = 1.7, className, style } = props;
+  const codepoint = HMSYMBOL[name];
+  if (codepoint !== undefined) {
+    // HMSymbol carries emphasis in its weight; the app maps the same 1.7 / 2.0 /
+    // 2.6 unit strokes onto Regular / Medium / Bold.
+    const weight = stroke >= 2.4 ? 700 : (stroke >= 1.9 ? 500 : 400);
+    return (
+      <span
+        className={className ? 'hm-symbol ' + className : 'hm-symbol'}
+        style={Object.assign({ fontSize: size + 'px', fontWeight: weight }, style)}
+        aria-hidden="true"
+      >
+        {String.fromCodePoint(codepoint)}
+      </span>
+    );
+  }
   return (
     <svg
       className={className}

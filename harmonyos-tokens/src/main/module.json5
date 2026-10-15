@@ -1,0 +1,13 @@
+{
+  "module": {
+    "name": "harmony_tokens",
+    "type": "har",
+    /* A token library is device-agnostic, so it declares the form factors the
+       design system covers rather than just "phone". */
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ]
+  }
+}

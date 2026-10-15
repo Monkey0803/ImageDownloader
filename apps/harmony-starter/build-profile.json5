@@ -1,0 +1,54 @@
+/*
+ * No signingConfigs on purpose.
+ *
+ * The reference project's build-profile.json5 carries a real signing block with
+ * absolute paths and obfuscated passwords; copying it into a template would leak
+ * credentials and would not work on another machine anyway. Leave this empty and
+ * let DevEco Studio create the signing profile for this app ("Automatically
+ * generate signature"), or fill it in locally.
+ */
+{
+  "app": {
+    "signingConfigs": [],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "26.0.0",
+        "compatibleSdkVersion": "26.0.0",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            /*
+             * MUST be false while the token HAR is a `file:` dependency.
+             *
+             * With useNormalizedOHMUrl: true the ArkTS compiler fails with
+             *   10311002 "Failed to resolve OhmUrl ... imported by null"
+             * because it normalises module URLs against the project root, and a
+             * symlinked `file:` HAR (ohpm links it, it does not copy) resolves to a
+             * real path outside this project. Verified by building both ways.
+             *
+             * Set it back to true once the HAR comes from an ohpm registry instead
+             * of a relative path — that is the layout it is designed for.
+             */
+            "useNormalizedOHMUrl": false
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      { "name": "debug" },
+      { "name": "release" }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        { "name": "default", "applyToProducts": ["default"] }
+      ]
+    }
+  ]
+}

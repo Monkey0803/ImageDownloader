@@ -73,7 +73,7 @@ const WANTED = {
   // status & security
   /* NOTE: the official set publishes bell_fill / bell_slash / bell_slash_fill
      but NO line bell — so there is no line-variant notification icon. Recorded
-     as a dictionary gap in readme.md rather than patched with a drawn SVG. */
+     as a dictionary gap in README.md rather patched with a drawn SVG. */
   lock: 'privacy',
   eye: 'view',
   // misc app chrome

@@ -1,5 +1,9 @@
 /* ============================================================
-   screen-library.jsx — 图库 / 打包
+   screen-library.jsx — 图库（图片 / 压缩包）
+
+   底部页签只有「图库」一个：图片网格和压缩包列表由分段控件切换，
+   对应 ArkTS 侧 Index.ets 的 libraryScreen() / libraryImages() /
+   libraryArchives()。
    ============================================================ */
 
 function ArchiveStack(props) {
@@ -25,76 +29,97 @@ function ArchiveStack(props) {
   );
 }
 
-function GalleryScreen(props) {
-  const {
-    images, query, onQuery, density, onDensity, onOpen, onRename, onDelete,
-    viewer, onCloseViewer, onSaveToGallery, onShare, onExport, notice,
-  } = props;
-
+/** 图片段正文：网格，空态区分「库是空的」和「搜不到」。 */
+function GalleryBody(props) {
+  const { images, query, density, onOpen } = props;
   const filtered = images.filter((image) =>
     image.name.toLowerCase().indexOf(query.trim().toLowerCase()) >= 0);
 
-  return (
-    <div className="screen fade-swap" data-screen-label="图库" data-titlebar="secondary">
-      <Titlebar
-        title="图库"
-        subtitle={images.length + ' 张图片 · ' + KD.formatBytes(images.reduce((sum, image) => sum + image.size, 0))}
-        actions={[{
-          icon: 'grid',
-          label: density === 2 ? '切换为三列' : '切换为两列',
-          onClick: onDensity,
-        }]}
+  if (filtered.length === 0) {
+    return (
+      <Empty
+        icon="image"
+        title={query ? '没有匹配的图片' : '图库还是空的'}
+        body={query ? '换一个关键词试试。' : '下载完成的图片会出现在这里。'}
       />
+    );
+  }
 
-      <div className="scroll">
-        <SearchPill
-          value={query}
-          placeholder="搜索文件名"
-          onChange={onQuery}
-        />
-
-        {filtered.length > 0 ?
-          <div className={'grid-two' + (density === 3 ? ' grid-two--three' : '')}>
-            {filtered.map((image) =>
-              <div key={image.id} className="shot">
-                <button
-                  type="button"
-                  className="shot__frame"
-                  aria-label={image.name}
-                  onClick={() => onOpen(image)}
-                >
-                  <Img src={image.thumb} alt={image.name} fallback={image.kind.toUpperCase()} />
-                  <span className="shot__veil" />
-                </button>
-                <span className="shot__caption">
-                  <span className="shot__name" lang="en">{image.name}</span>
-                  <span className="shot__sub tnum">{KD.formatBytes(image.size)} · {image.at}</span>
-                </span>
-              </div>
-            )}
-          </div>
-          :
-          <Empty
-            icon="image"
-            title={query ? '没有匹配的图片' : '图库还是空的'}
-            body={query ? '换一个关键词试试。' : '下载完成的图片会出现在这里。'}
-          />
-        }
-      </div>
-
-      {viewer ?
-        <ImageViewer
-          image={viewer}
-          onClose={onCloseViewer}
-          onRename={() => onRename(viewer)}
-          onDelete={() => onDelete(viewer)}
-          onSaveToGallery={() => onSaveToGallery(viewer)}
-          onShare={() => onShare(viewer)}
-          onExport={() => onExport(viewer)}
-        /> : null}
-
-      <Toast text={notice} />
+  return (
+    <div className={'grid-two' + (density === 3 ? ' grid-two--three' : '')}>
+      {filtered.map((image) =>
+        <div key={image.id} className="shot">
+          <button
+            type="button"
+            className="shot__frame"
+            aria-label={image.name}
+            onClick={() => onOpen(image)}
+          >
+            <Img src={image.thumb} alt={image.name} fallback={image.kind.toUpperCase()} />
+            <span className="shot__veil" />
+          </button>
+          <span className="shot__caption">
+            <span className="shot__name" lang="en">{image.name}</span>
+            <span className="shot__sub tnum">{KD.formatBytes(image.size)} · {image.at}</span>
+          </span>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** 压缩包段正文：卡片列表，空态同样区分「还没有」和「搜不到」。 */
+function ArchiveBody(props) {
+  const { zips, query, onRenameZip, onDeleteZip, onExportZip, onShareZip } = props;
+  const filtered = zips.filter((zip) =>
+    zip.name.toLowerCase().indexOf(query.trim().toLowerCase()) >= 0);
+
+  if (filtered.length === 0) {
+    return (
+      <Empty
+        icon="archive"
+        title={query ? '没有匹配的压缩包' : '还没有压缩包'}
+        body={query ? '换一个关键词试试。' : '在「发现」里打开 ZIP 模式，把选中的图片打包成一个压缩包。'}
+      />
+    );
+  }
+
+  return (
+    <React.Fragment>
+      {filtered.map((zip) =>
+        <Card key={zip.id} className="card--pad">
+          <div className="row" style={{ gap: 'var(--sp-6)', alignItems: 'flex-start' }}>
+            <ArchiveStack thumbs={zip.thumbs} />
+            <span className="list__text">
+              <span className="zip__name" lang="zh">{zip.name}</span>
+              <span className="list__aux tnum">
+                {zip.imageCount} 张图片 · {KD.formatBytes(zip.size)}
+              </span>
+              <span className="list__aux" lang="zh">
+                {zip.at}
+                {zip.failedCount > 0 ?
+                  <span className="zip__warn"> · {zip.failedCount} 张下载失败未打包</span> : null}
+              </span>
+            </span>
+          </div>
+          <div className="zip__actions">
+            <Btn size="sm" variant="ghost" icon="pencil" onClick={() => onRenameZip(zip)}>重命名</Btn>
+            <Btn size="sm" variant="ghost" icon="export" onClick={() => onExportZip(zip)}>导出</Btn>
+            <Btn size="sm" variant="ghost" icon="share" onClick={() => onShareZip(zip)}>分享</Btn>
+            <span className="spacer" />
+            <button
+              type="button"
+              className="iconbtn iconbtn--sm iconbtn--plain zip__del"
+              aria-label={'删除 ' + zip.name}
+              title="删除"
+              onClick={() => onDeleteZip(zip)}
+            >
+              <Icon name="trash" size={18} />
+            </button>
+          </div>
+        </Card>
+      )}
+    </React.Fragment>
   );
 }
 
@@ -135,61 +160,83 @@ function ImageViewer(props) {
   );
 }
 
-function ArchivesScreen(props) {
-  const { zips, onRename, onDelete, onExport, onShare, notice } = props;
-  const totalBytes = zips.reduce((sum, zip) => sum + zip.size, 0);
-  const totalImages = zips.reduce((sum, zip) => sum + zip.imageCount, 0);
+/**
+ * 图库页：一个标题栏 + 分段控件 + 共用的搜索框，正文按分段切换。
+ * 密度切换只在图片段有意义，压缩包段不给这个动作。
+ */
+function LibraryScreen(props) {
+  const {
+    images, zips, query, onQuery, density, onDensity,
+    viewer, onCloseViewer, onOpenImage, onRenameImage, onDeleteImage,
+    onSaveToGallery, onShareImage, onExportImage,
+    onRenameZip, onDeleteZip, onExportZip, onShareZip, notice,
+  } = props;
+  const [segment, setSegment] = useState('images');
+  const imageBytes = images.reduce((sum, image) => sum + image.size, 0);
 
   return (
-    <div className="screen fade-swap" data-screen-label="打包" data-titlebar="secondary">
+    <div className="screen fade-swap" data-screen-label="图库" data-titlebar="secondary">
       <Titlebar
-        title="打包"
-        subtitle={zips.length + ' 个压缩包 · ' + totalImages + ' 张 · ' + KD.formatBytes(totalBytes)}
+        title="图库"
+        subtitle={segment === 'zips'
+          ? zips.length + ' 个压缩包'
+          : images.length + ' 张图片 · ' + KD.formatBytes(imageBytes)}
+        actions={segment === 'zips' ? [] : [{
+          icon: 'grid',
+          label: density === 2 ? '切换为三列' : '切换为两列',
+          onClick: onDensity,
+        }]}
       />
 
       <div className="scroll">
-        {zips.length === 0 ?
-          <Empty icon="archive" title="还没有压缩包"
-            body="在「发现」里打开 ZIP 模式，把选中的图片打包成一个压缩包。" /> : null}
+        <div className="row">
+          <Segmented
+            value={segment}
+            onChange={setSegment}
+            options={[
+              { value: 'images', label: '图片' },
+              { value: 'zips', label: '压缩包' },
+            ]}
+          />
+        </div>
 
-        {zips.map((zip) =>
-          <Card key={zip.id} className="card--pad">
-            <div className="row" style={{ gap: 'var(--sp-6)', alignItems: 'flex-start' }}>
-              <ArchiveStack thumbs={zip.thumbs} />
-              <span className="list__text">
-                <span className="zip__name" lang="zh">{zip.name}</span>
-                <span className="list__aux tnum">
-                  {zip.imageCount} 张图片 · {KD.formatBytes(zip.size)}
-                </span>
-                <span className="list__aux" lang="zh">
-                  {zip.at}
-                  {zip.failedCount > 0 ?
-                    <span className="zip__warn"> · {zip.failedCount} 张下载失败未打包</span> : null}
-                </span>
-              </span>
-            </div>
-            <div className="zip__actions">
-              <Btn size="sm" variant="ghost" icon="pencil" onClick={() => onRename(zip)}>重命名</Btn>
-              <Btn size="sm" variant="ghost" icon="export" onClick={() => onExport(zip)}>导出</Btn>
-              <Btn size="sm" variant="ghost" icon="share" onClick={() => onShare(zip)}>分享</Btn>
-              <span className="spacer" />
-              <button
-                type="button"
-                className="iconbtn iconbtn--sm iconbtn--plain zip__del"
-                aria-label={'删除 ' + zip.name}
-                title="删除"
-                onClick={() => onDelete(zip)}
-              >
-                <Icon name="trash" size={18} />
-              </button>
-            </div>
-          </Card>
-        )}
+        <SearchPill
+          value={query}
+          placeholder="搜索文件名"
+          onChange={onQuery}
+        />
+
+        {segment === 'zips' ?
+          <ArchiveBody
+            zips={zips}
+            query={query}
+            onRenameZip={onRenameZip}
+            onDeleteZip={onDeleteZip}
+            onExportZip={onExportZip}
+            onShareZip={onShareZip}
+          /> :
+          <GalleryBody
+            images={images}
+            query={query}
+            density={density}
+            onOpen={onOpenImage}
+          />}
       </div>
+
+      {viewer ?
+        <ImageViewer
+          image={viewer}
+          onClose={onCloseViewer}
+          onRename={() => onRenameImage(viewer)}
+          onDelete={() => onDeleteImage(viewer)}
+          onSaveToGallery={onSaveToGallery}
+          onShare={onShareImage}
+          onExport={onExportImage}
+        /> : null}
 
       <Toast text={notice} />
     </div>
   );
 }
 
-Object.assign(window, { GalleryScreen, ArchivesScreen, ImageViewer, ArchiveStack });
+Object.assign(window, { LibraryScreen, GalleryBody, ArchiveBody, ImageViewer, ArchiveStack });

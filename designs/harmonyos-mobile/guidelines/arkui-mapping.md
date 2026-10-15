@@ -14,7 +14,32 @@ This design system is a **design-time** artifact: React components rendered in a
 browser. `_ds_bundle.js` is DOM code, **not** ArkTS. It does not generate page code
 and it cannot be shipped in an app.
 
-What does cross the boundary is the **token layer**:
+What does cross the boundary is the **token layer**, and there are two ways to deliver
+it. Prefer the first for anything beyond a single app:
+
+**A. As a HAR** — one generated package every app depends on, so N apps share one copy
+(see [`multi-app-architecture.md`](multi-app-architecture.md)):
+
+```bash
+cd designs/harmonyos-mobile
+node tools/build-token-har.mjs            # -> ../../harmonyos-tokens
+```
+
+```json5
+// the app's entry/oh-package.json5 — the only line an app needs
+"dependencies": { "@yostar/harmony-tokens": "file:../../harmonyos-tokens" }
+```
+
+```ts
+import { Palette, Metrics } from '@yostar/harmony-tokens';
+```
+
+`Palette.*` are `Resource` (the platform swaps in `resources/dark`); `Metrics.*` are
+plain numbers, because this system's bottom geometry depends on the live safe-area
+insets and therefore needs arithmetic — `Resource + Resource` is an ArkTS error.
+
+**B. Straight into one app's resources** — fine for a single app, or when the app must
+own its resource files:
 
 ```bash
 node tools/emit-ohos-resources.mjs --out entry/src/main/resources
@@ -53,6 +78,18 @@ identifiers.
 (`--harmony-titlebar-layer-normal` is `calc(12px + 40px)` in CSS and `52` in the
 resource file). **Font sizes are just numbers in `float.json`** — the unit comes from
 the API: `fontSize` interprets it as fp, `width`/`height`/`padding` as vp.
+
+### An app cannot override a token by redeclaring it
+
+A resource name belongs to the module that declares it **first**. Measured:
+
+```
+WARN: Warning: 'hm_brand' conflict, first declared.
+BUILD SUCCESSFUL
+```
+
+The HAR wins and the app's declaration is silently ignored. Use the app's own resource
+name for a one-off value; a whole different palette is a different design system.
 
 ### Colours are already ARGB
 
@@ -173,6 +210,9 @@ reach a screen.
 node tools/verify-harmony.mjs                 # 12 design-side rules
 node tools/emit-ohos-resources.mjs --dry-run  # what the resource files would become
 ```
+
+`check-app-drift.mjs --app <appRoot>` answers "has this app drifted from the tokens?",
+including the invisible shadowing case above.
 
 `emit-ohos-resources.mjs` is **merge-preserving** (hand-added app resources survive),
 **atomic** (temp file + rename), and **read-back self-checked**: it re-parses what it

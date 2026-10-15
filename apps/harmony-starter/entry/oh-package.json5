@@ -1,0 +1,20 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Entry module. It contains screens only — every token comes from the HAR.",
+  "main": "",
+  "author": "",
+  "license": "",
+  /*
+   * The ONE line that replaces copying the design system into every app.
+   *
+   * The path is relative to this file: apps/harmony-starter/entry/ -> ../../../harmonyos-tokens
+   * Regenerate the HAR with: designs/harmonyos-mobile/tools/build-token-har.mjs
+   *
+   * Moving to a private ohpm registry later changes only this value
+   * (e.g. "@yostar/harmony-tokens": "^1.0.0") — no other edit anywhere.
+   */
+  "dependencies": {
+    "@yostar/harmony-tokens": "file:../../../harmonyos-tokens"
+  }
+}

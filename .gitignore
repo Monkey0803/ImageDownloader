@@ -19,3 +19,10 @@
 
 # 验证过程中从设备取回的临时恢复文件
 /.recovery
+
+# 子工程（apps/ 下的脚手架模板）里的依赖与构建缓存：上面的 /oh_modules 只锚定了仓库根
+**/oh_modules
+**/.hvigor
+
+# DevEco 的 IDE 内部文件（计划草稿等），不属于源码
+/.deveco
