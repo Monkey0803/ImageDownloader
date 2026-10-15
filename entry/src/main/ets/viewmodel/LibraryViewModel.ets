@@ -28,11 +28,46 @@ export class LibraryViewModel {
   @Trace segment: string = LIBRARY_IMAGES;
   @Trace scrolled: boolean = false;
 
-  /** 以下都是派生字段，只在 sync() / setQuery() 里重算。 */
-  @Trace images: DownloadItem[] = [];
-  @Trace archives: ZipItem[] = [];
-  @Trace imageCount: number = 0;
-  @Trace imageBytes: number = 0;
+  /**
+   * 以下四个是**派生**状态，改成 `@Computed`（原来在 sync() / setQuery() 里手写重算）：
+   * `images` / `archives` 跟着 downloads / zips / query 走，`imageCount` / `imageBytes` 只跟着 downloads 走。
+   */
+  @Computed
+  get images(): DownloadItem[] {
+    const needle: string = this.query.trim().toLowerCase();
+    // 网格只显示「下载完成、且不属于任何批次」的图片 —— 批次成员归打包卡。
+    return this.downloads.filter((item: DownloadItem): boolean => item.status === 'completed'
+      && item.batchId.length === 0
+      && item.name.toLowerCase().includes(needle));
+  }
+
+  @Computed
+  get archives(): ZipItem[] {
+    const needle: string = this.query.trim().toLowerCase();
+    return this.zips.filter((item: ZipItem): boolean => item.name.toLowerCase().includes(needle));
+  }
+
+  /**
+   * 标题上的张数与占用**不受搜索影响**，所以从 downloads 单独统计一遍。
+   * 实况照片占两份空间：原始包（size）+ 解出来的静图与视频（auxSize），
+   * 与设置页那行的 `DownloadStore.usedBytes()` 口径保持一致。
+   */
+  @Computed
+  get imageCount(): number {
+    return this.downloads.filter((item: DownloadItem): boolean => item.status === 'completed'
+      && item.batchId.length === 0).length;
+  }
+
+  @Computed
+  get imageBytes(): number {
+    let bytes: number = 0;
+    for (const item of this.downloads) {
+      if (item.status === 'completed' && item.batchId.length === 0) {
+        bytes += item.size + item.auxSize;
+      }
+    }
+    return bytes;
+  }
 
   /** 压缩包改名弹窗：renameId 非空时显示。 */
   @Trace renameId: string = '';
@@ -61,13 +96,11 @@ export class LibraryViewModel {
   sync(): void {
     this.downloads = DownloadStore.downloads.slice();
     this.zips = DownloadStore.zips.slice();
-    this.recompute();
   }
 
   /** 关键词变了：只重算搜索相关的结果，不动统计。 */
   setQuery(value: string): void {
     this.query = value;
-    this.recompute();
   }
 
   setDensity(value: number): void {
@@ -88,29 +121,6 @@ export class LibraryViewModel {
   focus(name: string): void {
     this.segment = LIBRARY_IMAGES;
     this.setQuery(name);
-  }
-
-  private recompute(): void {
-    const needle: string = this.query.trim().toLowerCase();
-    // 网格只显示「下载完成、且不属于任何批次」的图片 —— 批次成员归打包卡。
-    this.images = this.downloads.filter((item: DownloadItem): boolean => item.status === 'completed'
-      && item.batchId.length === 0
-      && item.name.toLowerCase().includes(needle));
-    this.archives = this.zips.filter((item: ZipItem): boolean => item.name.toLowerCase().includes(needle));
-
-    // 标题上的张数与占用**不受搜索影响**，所以单独统计一遍。
-    // 实况照片占两份空间：原始包（size）+ 解出来的静图与视频（auxSize），
-    // 与设置页那行的 `DownloadStore.usedBytes()` 口径保持一致。
-    let count: number = 0;
-    let bytes: number = 0;
-    for (const item of this.downloads) {
-      if (item.status === 'completed' && item.batchId.length === 0) {
-        count++;
-        bytes += item.size + item.auxSize;
-      }
-    }
-    this.imageCount = count;
-    this.imageBytes = bytes;
   }
 
   // ------------------------------------------------------------------ 压缩包

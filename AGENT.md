@@ -7,7 +7,7 @@
 | File | Why |
 |------|-----|
 | `entry/src/main/ets/pages/Index.ets` | `@Entry` **外壳**：页签、Toast、浮层、装配 ViewModel、订阅商店。四个页面不在这里 |
-| `entry/src/main/ets/viewmodel/*.ets` | 五个 `@Observed` ViewModel：Discover / Tasks / Library / Settings / Device（状态 + 行为） |
+| `entry/src/main/ets/viewmodel/*.ets` | 五个 `@ObservedV2` ViewModel：Discover / Tasks / Library / Settings / Device（状态 + 行为，派生量用 `@Computed`） |
 | `entry/src/main/ets/view/screens/*.ets` | 四个 `@Component` 页面：Discover / Tasks / Library / Settings（纯展示，事件转给 VM） |
 | `entry/src/main/ets/pages/Viewer.ets` | 第二个 `@Entry`：图片大图预览，独立页面（系统返回键只认页面栈；图库进来可左右滑动换图） |
 | `entry/src/main/ets/theme/Tokens.ets` | 设计令牌；颜色在 `resources/{base,dark}/element/color.json` |
@@ -17,14 +17,14 @@
 ## 分层
 
 ```
-model/     @Observed 数据模型 + 设置选项表（含取值归一）+ 导航常量（不依赖别人）
+model/     @ObservedV2 数据模型（字段逐个 @Trace）+ 设置选项表（含取值归一）+ 导航常量
 util/      纯计算（网格切行 / 补空格）+ 提示闩（ToastLatch）
 theme/     设计令牌 + 页面几何
 service/   系统能力与业务：DownloadStore / StoreState / Naming / Delivery / FileActions /
            GripSensor / AntiPeep / Clipboard / ThemeController / MaterialSupport /
            PageScanner / PictureFactory / UiPort / MediaFormat（纯格式判定）/
            StillFrames（动图首帧）/ LivePhoto（.livp 解包与动态照片加载）
-viewmodel/ @Observed ViewModel：状态 + 行为，界面只读它
+viewmodel/ @ObservedV2 ViewModel：状态 + 行为 + @Computed 派生，界面只读它
 view/      Icons / Widgets / Cards + screens/（四个页面）+ shell/（浮层）
 pages/     Index（外壳）、Viewer（大图预览）
 ```
@@ -51,7 +51,8 @@ pages/     Index（外壳）、Viewer（大图预览）
 - `service/Naming.ets` — 文件名 / 扩展名的纯计算（零 IO、零状态）。`uniqueName` **不在**这里：
   它要查磁盘和下载记录，属于商店。
 - `service/StoreState.ets` — 落盘状态的 `parse`（坏 JSON → `undefined`）与 `normalized`
-  （补默认值 + 把裸对象变成 `@Observed` 实例 + 取值归一）。`DownloadStore.adopt` 只负责赋值。
+  （补默认值 + 把裸对象变成 `@ObservedV2` 实例 + 取值归一）。`DownloadStore.adopt` 只负责赋值。
+  写盘则走 `StoreState.serialize()` 的显式线格式 —— **不能直接 stringify 模型实例**，见坑 19。
 - `service/FileActions.ets` — 单个已落盘文件的系统操作：导出 / 存相册 / 分享 / 拷进用户目录，
   以及目录选择与授权。**Viewer 与各 ViewModel 都从这里调**，不要各自再写一份。
   「存相册」对动图有兜底（首帧转 JPEG 再存）与实况照片的成对投递，都在这一个文件里。
@@ -64,7 +65,7 @@ pages/     Index（外壳）、Viewer（大图预览）
   （两个平台硬约束见坑 15）、用 `loadMovingPhoto` 装成 `MovingPhoto`。**不改下载状态**：
   解包失败只回一句 `message`，由商店记进 `DownloadItem.note`。
 - `util/Toast.ets` — 「弹一句、2.6 秒后自己消失」的提示闩，Index 与 Viewer 共用；
-  `release()` 之后 `show()` 空操作，所以页面销毁后晚到的异步回调不会再写 @State。
+  `release()` 之后 `show()` 空操作，所以页面销毁后晚到的异步回调不会再写 `@Local`。
 - `service/GripSensor.ets` — 智感握姿：订阅 motion 的 `holdingHandChanged`，暴露 `hand` / `supported` / `problem`；
   开关（`DownloadStore.gripEnabled`）就是订阅的开关，界面只读状态，不直接碰 motion。
 - `service/AntiPeep.ets` — 防窥保护：订阅 Device Security Kit 的 `dlpAntiPeep`，暴露 `peeking` / `supported` /
@@ -81,18 +82,40 @@ pages/     Index（外壳）、Viewer（大图预览）
   `normalizeLocation` / `normalizeQuality` 也在这里 —— 它们是**设置取值的合法性判据**，
   存盘的解码（StoreState）与实时 setter（DownloadStore）都调它，所以只能有一份。
   说明文案策略（`QualityHints` / `LocationHints`）同样在这。
-- `model/Models.ets` — `@Observed` 模型，卡片用 `@ObjectLink` 绑定。
+- `model/Models.ets` — `@ObservedV2` 模型 + `@Trace` 字段，卡片以 `@Param` 收下、直接读字段即自动订阅。
 - `EntryAbility.ets` — 开全屏布局并读取系统栏高度，写入 `AppStorage` 的 `safeTop` / `safeBottom` / `keyboardHeight`；
   销毁时调 `DownloadStore.shutdown()`（清掉待存相册的定时器与合并写盘）。
+
+## 状态管理 V2（整个应用已经迁完）
+
+三十七个组件全部是 `@ComponentV2`，九个模型/ViewModel 全部是 `@ObservedV2` + `@Trace`；
+仓库里**没有** `@Component` / `@State` / `@Prop` / `@Link` / `@ObjectLink` / `@Observed` / `@StorageProp` 的声明了
+（`grep` 一遍即可确认）。家族映射与实测踩出来的规则：
+
+| V1 | V2 | 备注 |
+|---|---|---|
+| `@Component` | `@ComponentV2` | 一个 struct 只能属于一个家族 |
+| `@State` | `@Local` | |
+| `@Prop` | `@Param` | 父组件传值；子组件**不能**写 |
+| `@Link` | `@Param` + `@Event` | 由持有状态的一方改自己再传下来（坑 21） |
+| `@ObjectLink` | `@Param`（对象是 `@ObservedV2`） | 读 `@Trace` 字段即自动订阅，不需要专门绑定 |
+| `@Observed` | `@ObservedV2` + 逐字段 `@Trace` | **漏标一个字段 = 静默冻结**，不会编译报错 |
+| `@Watch` | `@Monitor` | 装饰的是处理方法，不是成员（坑 20） |
+| `@StorageProp` / `@StorageLink` | `@ObservedV2` 单例 | V2 里非法，报 10905339（坑 18） |
+| 手写 `recompute()` | `@Computed` getter | 追踪得到嵌套 `@Trace`（坑 22） |
+
+迁移中另外两条硬规则：普通成员**不能**被父组件初始化（报 10905324，坑 3）；
+`@Trace` 字段**不能**直接 `JSON.stringify`（会写成 `__ob_` 前缀，坑 19）。
 
 ## 几个容易踩的坑
 
 1. `Path.commands` 单位是 **px**，`Shape.viewPort` 是 **vp**；`Glyph` 已按密度换算，改图标时别丢。
 2. ArkUI `Scroll` 在内容比视口短时会把内容居中，所以每个页面的滚动内容都加了
    `.constraintSize({ minHeight: this.screenHeight })`。
-3. 子组件里**运行时会变的入参必须写 `@Prop`**：V1 不会把父组件的新值刷进没有装饰器的成员。
-   真机上踩过——设置页「主题」行的 sun/moon、`Glyph` 的图标名/颜色/字重都会卡在首次构建的值。
-   `Glyph`、`SectionHead.meta`、`PillButton.icon/active`、`StackedRow`、`EmptyState`、`ListRow.glyph/aux` 都已加。
+3. 组件入参**必须显式声明装饰器**：值是 `@Param`，回调是 `@Event`。V2 比 V1 更严 ——
+   没有装饰器的**普通成员父组件根本传不进来**，编译直接报 10905324
+   `The 'regular' property 'x' in the custom component 'Y' cannot be initialized here`。
+   加一个入参时先想清楚它是「值」还是「回调」。迁移时这条是靠编译器逐条报错收敛完的。
 4. **镜像一行不要用 `Row.reverse()` 了事**：它把每个子节点都翻过去，`SectionHead` 的「0 张」会被翻到标题
    前面。`SectionHead` 因此拆成 `title()` / `actions()` 两个 `@Builder`，镜像时只换这两块的位置，
    操作组内部顺序不变。只有底部选择条 `selectionDock()` 用 `reverse`（要的就是下载按钮整体换边）。
@@ -117,7 +140,7 @@ pages/     Index（外壳）、Viewer（大图预览）
    `SettingSelect.revision` +1 让控件重建一次。
    **两个前提缺一不可**：
    - `revision` 必须真的出现在 `build()` 里 —— ArkUI V1 按「哪个元素读了哪个状态变量」标记脏元素，
-     没人读的 `@Prop` 变化不会重跑 build。早先只在组件里声明并赋值、build 里从不引用它，
+     没人读的 `@Param` 变化不会重跑 build。早先只在组件里声明并赋值、build 里从不引用它，
      所以这个「重建」一次都没发生过。
    - 重建要落到**换节点**上。现在用 `if (this.revision % 2 === 0) { this.control() } else { this.control() }`
      两个分支共用一个 `@Builder`：分支切换时 ArkUI 销毁旧 `Select`、建新的，`value(label)` 才重新落回。
@@ -138,22 +161,22 @@ pages/     Index（外壳）、Viewer（大图预览）
    `slideCounter()`）。同类坑还有 `@State opacity`、`@State scale`；加实况照片时又踩了一次：
    `@Prop motionPath: string` 撞上路径动画的 `.motionPath(value: MotionPathOptions)`，
    所以那对入参叫 `stillFile` / `motionFile`。
-12. **`ForEach` 的 key 别把「会变的选中状态」拼进去，也别在改完数据后再重新赋值那个 @State 数组**。
-   前者每点一次选中就把磁贴整块销毁重建（`Thumb` 里的 `Image` 跟着重下、重解码 → **闪**）；
-   后者更隐蔽：改完 `picture.selected` 再补一句 `this.pictures = this.pictures.slice()`，
-   子组件的 `@ObjectLink` 就推不动了 —— 磁贴区域逐像素比对与点击前完全一致，头部计数却照常变。
-   正确姿势：key 用「实例身份」（`PictureItem.uid`），选中态靠 `@ObjectLink` 原地刷新，
-   头部计数用一个**在 build 里被真正读到**的 `@State selectedTotal`。
-   详见 README「发现页图片网格的选中态（不要重建磁贴）」。
-13. **改选中态时，必须写「父组件自己数组里的那个引用」**（`@ObjectLink` 原地刷新的第三个前提）。
+12. **`ForEach` 的 key 别把「会变的选中状态」拼进去**：每点一次选中就把磁贴整块销毁重建
+   （`Thumb` 里的 `Image` 跟着重下、重解码 → **闪**）。key 用「实例身份」（`PictureItem.uid`），
+   选中态交给 `@Trace` 原地刷新。详见 README「发现页图片网格的选中态（不要重建磁贴）」。
+   （V1 时代这条还有后半句 —— 「改完 `selected` 再 `this.pictures = this.pictures.slice()`
+   会把 `@ObjectLink` 的通知掐断」；V2 的 `@Trace` 是**字段级**依赖，数组整体赋值照常通知，
+   后半句不再成立。见坑 13。）
+13. （**V1 历史，V2 下已不存在，留作背景**）**改选中态时，必须写「父组件自己数组里的那个引用」**。
    这条是**真机上踩出来**的，而且很反直觉：磁贴点击时把 `this.picture` 回传给父组件、
    父组件在这个引用上写 `selected` —— 值**会**变（`selectedTotal` 跟着算对、头部计数与下载条都正确），
    但 `@ObjectLink` 的通知**发不出去**，磁贴自己的已选蒙层会「差一拍」：点一下取消勾选，
    蓝框和勾还留在屏幕上（要等下一次别的写入才刷掉）。同一时刻点「清空」（父组件遍历
    `this.pictures` 里的元素去写）蒙层却立刻消失 —— 两条路径的差别就在这里。
-   现在的做法：子组件只回传 `uid`，父组件用 `pictures.find(uid)` **再取一次那个引用**去写
-   （见 `DiscoverViewModel.togglePicture`）。同类写法在 `TaskCard` / `ArchiveCard` 的回调上也存在，
-   只是那些操作会同时改变列表归属（进行中 ↔ 已结束），整块被重建，把问题盖住了。
+   当时的做法：子组件只回传 `uid`，父组件用 `pictures.find(uid)` **再取一次那个引用**去写。
+   V2 的 `@Trace` 按字段记录依赖、不挑引用从哪来，所以这条连同它的修法都不再是必需的；
+   `DiscoverViewModel.togglePicture(uid)` 保留 uid 形式只是为了边界清楚 —— 子组件只报「哪一个」，
+   由持有列表的一方去查去改，不把模型引用递来递去。
 14. **动图（GIF / WebP）没有「只播首帧」的开关**：ArkUI 的 `Image` 一旦看到动图就会自己播，
    组件可见即动。图库格子要静态首帧，只能自己解码第 0 帧成 `PixelMap` 再画（`service/StillFrames.ets`）。
    「是不是动图」必须**读文件头**判断（`service/MediaFormat.ets`），不能只看扩展名 ——
@@ -170,6 +193,32 @@ pages/     Index（外壳）、Viewer（大图预览）
    放到 ViewModel 里预计算会把不可序列化的 `PixelMap` 塞进状态。别的展示组件仍然只吃模型字段。
    另外 `PixelMap` **不能用 `@Prop` 传**（对象类型会走深拷贝），句柄会被拷坏 ——
    `LivePhotoSlide` 因此由自己 `LivePhoto.load()`，而不是让预览页把 `MovingPhoto` 传下来。
+
+18. **`@StorageProp` / `@StorageLink` 在 V2 里非法**（报 10905339
+   `The '@StorageProp' decorator can only be used in a 'struct' decorated with '@Component'`）。
+   全局安全区/键盘高度改成一个 `@ObservedV2` 单例：`theme/Metrics.ets` 的 `SCREEN_INSETS`
+   （字段标 `@Trace`），`EntryAbility` 直接写、组件在 build 里读，**不需要层层透传** ——
+   这正是当初改用全局态的理由，V2 用单例把它做干净了。迁移期曾让 AppStorage 与单例双写，
+   现在 AppStorage 那半边已删（已无读者）。注意单例必须**在 `onWindowStageCreate` 里尽早写**，
+   否则首帧拿到的是 0（V2 会在写入后自动重刷，所以只是首帧闪一下）。
+19. **V2 的 `@Trace` 字段不能直接 `JSON.stringify`**（本轮最贵的一课）：
+   观察代理把它们实现成**非普通可枚举属性**，序列化会写成 `__ob_id` / `__ob_name` / `__ob_size`，
+   而读侧读的是 `id` / `name` / `size` —— **记录会在下次启动时静默变成空白**（名字空、大小 0），
+   而且再写一次盘真值就没了。真机实测：6 条下载记录全空。
+   落盘一律走 `StoreState.serialize()` 的**显式线格式**（一组无装饰器的 DTO 类，写出去的名字自己定）；
+   单测 `serialize_then_parse_keeps_every_field` 断言线格式里不出现 `__ob_` 且字段往返一致。
+   **不要**用 `UIUtils.getTarget()` 解代理：那是 `@kit.ArkUI` 的界面 API，持久化属于 service 层，
+   分层规则不允许反向依赖界面。
+20. **`@Watch` → `@Monitor`，而且 `@Monitor` 装饰的是「处理方法」不是成员**：
+   `@Monitor('src') private onSourceChanged(monitor: IMonitor): void { … }`
+   （`IMonitor` 是全局类型，不需要 import）。
+21. **`@Link` 在 V2 里没有对应物**：改成 `@Param` + `@Event`，由持有状态的一方改自己再传下来。
+   `ImageViewer` 的 `slides` / `index` 就是这样：Swiper 的 `onChange` 通过 `onIndexChange` 回写，
+   预览页改自己的 `@Local`。
+22. **`@Computed` 追踪得到嵌套 `@Trace`**（真机验证过）：`selectedTotal` 从 `item.selected` 派生、
+   任务列表从 `item.status` 派生、图库统计从 `item.size` / `auxSize` 派生，嵌套字段一变就自动重算。
+   于是 VM 里的手写 `recompute()` 全部删掉，`sync()` 只负责把商店的数组拉成本地镜像。
+
 
 ## 构建与测试
 
@@ -200,7 +249,7 @@ hdc -t 127.0.0.1:5555 shell "aa test -b com.example.imagedownloader -m entry_tes
 走 `./scripts/device.sh <cmd> 10.155.89.11:45679`（不带目标就是这台）。已经实测过的：
 
 - 主包与测试包都能用现有调试签名装上（两条 `system_basic` 权限的 ACL 已就位）；
-- 单测 **45/45 通过**（模拟器同样 45/45）；
+- 单测 **67/67 通过**（迁移到 V2 后又跑了一遍，含新增的落盘往返用例）；
 - **两个传感器特性在这台机器上都真的生效**：设置页「防窥保护」显示「已接入 · 检测到窥视时立即隐藏内容」，
   「智感握姿」显示「已接入 · 主操作跟随握持手」—— 也就是说 `dlpAntiPeep` 订阅与
   motion 握持手订阅都成功，模拟器上验不了这两条。**这两行现在都不弹 Toast**：握姿三条提示
@@ -217,6 +266,10 @@ hdc -t 127.0.0.1:5555 shell "aa test -b com.example.imagedownloader -m entry_tes
 - 下载 → 相册投递会真的弹出系统「允许…保存 N 张图片?」，点「禁止」后设置页**不会**留下失败说明
   （`outcome.cancelled` 不算失败）；
 - 大图预览、删除确认框、四个页签在 1316×2832 这个比例下都正常。
+- **V2 迁移后又跑了一遍全量回归**：标题 `发现` 仍是 `[47,171][202,278]`（安全区改成单例、并撤掉
+  AppStorage 双写之后依然逐像素一致）、四个页签与图库角标、设置页十行与两行 aux、下拉选深色并落盘、
+  磁贴选中切换（计数 / 下载条 / 蒙层）、完整下载链路、`@Computed` 派生量（图库 `5 张图片 · 20.5 MB`、
+  任务「已结束」6 条、选中计数跟着嵌套 `item.selected` 走）全部正常；单测 67/67。
 
 **还没在真机上验的**：`Delivery.stop()`（退出时取消待弹的系统框）要在 800ms 窗口内 force-stop，
 时序不稳，只有代码走查；「双手握持」那一档（`握姿 · 双手`）没实测（与右手同属「不镜像」分支）。

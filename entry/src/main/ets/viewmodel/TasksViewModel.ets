@@ -25,11 +25,58 @@ export class TasksViewModel {
   @Trace concurrency: number = 3;
   @Trace scrolled: boolean = false;
 
-  /** 以下都是派生字段，只在 sync() 里重算。 */
-  @Trace active: DownloadItem[] = [];
-  @Trace settled: DownloadItem[] = [];
-  @Trace batchViews: BatchView[] = [];
-  @Trace running: number = 0;
+  /**
+   * 以下四个是**派生**状态，改成 `@Computed`：
+   * 原来靠 `recompute()` 手写重算，字段和依赖要人肉对齐（漏一处就静默不刷新）。
+   * `@Computed` 按依赖缓存，读到的 @Trace 变了才重算，sync() 只需要拉原始镜像。
+   */
+  @Computed
+  get active(): DownloadItem[] {
+    return this.downloads.filter((item: DownloadItem): boolean =>
+      item.batchId.length === 0
+        && (item.status === 'running' || item.status === 'starting' || item.status === 'queued'));
+  }
+
+  @Computed
+  get settled(): DownloadItem[] {
+    return this.downloads.filter((item: DownloadItem): boolean =>
+      item.batchId.length === 0
+        && (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
+  }
+
+  @Computed
+  get batchViews(): BatchView[] {
+    const views: BatchView[] = [];
+    for (const batch of this.batches) {
+      const members: DownloadItem[] =
+        this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
+      const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
+      const failed: number = members.filter((item: DownloadItem): boolean =>
+        item.status === 'failed' || item.status === 'cancelled').length;
+      views.push(batchViewOf(batch, members, done, failed));
+    }
+    return views;
+  }
+
+  /**
+   * 「进行中」= 队列里跑着的单张任务 + 还在下载 / 打包的批次，这就是页签徽标。
+   * 判据与改动前一致：**不过滤 batchId**（批次成员也算在跑），批次则看批次记录自己的状态。
+   */
+  @Computed
+  get running(): number {
+    let total: number = 0;
+    for (const item of this.downloads) {
+      if (item.status === 'running' || item.status === 'starting' || item.status === 'queued') {
+        total++;
+      }
+    }
+    for (const batch of this.batches) {
+      if (batch.status === 'downloading' || batch.status === 'packing') {
+        total++;
+      }
+    }
+    return total;
+  }
 
   attach(ui: UiPort): void {
     this.ui = ui;
@@ -51,47 +98,11 @@ export class TasksViewModel {
     });
   }
 
-  /** 数据变了：重新拉镜像并重算派生列表。 */
+  /** 数据变了：只拉原始镜像；派生列表由 @Computed 自己按依赖重算。 */
   sync(): void {
     this.downloads = DownloadStore.downloads.slice();
     this.batches = DownloadStore.batches.slice();
     this.concurrency = DownloadStore.concurrency;
-    this.recompute();
-  }
-
-  private recompute(): void {
-    const plain: DownloadItem[] = this.downloads.filter((item: DownloadItem): boolean =>
-      item.batchId.length === 0);
-    this.active = plain.filter((item: DownloadItem): boolean =>
-      item.status === 'running' || item.status === 'starting' || item.status === 'queued');
-    this.settled = plain.filter((item: DownloadItem): boolean =>
-      item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled');
-
-    const views: BatchView[] = [];
-    for (const batch of this.batches) {
-      const members: DownloadItem[] =
-        this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
-      const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
-      const failed: number = members.filter((item: DownloadItem): boolean =>
-        item.status === 'failed' || item.status === 'cancelled').length;
-      views.push(batchViewOf(batch, members, done, failed));
-    }
-    this.batchViews = views;
-
-    // 「进行中」= 队列里跑着的单张任务 + 还在下载 / 打包的批次，这就是页签徽标。
-    // 判据与改动前一致：**不过滤 batchId**（批次成员也算在跑），批次则看批次记录自己的状态。
-    let running: number = 0;
-    for (const item of this.downloads) {
-      if (item.status === 'running' || item.status === 'starting' || item.status === 'queued') {
-        running++;
-      }
-    }
-    for (const batch of this.batches) {
-      if (batch.status === 'downloading' || batch.status === 'packing') {
-        running++;
-      }
-    }
-    this.running = running;
   }
 
   /** 任务页没有任何卡片时显示空态（与改动前同一判据）。 */

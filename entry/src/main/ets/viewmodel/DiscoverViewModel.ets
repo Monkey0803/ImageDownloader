@@ -36,10 +36,22 @@ export class DiscoverViewModel {
   @Trace pageTitle: string = '';
   @Trace pictures: PictureItem[] = [];
   /**
-   * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它 —— 必须在 build 里被
-   * 真正读到，V1 才会重刷这一页（只写不读的 @State 不会触发刷新，真机实测踩过）。
+   * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它。
+   *
+   * 改成 `@Computed`：它纯粹是 `pictures` 里 `selected` 的数量，以前靠 `syncSelectedTotal()`
+   * 在六处手动同步 —— 漏一处就是静默不刷新。
+   *
+   * 这里曾经有两条**真机踩出来**的 V1 结论，留作历史（V2 里两个坑都不存在了）：
+   * 1. 改完选中态**不要重新赋值整个数组**：`this.pictures = this.pictures.slice()` 会把子组件
+   *    `@ObjectLink` 的通知掐断，磁贴的 `@Watch` 一次都不响、蒙层根本不出现；
+   * 2. 改选中态必须写「父组件自己数组里的那个引用」：从子组件回传上来的引用上写字段，
+   *    值会变、计数也跟着变，但通知发不出去，磁贴的蒙层会「差一拍」。
+   * V2 的 `@Trace` 按字段记录依赖、**不挑写的是哪个引用**，所以这两条自然消失。
    */
-  @Trace selectedTotal: number = 0;
+  @Computed
+  get selectedTotal(): number {
+    return this.selectedCount();
+  }
   @Trace scanning: boolean = false;
   /** 'single' | 'zip' */
   @Trace mode: string = 'single';
@@ -125,18 +137,15 @@ export class DiscoverViewModel {
     this.address = input;
     this.pageUrl = input;
     this.pictures = [];
-    this.selectedTotal = 0;
     const kind: string = MediaFormat.mediaKindOf(input);
     if (kind === 'livephoto') {
       this.pictures = [PictureFactory.fromUrl(input)];
-      this.syncSelectedTotal();
       this.pageTitle = '实况照片';
       this.ui.say('这是一个实况照片包，下载后可在应用内播放');
       return;
     }
     if (kind === 'image') {
       this.pictures = [PictureFactory.fromUrl(input)];
-      this.syncSelectedTotal();
       this.pageTitle = '图片';
       this.ui.say('这是一个图片地址');
       return;
@@ -166,8 +175,7 @@ export class DiscoverViewModel {
         this.pageTitle = data.title;
         this.pictures = PictureFactory.merge(this.pictures, data.images);
         // 扫描是「按 url 合并」的：上一轮选中的图会被复用，计数要跟着重算。
-        this.syncSelectedTotal();
-      },
+        },
       onSettled: (total: number): void => {
         this.scanning = false;
         this.ui.say(total === 0
@@ -197,27 +205,12 @@ export class DiscoverViewModel {
   }
 
   /**
-   * 选中态变化的唯一出口：头部计数、底部选择条、返回顶部按钮的落点都读 `selectedTotal`。
-   *
-   * 两条实测结论（都是真机上踩出来的，别照直觉改）：
-   *
-   * 1. **不要把整个数组重新赋值**：`this.pictures = this.pictures.slice()` 会把子组件
-   *    `@ObjectLink` 的通知掐断 —— 带这次赋值的版本里磁贴的 `@Watch` 一次都不响、蒙层根本不出现。
-   * 2. **改选中态必须写「父组件自己数组里的那个引用」**：从子组件回传上来的引用上写字段，
-   *    值会变（这个计数跟着正确变），但通知发不出去，磁贴的蒙层会「差一拍」。
-   *    具体见 `togglePicture` 的说明。
-   */
-  syncSelectedTotal(): void {
-    this.selectedTotal = this.selectedCount();
-  }
-
-  /**
    * 切换一张图的选中态。
    *
-   * 参数是 **uid 而不是 `PictureItem`**：从子组件回传上来的那个引用上直接写字段会绕过
-   * `@Observed` 代理，通知发不出去 —— 值变了、计数跟着变，但磁贴自己的已选蒙层不会刷新
-   * （真机实测：点一下取消勾选，勾还留在屏幕上）。所以这里按 uid 回到 `pictures` 里
-   * **再取一次那个引用**，写它才会通知。
+   * 参数是 **uid 而不是 `PictureItem`**：这条在 V1 下是必须的 —— 从子组件回传上来的引用上
+   * 写字段会绕过 `@Observed` 代理，通知发不出去（真机实测：点一下取消勾选，勾还留在屏幕上）。
+   * V2 的 `@Trace` 不挑写的是哪个引用，但这里**仍然保留 uid 形式**：回调只传「哪一个」，
+   * 由持有列表的一方去查、去改，边界更清楚，也不把模型引用递来递去。
    */
   togglePicture(uid: string): void {
     const target: PictureItem | undefined =
@@ -226,14 +219,12 @@ export class DiscoverViewModel {
       return;
     }
     target.selected = !target.selected;
-    this.syncSelectedTotal();
   }
 
   selectAll(selected: boolean): void {
     for (const item of this.pictures) {
       item.selected = selected;
     }
-    this.syncSelectedTotal();
   }
 
   invertSelection(): void {
@@ -244,7 +235,6 @@ export class DiscoverViewModel {
     for (const item of this.pictures) {
       item.selected = !item.selected;
     }
-    this.syncSelectedTotal();
     this.ui.say('已反选，选中 ' + this.selectedTotal.toString() + ' 张');
   }
 

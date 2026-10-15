@@ -27,7 +27,7 @@ export default class EntryAbility extends UIAbility {
    * 主窗口引用与键盘监听的注销函数。
    *
    * `main.on('avoidAreaChange', ...)` 在 `onWindowStageDestroy` 时没有 `off` 的话，
-   * 回调会留在已销毁的窗口上：它往 AppStorage 写的是全局状态，一次不会立刻出事，
+   * 回调会留在已销毁的窗口上：它往全局单例写的是全局状态，一次不会立刻出事，
    * 但窗口重建（多窗口 / 分屏）时会叠加多份监听，键盘高度被写多次。
    */
   private mainWindow: window.Window | undefined = undefined;
@@ -91,11 +91,13 @@ export default class EntryAbility extends UIAbility {
   }
 
   /**
-   * 把软键盘的高度也发到 AppStorage。
+   * 把软键盘的高度发进 `SCREEN_INSETS`（V2 的全局单例）。
    *
-   * 键盘弹起时窗口会被压矮（默认 avoid 模式是 resize），页面里所有「贴底」的东西
-   * 都会跟着往上跳 —— toast 就是这么跑到屏幕中部的。页面拿到这个高度才能判断
-   * 「现在有没有键盘」，从而把 toast 压在键盘上沿而不是浮在内容中间。
+   * 键盘弹起时窗口会被压矮，页面里所有「贴底」的东西都会跟着往上跳 —— toast 就是这么跑到
+   * 屏幕中部的。页面拿到这个高度才能判断「现在有没有键盘」，从而把 toast 压在键盘上沿。
+   *
+   * 迁移前这里是 `AppStorage.setOrCreate('keyboardHeight', …)` + 组件侧 `@StorageProp`，
+   * 双写过渡期结束后 AppStorage 那半边已无人读，故删去（`@StorageProp` 在 V2 里也非法）。
    */
   private watchKeyboard(main: window.Window): void {
     this.mainWindow = main;
@@ -104,9 +106,7 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       const density: number = display.getDefaultDisplaySync().densityPixels;
-      const height: number = data.area.bottomRect.height / density;
-      AppStorage.setOrCreate('keyboardHeight', height);
-      SCREEN_INSETS.keyboardHeight = height;
+      SCREEN_INSETS.keyboardHeight = data.area.bottomRect.height / density;
     };
     main.on('avoidAreaChange', this.keyboardWatch);
   }
@@ -126,8 +126,6 @@ export default class EntryAbility extends UIAbility {
       const top: number = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM).topRect.height / density;
       const bottom: number =
         main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR).bottomRect.height / density;
-      AppStorage.setOrCreate('safeTop', top);
-      AppStorage.setOrCreate('safeBottom', bottom);
       SCREEN_INSETS.safeTop = top;
       SCREEN_INSETS.safeBottom = bottom;
     } catch (err) {

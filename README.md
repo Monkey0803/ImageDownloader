@@ -20,8 +20,8 @@ entry/src/main/ets/
 ├─ view/Cards.ets        图片格子、任务卡、打包卡、压缩包卡、图片预览
 ├─ view/screens/         四个页面：Discover / Tasks / Library / Settings（纯展示）
 ├─ view/shell/Chrome.ets 浮层：选择条、握姿胶囊、防窥遮罩、返回顶部
-├─ viewmodel/            @Observed ViewModel：Discover / Tasks / Library / Settings / Device
-├─ model/Models.ets      @Observed 数据模型
+├─ viewmodel/            @ObservedV2 ViewModel（@Trace 字段 + @Computed 派生）
+├─ model/Models.ets      @ObservedV2 数据模型（逐字段 @Trace）
 ├─ model/SettingsOptions.ets  设置选项表（ChoiceSet）与说明文案策略
 ├─ model/BatchView.ets   打包卡要显示的派生投影
 ├─ model/Navigation.ets  页签下标与图库分段常量
@@ -225,7 +225,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 ### 下拉式设置行（主题 / 材质类型 / 沉浸光感材质 / 下载位置）
 
 设置页这三行都用系统设置里同款的**下拉选择**：原生 `Select`，收起时是「当前值 ▾」胶囊，点开是选项菜单、
-当前项高亮。控件抽成了 `view/Widgets.ets` 的 `SettingSelect`（`@Prop` 传选项表 / 当前下标 / 当前文字，
+当前项高亮。控件抽成了 `view/Widgets.ets` 的 `SettingSelect`（`@Param` 传选项表 / 当前下标 / 当前文字，
 `onPick` 回下标），三行只差一张选项表和一次落盘：
 
 | 行 | 选项（默认项在前/后见下） | 落盘字段 |
@@ -236,7 +236,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 
 - 主题行原来用 `StackedRow` + 分段控件，现在也是「标题 + 下拉」；它那句「跟随系统 / 固定为深色」的 aux
   与胶囊上的当前值重复，一并去掉了。切深浅色时左侧图标要在 sun / moon 之间换，所以 `ListRow.glyph`
-  也是 `@Prop`（V1 不会把新值刷进普通成员）。
+  也是 `@Param`（V2 里没有装饰器的普通成员父组件根本传不进来，见 AGENT.md 坑 3）。
 - 换控件后 `THEME_OPTIONS`、`MATERIAL_OPTIONS` 两份分段选项表就没人用了，已删除；手写的 `Segmented`
   只剩发现页的选择条在用（那边是 2–3 项平铺更合适的场景）；「图库」的 图片 / 压缩包 走系统组件，
   见下节。
@@ -270,8 +270,10 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   所以 `capsuleWidth()` 按 `.seg` 的盒模型算出宽度、把 `Row` 钉上去；同时因为组件在内部
   **按项数平分**，宽度要按*最宽*的那一项 × 项数算（按内容求和会把「压缩包」截成「压…」），
   每项再留 2vp 余量，并钳住 `itemMinFontScale` / `itemMaxFontScale`。
-- **材质对象不进 `@Prop`**。`uiMaterial.Material` 是带 native 句柄的框架对象，`@Prop` 深拷贝不可靠；
-  当普通成员又刷不动（AGENT.md 坑 3）。所以只传一个布尔量 `materialOff`，材质在组件内现算。
+- **材质对象不进状态**。`uiMaterial.Material` 是带 native 句柄的框架对象，不做跨组件传递；
+  所以只传一个布尔量 `materialOff`（`@Param`），材质在组件内按需现算并缓存。
+  （V1 时代这条写的是「`@Prop` 深拷贝会把句柄拷坏」；V2 的 `@Param` 对对象是引用传递，
+  具体失效场景变了，但「句柄不进状态」这个结论不变。）
 - **容器的最小高度 `buttonMinHeight` 必须和 `itemMinHeight` 一起压**。两者是两套默认值：
   `itemMinHeight` 默认 `sys.float.segment_button_v2_singleline_selected_height`（28vp），
   `buttonMinHeight` 默认 `sys.float.segment_button_v2_singleline_background_height`（40vp）。
@@ -292,13 +294,12 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 - **key 只认实例身份**：`PictureItem.uid`（`Index.nextPictureUid()` 逐张发号）。选中状态变它不变，
   所以磁贴原地刷新；换实例（换页、本轮扫出新对象）它才变，该重建就重建。用 url 当 key 不行：
   换页后新旧页面若有同一个地址，`scan()` 会建新实例，而 ForEach 见 key 没变就复用旧组件，
-  `@ObjectLink` 还绑着上一页的对象。
-- **选中态由 `@ObjectLink picture` 原地刷新**，`SelectTile` 里 `if (this.picture.selected)` 直接读它。
-- **`Index` 侧不许再重新赋值 `this.pictures`**：改完 `selected` 后只要来一句
-  `this.pictures = this.pictures.slice()`「刷新一下」，子组件的 `@ObjectLink` 就推不动了 ——
-  磁贴那块区域逐像素比对与点击前**完全一致**，而头部计数照常变，现象极具误导性（看着像
-  「状态对了、UI 没跟」）。头部的「已选 N」改用 `@State selectedTotal` 计数器，
-  它必须在 build 里被真正读到，否则 V1 不会重刷这一页。
+  `@Param` 还收着上一页的对象。
+- **选中态由 `@Trace` 原地刷新**：`SelectTile` 的 `picture: PictureItem` 是 `@Param`，
+  里面直接读 `if (this.picture.selected)` —— 字段标了 `@Trace`，读它就算订阅，不需要专门绑定。
+- **头部的「已选 N」是 `@Computed`**（`DiscoverViewModel.selectedTotal`），从 `pictures` 里
+  每张的 `selected` 派生，嵌套字段一变就自动重算。V1 时代这里是一个手写的 `selectedTotal`
+  计数器，还必须「在 build 里被真正读到」才会重刷；那套约束在 V2 下都不需要了。
 
 验证：四个操作各点一轮，`SelectTile` 新建数 **+0**（改前「全选」是 +19），蒙层、勾选角标、
 头部计数、底部选择条全部正确（`.screenshots/fix5-selectall.jpeg`、`fix6-invert.jpeg`）。
