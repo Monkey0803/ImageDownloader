@@ -34,11 +34,11 @@ export class DownloadStore {
   /** 防窥保护：开启时订阅系统窥视状态，检测到窥视就遮罩内容。 */
   static antiPeepEnabled: boolean = false;
   /**
-   * 扫描取图策略：'all'（默认）| 'original' 原图优先 | 'display' 网页显示图。
+   * 扫描取图策略：'original' 原图优先（默认）| 'display' 网页显示图 | 'all' 每个候选地址各收一张。
    *
    * 只在发现页扫描的那一刻被读取，下载 / 打包 / 投递都不看这个字段。
    */
-  static pictureQuality: string = 'all';
+  static pictureQuality: string = 'original';
   /** 下载位置：'app' 应用文件（默认）| 'gallery' 系统相册 | 'custom' 自定义目录。 */
   static downloadLocation: string = 'app';
   /** 用户选的目录；只有 downloadLocation 为 'custom' 时非空。 */

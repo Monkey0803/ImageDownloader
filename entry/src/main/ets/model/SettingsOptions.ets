@@ -164,16 +164,18 @@ export const DOWNLOAD_LOCATIONS: ChoiceSet = new ChoiceSet(DOWNLOAD_LOCATION_ITE
  * 「下载图片质量」三档，与 DownloadStore.pictureQuality 的语义 id 一一对应。
  *
  * 这一行管的其实是**扫描时每个 img 取哪个地址**，不涉及本地重编码：
- * 「原图优先」按 data-original → data-src → 当前显示的图 的顺序取第一个可用地址；
+ * 「原图优先」先把页面里所有更大的候选地址（data-*、srcset、外层链接、站点尺寸阶梯）收集起来，
+ * 再用一次 HTTP 头请求按文件字节数挑最大的那张，所以扫描会多花几秒；
  * 「网页显示图」只取浏览器真正渲染出来的那张；「全部」是旧行为——每个候选地址各收一张。
- * 三档对应的取值算法在 service/PageScanner.ets 的 SourceOrderStrategy 里。
+ * 三档对应的取值算法在 service/PageScanner.ets 的 SourceOrderStrategy 里，
+ * 候选收集与仲裁分别在 service/ImageCandidates.ets 和 service/SizeArbiter.ets。
  */
 const PICTURE_QUALITY_ITEMS: ChoiceOption[] = [
   { id: 'original', label: '原图优先' },
   { id: 'display', label: '网页显示图' },
   { id: 'all', label: '全部' }
 ];
-export const PICTURE_QUALITIES: ChoiceSet = new ChoiceSet(PICTURE_QUALITY_ITEMS, 'all');
+export const PICTURE_QUALITIES: ChoiceSet = new ChoiceSet(PICTURE_QUALITY_ITEMS, 'original');
 
 /**
  * 「下载图片质量」那一行的说明文字。
@@ -184,7 +186,7 @@ export const PICTURE_QUALITIES: ChoiceSet = new ChoiceSet(PICTURE_QUALITY_ITEMS,
 export class QualityHints {
   static text(id: string): string {
     if (id === 'original') {
-      return '优先取网页里的大图地址，缩略图不再重复出现';
+      return '优先取网页里的大图地址，缩略图不再重复出现（会多花几秒核对）';
     }
     if (id === 'display') {
       return '只取浏览器当前显示的那张图';
@@ -219,8 +221,9 @@ export class LocationHints {
 /**
  * 把任意来源（存盘文件、界面回调）的**取图策略**归一到 `PICTURE_QUALITIES` 认识的档位。
  *
- * 判据就是那张表：认不出的一律退回「全部」—— 那正是改动前的扫描行为，
- * 升级或状态文件被改坏时都不动用户的既有预期。
+ * 判据就是那张表：认不出的一律退回**表里的默认档**（现在是「原图优先」）——
+ * 默认档意味着「用户没表达过意见时该给什么」，比留一个写死的旧档位更不容易和设置页对不上：
+ * 默认档改了，脏值和旧存档跟着一起改，不会出现「设置页第一项是 A、脏值却退回 B」的错位。
  */
 export function normalizeQuality(value: string): string {
   return PICTURE_QUALITIES.normalize(value);

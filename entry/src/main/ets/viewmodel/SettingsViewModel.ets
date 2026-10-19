@@ -33,7 +33,7 @@ export class SettingsViewModel {
   /** 下载位置；与 DownloadStore.downloadLocation 同步。 */
   @Trace downloadLocation: string = 'app';
   /** 扫描取图策略（「下载图片质量」那一行）；与 DownloadStore.pictureQuality 同步。 */
-  @Trace pictureQuality: string = 'all';
+  @Trace pictureQuality: string = 'original';
   /** 自定义目录的显示名，写在下拉行下面的说明里。 */
   @Trace customDirName: string = '';
   /** 上次投递到相册 / 自定义目录失败的原因；非空时顶掉下载位置那行的说明文字。 */

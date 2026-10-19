@@ -1,4 +1,5 @@
 import { PictureItem } from '../model/Models';
+import { ImageCandidate } from './ImageCandidates';
 import { MediaFormat } from './MediaFormat';
 import { Naming } from './Naming';
 
@@ -7,10 +8,15 @@ import { Naming } from './Naming';
  *
  * 单独声明而不是在 PageScanner 里定义，是为了让工厂不依赖扫描器：谁产出 `{url, description}`
  * 都能喂进来（网页 DOM、以后可能的其它来源）。扫描器的 `ScanData.images` 就是它的数组。
+ *
+ * `url` 是**页面当前显示的那张**（`PictureItem` 的身份键，也是失败时的兜底地址）；
+ * `candidates` 是同一个 `<img>` 身上所有可能更大的地址，交给 `ScanUpgrader` 择优。
+ * 为可选字段：直接粘地址进来的那条路径没有候选，也不该被迫造一个。
  */
 export interface ScanImage {
   url: string;
   description: string;
+  candidates?: ImageCandidate[];
 }
 
 /**

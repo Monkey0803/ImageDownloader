@@ -250,32 +250,35 @@ export default function downloadStoreTest() {
       expect(normalizeQuality('all')).assertEqual('all');
     });
 
-    it('falls_back_to_all_for_unknown_values', 0, () => {
-      // 'all' 正是改动前的扫描行为，所以脏值退回它，而不是随便挑一档新策略。
-      expect(normalizeQuality('')).assertEqual('all');
-      expect(normalizeQuality('high')).assertEqual('all');
-      expect(normalizeQuality('ORIGINAL')).assertEqual('all');
+    it('falls_back_to_the_default_for_unknown_values', 0, () => {
+      // 脏值退回的是**设置表里的默认档**（'original'），不是某个写死的旧档位：
+      // 表里那一个 default 同时决定了「首次启动给什么」和「认不出时退回什么」。
+      expect(normalizeQuality('')).assertEqual('original');
+      expect(normalizeQuality('high')).assertEqual('original');
+      expect(normalizeQuality('ORIGINAL')).assertEqual('original');
     });
   });
 
   describe('DownloadStore.pictureQuality', () => {
-    it('defaults_to_all_when_the_state_file_predates_it', 0, () => {
+    it('defaults_to_the_table_default_when_the_state_file_predates_it', 0, () => {
       DownloadStore.adopt(new SavedState());
-      expect(DownloadStore.pictureQuality).assertEqual('all');
-    });
-
-    it('keeps_a_persisted_mode', 0, () => {
-      const state: SavedState = new SavedState();
-      state.pictureQuality = 'original';
-      DownloadStore.adopt(state);
       expect(DownloadStore.pictureQuality).assertEqual('original');
     });
 
-    it('falls_back_to_all_for_a_dirty_value', 0, () => {
+    it('keeps_a_persisted_mode', 0, () => {
+      // 特意存一个**不是默认档**的值：默认档改了之后，用 'original' 会给出一条
+      // 无论字段有没有读进来都成立的假绿。
+      const state: SavedState = new SavedState();
+      state.pictureQuality = 'display';
+      DownloadStore.adopt(state);
+      expect(DownloadStore.pictureQuality).assertEqual('display');
+    });
+
+    it('falls_back_to_the_default_for_a_dirty_value', 0, () => {
       const state: SavedState = new SavedState();
       state.pictureQuality = 'thumbnail';
       DownloadStore.adopt(state);
-      expect(DownloadStore.pictureQuality).assertEqual('all');
+      expect(DownloadStore.pictureQuality).assertEqual('original');
     });
   });
 
@@ -343,7 +346,7 @@ export default function downloadStoreTest() {
       expect(safe.materialType).assertEqual('adaptive');
       expect(safe.materialLevel).assertEqual('adaptive');
       expect(safe.lightEffect).assertTrue();
-      expect(safe.pictureQuality).assertEqual('all');
+      expect(safe.pictureQuality).assertEqual('original');
       expect(safe.downloadLocation).assertEqual('app');
     });
 
@@ -369,7 +372,7 @@ export default function downloadStoreTest() {
       const safe: SavedState = StoreState.normalized(
         StoreState.parse('{"concurrency":99,"pictureQuality":"thumbnail","downloadLocation":"downloads"}') as SavedState);
       expect(safe.concurrency).assertEqual(10);
-      expect(safe.pictureQuality).assertEqual('all');
+      expect(safe.pictureQuality).assertEqual('original');
       expect(safe.downloadLocation).assertEqual('app');
     });
 

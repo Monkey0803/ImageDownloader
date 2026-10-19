@@ -90,7 +90,7 @@ class StateWire {
   lightEffect: boolean = true;
   gripEnabled: boolean = false;
   antiPeepEnabled: boolean = false;
-  pictureQuality: string = 'all';
+  pictureQuality: string = 'original';
   downloadLocation: string = 'app';
   customDirUri: string = '';
   customDirName: string = '';
@@ -246,7 +246,7 @@ export class StoreState {
     safe.antiPeepEnabled = orBoolean(state.antiPeepEnabled, false);
     safe.customDirUri = orString(state.customDirUri, '');
     safe.customDirName = orString(state.customDirName, '');
-    safe.pictureQuality = normalizeQuality(orString(state.pictureQuality, 'all'));
+    safe.pictureQuality = normalizeQuality(orString(state.pictureQuality, ''));
     // 下载位置的归一依赖 customDirUri，所以放在它之后。
     safe.downloadLocation =
       normalizeLocation(orString(state.downloadLocation, 'app'), safe.customDirUri);

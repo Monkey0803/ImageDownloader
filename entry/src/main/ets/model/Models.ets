@@ -121,8 +121,8 @@ export class SavedState {
   gripEnabled: boolean = false;
   /** 防窥保护：检测到他人窥视时是否遮罩内容。 */
   antiPeepEnabled: boolean = false;
-  /** 扫描取图策略：'all' 每个候选地址各收一张（默认）| 'original' 原图优先 | 'display' 网页显示图。 */
-  pictureQuality: string = 'all';
+  /** 扫描取图策略：'original' 原图优先（默认）| 'display' 网页显示图 | 'all' 每个候选地址各收一张。 */
+  pictureQuality: string = 'original';
   /** 下载位置：'app' 应用文件 | 'gallery' 系统相册 | 'custom' 自定义目录。 */
   downloadLocation: string = 'app';
   /** 自定义目录的 URI 与显示名；只有 downloadLocation 为 'custom' 时有效。 */
