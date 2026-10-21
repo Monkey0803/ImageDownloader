@@ -60,6 +60,12 @@ export class SizeArbiter {
     return SizeArbiter.SIZES.get(url) ?? 0;
   }
 
+  /** 用户打开详情时才探测单张文件大小；失败返回 0，不影响选图。 */
+  static async measure(url: string, referer: string): Promise<number> {
+    if (SizeArbiter.known(url)) { return SizeArbiter.cached(url); }
+    return SizeArbiter.lengthOf(url, referer);
+  }
+
   /** 本轮还能不能继续发请求。 */
   private static available(): boolean {
     return !SizeArbiter.stopped && SizeArbiter.spent < SizeArbiter.BUDGET

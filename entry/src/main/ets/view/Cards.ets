@@ -35,6 +35,8 @@ export struct Thumb {
    */
   @Param src: string = '';
   @Param label: string = 'IMG';
+  /** 远程缩略图被站点拒绝时显示明确状态，原文件仍可下载。 */
+  @Param fallbackText: string = '';
   /**
    * 非空时只画这个本地文件的**第 0 帧**。
    *
@@ -102,7 +104,7 @@ export struct Thumb {
             this.failed = true;
           })
       } else {
-        Text(this.label)
+        Text(this.fallbackText.length > 0 ? this.fallbackText : this.label)
           .fontSize(10)
           .fontWeight(FontWeight.Bold)
           .fontColor(Palette.fontTertiary)
@@ -168,7 +170,8 @@ export struct SelectTile {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Thumb({ src: this.picture.url, label: kindOf(this.picture.name), badge: this.badge() })
+      Thumb({ src: this.picture.url, label: kindOf(this.picture.name), badge: this.badge(),
+        fallbackText: '预览不可用' })
 
       // selection veil: a brand ring plus a wash
       if (this.picture.selected) {

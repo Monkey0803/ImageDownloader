@@ -219,6 +219,16 @@ export class ScanProtocol {
           ? { url: primary, description: description, candidates: candidates, ...measured(img, primary) }
           : { url: primary, description: description, ...measured(img, primary) });
       }
+      const mainTag = document.querySelector('meta[property="og:image"],meta[name="twitter:image"]');
+      const mainUrl = mainTag ? absolute(mainTag.getAttribute('content')) : '';
+      if (mainUrl) {
+        if (found.has(mainUrl)) {
+          found.get(mainUrl).featured = true;
+        } else if (IMAGE_EXT.test(mainUrl)) {
+          found.set(mainUrl, { url: mainUrl, description: document.title || '',
+            width: 0, height: 0, featured: true });
+        }
+      }
       return JSON.stringify({ title: document.title || '', url: location.href, images: Array.from(found.values()) });
     })()`;
   }
@@ -247,6 +257,7 @@ export class ScanProtocol {
     for (const image of data.images) {
       image.width = typeof image.width === 'number' && image.width > 0 ? Math.floor(image.width) : 0;
       image.height = typeof image.height === 'number' && image.height > 0 ? Math.floor(image.height) : 0;
+      image.featured = image.featured === true;
       const candidates: ImageCandidate[] = [];
       const received: ImageCandidate[] | undefined = image.candidates;
       if (received !== undefined && Array.isArray(received)) {

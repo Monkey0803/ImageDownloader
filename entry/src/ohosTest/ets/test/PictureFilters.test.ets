@@ -39,5 +39,33 @@ export default function pictureFiltersTest() {
       expect(merged[0].selected).assertTrue();
       expect(merged[0].width).assertEqual(1200);
     });
+
+    it('filters_large_and_orientation_without_hiding_unknown_sizes', 0, () => {
+      const wide: PictureItem = picture('https://example.com/wide.jpg', 1600, 900);
+      const tall: PictureItem = picture('https://example.com/tall.jpg', 900, 1600);
+      const tiny: PictureItem = picture('https://example.com/tiny.jpg', 300, 200);
+      const unknown: PictureItem = picture('https://example.com/unknown.jpg', 0, 0);
+      expect(PictureFilters.matches(wide, '', 0, 0, '', 'large')).assertTrue();
+      expect(PictureFilters.matches(tiny, '', 0, 0, '', 'large')).assertFalse();
+      expect(PictureFilters.matches(wide, '', 0, 0, '', 'landscape')).assertTrue();
+      expect(PictureFilters.matches(tall, '', 0, 0, '', 'landscape')).assertFalse();
+      expect(PictureFilters.matches(tall, '', 0, 0, '', 'portrait')).assertTrue();
+      expect(PictureFilters.matches(unknown, '', 0, 0, '', 'portrait')).assertTrue();
+    });
+
+    it('suggests_metadata_image_without_selecting_it', 0, () => {
+      const large: PictureItem = picture('https://example.com/large.jpg', 2000, 1200);
+      const featured: PictureItem = picture('https://example.com/main.jpg', 0, 0);
+      featured.featured = true;
+      expect(PictureFilters.suggested([large, featured])?.url).assertEqual(featured.url);
+      expect(featured.selected).assertFalse();
+      expect(PictureFilters.suggested([large])?.url).assertEqual(large.url);
+      expect(PictureFilters.suggested([picture('https://example.com/icon.jpg', 48, 48)])).assertUndefined();
+      const fromScan: PictureItem[] = PictureFactory.merge([], [
+        { url: featured.url, description: 'main', featured: true }
+      ]);
+      expect(fromScan[0].featured).assertTrue();
+      expect(fromScan[0].selected).assertFalse();
+    });
   });
 }

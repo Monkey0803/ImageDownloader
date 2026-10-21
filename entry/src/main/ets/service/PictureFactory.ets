@@ -19,6 +19,7 @@ export interface ScanImage {
   candidates?: ImageCandidate[];
   width?: number;
   height?: number;
+  featured?: boolean;
 }
 
 /**
@@ -67,6 +68,7 @@ export class PictureFactory {
     picture.description = image.description;
     picture.width = image.width ?? 0;
     picture.height = image.height ?? 0;
+    picture.featured = image.featured === true;
     picture.name = Naming.suggested(image.url, image.description, index);
     return picture;
   }
@@ -90,6 +92,7 @@ export class PictureFactory {
           old.width = image.width ?? 0;
           old.height = image.height ?? 0;
         }
+        old.featured = image.featured === true;
         continue;
       }
       found.set(image.url, PictureFactory.fromScan(image, i + 1));

@@ -7,13 +7,15 @@ import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
-import { SelectTile } from '../Cards';
+import { SelectTile, Thumb } from '../Cards';
 import { HintRow, IconButton, PillButton, SectionHead, SettingSelect, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
 const FILTER_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '其他'];
 const FILTER_OPTIONS: SelectOption[] = FILTER_LABELS.map((label: string): SelectOption => ({ value: label }));
+const QUICK_IDS: string[] = ['', 'large', 'landscape', 'portrait'];
+const QUICK_LABELS: string[] = ['全部', '大图', '横图', '竖图'];
 
 /**
  * 「发现」页：结果为主视图；浏览器持续挂载，在全屏浏览视图中显示。
@@ -72,6 +74,86 @@ export struct DiscoverScreen {
     .borderRadius(Radius.full)
     .backgroundColor(Palette.card)
     .shadow(Shadow.card())
+  }
+
+  @Builder
+  private batchEntry() {
+    Column({ space: Space.s8 }) {
+      Row({ space: Space.s8 }) {
+        PillButton({ label: this.discover.batchOpen ? '收起批量链接' : '批量链接',
+          variant: 'ghost', small: true,
+          onAction: (): void => { this.discover.batchOpen = !this.discover.batchOpen; } })
+        if (this.discover.batchOpen) {
+          PillButton({ label: '粘贴多条', icon: 'paste', variant: 'tonal', small: true,
+            onAction: (): void => { this.discover.pasteBatch(); } })
+        }
+      }.width('100%')
+      if (this.discover.batchOpen) {
+        TextArea({ placeholder: '每行一条图片直链', text: this.discover.batchText })
+          .fontSize(Font.body).fontColor(Palette.fontPrimary)
+          .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4)
+          .height(112).width('100%')
+          .onChange((value: string): void => { this.discover.batchText = value; })
+        Text('可导入 ' + this.discover.batchReport.urls.length.toString() + ' 条 · 无效 '
+          + this.discover.batchReport.invalid.toString() + ' 条 · 重复 '
+          + this.discover.batchReport.duplicates.toString() + ' 条')
+          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        PillButton({ label: '确认加入任务', variant: 'primary', small: true,
+          active: this.discover.batchReport.urls.length > 0,
+          onAction: (): void => { this.discover.enqueueBatch(); } })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private suggestedCard(item: PictureItem) {
+    Row({ space: Space.s10 }) {
+      Thumb({ src: item.url, label: 'IMG', fallbackText: '预览不可用' })
+        .width(66).height(66).borderRadius(Radius.r4)
+      Column({ space: Space.s4 }) {
+        Text('可能的主图').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+        Text(item.width > 0 && item.height > 0
+          ? item.width.toString() + '×' + item.height.toString() + ' · 已测得' : '尺寸未知')
+          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        PillButton({ label: '查看详情', variant: 'tonal', small: true,
+          onAction: (): void => { this.discover.inspect(item.uid); } })
+      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+    }
+    .width('100%').padding(Space.s10).borderRadius(Radius.r8).backgroundColor(Palette.card)
+  }
+
+  @Builder
+  private inspectionPanel(item: PictureItem) {
+    Column({ space: Space.s8 }) {
+      Row({ space: Space.s8 }) {
+        Text('图片详情').fontSize(Font.body).fontWeight(FontWeight.Bold)
+          .fontColor(Palette.fontPrimary).layoutWeight(1)
+        PillButton({ label: '关闭', variant: 'ghost', small: true,
+          onAction: (): void => { this.discover.inspectedUid = ''; } })
+      }.width('100%')
+      Thumb({ src: item.url, label: 'IMG', fallbackText: '预览不可用' })
+        .width('100%').height(180).borderRadius(Radius.r4)
+      Text('来源地址：' + item.url).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        .copyOption(CopyOptions.InApp).width('100%')
+      Text('分辨率：' + (item.width > 0 && item.height > 0
+        ? item.width.toString() + '×' + item.height.toString() + '（已测得）' : '未知'))
+        .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+      Text('文件大小：' + this.discover.inspectionSizeLabel())
+        .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+      Text('需要登录的图片可能无法在列表预览；下载仍会使用当前网页的登录信息。')
+        .fontSize(Font.caption).fontColor(Palette.fontTertiary)
+      Row({ space: Space.s8 }) {
+        PillButton({ label: item.selected ? '取消选择' : '选择此图', variant: 'tonal', small: true,
+          onAction: (): void => { this.discover.togglePicture(item.uid); } })
+        if (this.discover.pageUrl !== item.url && this.discover.pageUrl.startsWith('http')) {
+          PillButton({ label: '查看来源页', variant: 'ghost', small: true,
+            onAction: (): void => { this.discover.resumeBrowser(); } })
+        }
+      }.width('100%')
+    }
+    .alignItems(HorizontalAlign.Start).width('100%')
+    .padding(Space.s12).borderRadius(Radius.r8).backgroundColor(Palette.card)
   }
 
   @Builder
@@ -282,6 +364,8 @@ export struct DiscoverScreen {
                     this.discover.togglePicture(uid);
                   }
                 })
+                PillButton({ label: '详情', variant: 'ghost', small: true,
+                  onAction: (): void => { this.discover.inspect(cell.uid); } })
               }
               .layoutWeight(1)
             }, (cell: PictureItem) => cell.uid)
@@ -306,6 +390,17 @@ export struct DiscoverScreen {
         .width('100%')
         .padding({ top: Space.s20, bottom: Space.s20 })
     }
+  }
+
+  @Builder
+  private quickFilters() {
+    Row({ space: Space.s6 }) {
+      ForEach(QUICK_IDS, (id: string, index: number) => {
+        PillButton({ label: QUICK_LABELS[index], small: true,
+          variant: this.discover.quickFilter === id ? 'tonal' : 'ghost',
+          onAction: (): void => { this.discover.quickFilter = id; } })
+      }, (id: string) => id)
+    }.width('100%')
   }
 
   @Builder
@@ -356,7 +451,11 @@ export struct DiscoverScreen {
       Scroll(this.discover.scrollController()) {
         Column({ space: Space.s16 }) {
           this.addressEntry()
+          this.batchEntry()
           this.pageSummary()
+          if (this.discover.featuredPicture !== undefined) {
+            this.suggestedCard(this.discover.featuredPicture!)
+          }
 
           Column({ space: Space.s10 }) {
             SectionHead({
@@ -394,8 +493,13 @@ export struct DiscoverScreen {
             }
             .width('100%')
 
+            this.quickFilters()
             if (this.filtersOpen) {
               this.filterPanel()
+            }
+
+            if (this.discover.inspectedPicture !== undefined) {
+              this.inspectionPanel(this.discover.inspectedPicture!)
             }
 
             this.resultGrid()

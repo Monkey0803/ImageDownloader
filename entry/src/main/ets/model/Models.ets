@@ -28,6 +28,8 @@ export class PictureItem {
   /** 仅当下载地址就是浏览器已解码的 currentSrc 时，尺寸才可信；0 表示未知。 */
   @Trace width: number = 0;
   @Trace height: number = 0;
+  /** 网页元数据指向的候选主图；仅用于提示，不自动选中。 */
+  @Trace featured: boolean = false;
   /**
    * 'image' | 'livephoto'，见 `MediaFormat.mediaKindOf`。
    *

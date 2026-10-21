@@ -8,6 +8,7 @@ import sizeArbiterTest from './SizeArbiter.test';
 import browserCollectionTest from './BrowserCollection.test';
 import duplicateFinderTest from './DuplicateFinder.test';
 import tasksViewModelTest from './TasksViewModel.test';
+import batchLinksTest from './BatchLinks.test';
 
 export default function testsuite() {
   downloadStoreTest();
@@ -20,4 +21,5 @@ export default function testsuite() {
   browserCollectionTest();
   duplicateFinderTest();
   tasksViewModelTest();
+  batchLinksTest();
 }

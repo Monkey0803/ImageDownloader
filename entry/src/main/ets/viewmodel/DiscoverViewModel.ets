@@ -3,13 +3,16 @@ import { PictureItem } from '../model/Models';
 import { TAB_TASKS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
 import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
+import { BatchLinks, BatchLinkReport } from '../service/BatchLinks';
 import { Clipboard } from '../service/Clipboard';
 import { MediaFormat } from '../service/MediaFormat';
 import { PictureFactory, ScanImage } from '../service/PictureFactory';
 import { PictureFilters } from '../service/PictureFilters';
 import { PageScanner, ScanData, ScanEvents } from '../service/PageScanner';
+import { SizeArbiter } from '../service/SizeArbiter';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
+import { formatBytes } from '../theme/Tokens';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
@@ -49,12 +52,28 @@ export class DiscoverViewModel {
   @Trace filterWidth: string = '';
   @Trace filterHeight: string = '';
   @Trace filterUrl: string = '';
+  @Trace quickFilter: string = '';
+  @Trace batchOpen: boolean = false;
+  @Trace batchText: string = '';
+  @Trace inspectedUid: string = '';
+  @Trace inspectionBytes: number = 0;
+  @Trace inspectionLoading: boolean = false;
+  @Computed
+  get batchReport(): BatchLinkReport { return BatchLinks.parse(this.batchText); }
+  @Computed
+  get inspectedPicture(): PictureItem | undefined {
+    return this.pictures.find((item: PictureItem): boolean => item.uid === this.inspectedUid);
+  }
+  @Computed
+  get featuredPicture(): PictureItem | undefined {
+    return PictureFilters.suggested(this.visiblePictures);
+  }
   @Computed
   get visiblePictures(): PictureItem[] {
     const width: number = PictureFilters.minimum(this.filterWidth);
     const height: number = PictureFilters.minimum(this.filterHeight);
     return this.pictures.filter((item: PictureItem): boolean =>
-      PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl));
+      PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl, this.quickFilter));
   }
 
   clearFilters(): void {
@@ -62,11 +81,12 @@ export class DiscoverViewModel {
     this.filterWidth = '';
     this.filterHeight = '';
     this.filterUrl = '';
+    this.quickFilter = '';
   }
 
   hasFilters(): boolean {
     return this.filterFormat.length > 0 || this.filterWidth.length > 0
-      || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0;
+      || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0 || this.quickFilter.length > 0;
   }
   /**
    * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它。
@@ -232,6 +252,53 @@ export class DiscoverViewModel {
     this.visit();
   }
 
+  async pasteBatch(): Promise<void> {
+    try {
+      this.batchText = await Clipboard.readText(this.ui.context());
+      this.batchOpen = true;
+    } catch (error) {
+      this.ui.say('读取剪贴板失败：' + String((error as BusinessError).message));
+    }
+  }
+
+  /** 多链接不改变当前网页和扫描结果，用户确认后才入队。 */
+  enqueueBatch(): void {
+    const report: BatchLinkReport = this.batchReport;
+    if (report.urls.length === 0) { this.ui.say('请逐行输入图片直链'); return; }
+    const count: number = report.urls.length;
+    const detail: string = '有效 ' + count.toString() + ' 条；无效 '
+      + report.invalid.toString() + ' 条，重复 ' + report.duplicates.toString() + ' 条。';
+    this.ui.confirm('导入图片链接', detail, '加入任务', (): void => {
+      const images: PictureItem[] = report.urls.map((url: string): PictureItem => PictureFactory.fromUrl(url));
+      DownloadStore.add(images, '', '批量链接', this.mode === 'zip');
+      this.batchText = '';
+      this.batchOpen = false;
+      this.ui.switchTab(TAB_TASKS);
+      this.ui.say('已加入 ' + count.toString() + ' 条下载任务');
+    });
+  }
+
+  inspect(uid: string): void {
+    const picture: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean => item.uid === uid);
+    if (picture === undefined) { return; }
+    this.inspectedUid = uid;
+    this.inspectionBytes = 0;
+    this.inspectionLoading = true;
+    const url: string = picture.url;
+    SizeArbiter.measure(url, this.pageUrl).then((bytes: number): void => {
+      if (this.inspectedUid !== uid || this.inspectedPicture?.url !== url) { return; }
+      this.inspectionBytes = bytes;
+      this.inspectionLoading = false;
+    }).catch((): void => {
+      if (this.inspectedUid === uid) { this.inspectionLoading = false; }
+    });
+  }
+
+  inspectionSizeLabel(): string {
+    return this.inspectionLoading ? '查询中…'
+      : (this.inspectionBytes > 0 ? formatBytes(this.inspectionBytes) + '（已测得）' : '未知');
+  }
+
   /**
    * 打开地址栏里的链接。
    *
@@ -251,8 +318,10 @@ export class DiscoverViewModel {
       input = 'https://' + input;
     }
     this.address = input;
+    this.batchOpen = false;
     this.pageUrl = input;
     this.pictures = [];
+    this.inspectedUid = '';
     this.pendingBrowserUrl = '';
     const kind: string = MediaFormat.mediaKindOf(input);
     if (kind === 'livephoto') {
@@ -319,6 +388,7 @@ export class DiscoverViewModel {
     this.pageUrl = '';
     this.pageTitle = '';
     this.pictures = [];
+    this.inspectedUid = '';
   }
 
   navigationFailed(message: string): void {
@@ -338,7 +408,7 @@ export class DiscoverViewModel {
     this.scanning = true;
     const events: ScanEvents = {
       onProgress: (data: ScanData): void => {
-        if (data.url !== this.pageUrl) { this.pictures = []; }
+        if (data.url !== this.pageUrl) { this.pictures = []; this.inspectedUid = ''; }
         this.pageUrl = data.url;
         this.address = data.url;
         this.pageTitle = data.title;

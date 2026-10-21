@@ -411,7 +411,8 @@ export class DownloadStore {
       const suggested: string = Naming.suggested(source.url, source.description, i + 1);
       item.name = source.userNamed ? Naming.withExtension(source.name, suggested.substring(suggested.lastIndexOf('.') + 1)) : Naming.clean(source.name, suggested);
       item.userNamed = source.userNamed;
-      item.sourcePage = pageUrl;
+      // 批量直链没有共同网页；逐张用自身 URL 作 Referer，与地址栏直链行为一致。
+      item.sourcePage = pageUrl.length > 0 ? pageUrl : source.url;
       item.createdAt = Date.now();
       item.kind = source.kind === 'livephoto' ? 'livephoto' : 'image';
       const packed: boolean = batchId.length > 0 && item.kind !== 'livephoto';
