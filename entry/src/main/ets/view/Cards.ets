@@ -9,6 +9,7 @@
 import { fileUri } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { common } from '@kit.AbilityKit';
+import { display } from '@kit.ArkUI';
 import { MovingPhotoView, MovingPhotoViewController, photoAccessHelper } from '@kit.MediaLibraryKit';
 import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
@@ -811,12 +812,136 @@ export interface ViewerSlide {
   /** 下载记录 id，同时当 ForEach 的 key。 */
   id: string;
   src: string;
+  /** 已落盘的普通图片路径；远程图与实况照片为空。 */
+  localPath: string;
+  /** 已确认包含多帧的 GIF / WebP 在大图页继续由 ArkUI 播放。 */
+  animated: boolean;
   name: string;
   label: string;
   /** 实况照片解出来的静图沙箱路径；普通图片是空串。 */
   stillPath: string;
   /** 实况照片解出来的视频沙箱路径；普通图片是空串。 */
   motionPath: string;
+}
+
+/** 大图页的本地静图：ImageKit 解码，ArkUI Image 只负责显示 PixelMap。 */
+@ComponentV2
+struct LocalPreviewImage {
+  @Require @Param path: string;
+  @Require @Param fallbackUri: string;
+  @Param label: string = 'IMG';
+  /** Swiper 可能预建全部子页，只允许当前页及相邻页持有解码后的像素图。 */
+  @Param active: boolean = true;
+  @Local private frame: image.PixelMap | undefined = undefined;
+  @Local private failed: boolean = false;
+  private ownedFrame: image.PixelMap | undefined = undefined;
+  private generation: number = 0;
+  private disposed: boolean = false;
+
+  aboutToAppear(): void {
+    this.disposed = false;
+    this.load();
+  }
+
+  aboutToDisappear(): void {
+    this.disposed = true;
+    this.generation++;
+    this.clearFrame();
+  }
+
+  @Monitor('path')
+  private onPathChanged(monitor: IMonitor): void {
+    this.load();
+  }
+
+  @Monitor('active')
+  private onActiveChanged(monitor: IMonitor): void {
+    this.load();
+  }
+
+  private clearFrame(): void {
+    this.frame = undefined;
+    const old: image.PixelMap | undefined = this.ownedFrame;
+    this.ownedFrame = undefined;
+    if (old !== undefined) {
+      try {
+        old.release();
+      } catch (error) {
+      }
+    }
+  }
+
+  private load(): void {
+    const generation: number = ++this.generation;
+    this.clearFrame();
+    this.failed = false;
+    if (this.disposed || !this.active) {
+      return;
+    }
+    const path: string = this.path;
+    if (path.length === 0) {
+      this.failed = true;
+      return;
+    }
+    this.decode(path, generation);
+  }
+
+  private async decode(path: string, generation: number): Promise<void> {
+    let source: image.ImageSource | undefined = undefined;
+    let decoded: image.PixelMap | undefined = undefined;
+    try {
+      source = image.createImageSource(path);
+      const info: image.ImageInfo = await source.getImageInfo();
+      const width: number = info.size.width;
+      const height: number = info.size.height;
+      if (width <= 0 || height <= 0) {
+        throw new Error('Invalid image size');
+      }
+      const screen: display.Display = display.getDefaultDisplaySync();
+      const edge: number = Math.max(1, Math.min(3072, Math.max(screen.width, screen.height)));
+      const factor: number = Math.min(1, edge / Math.max(width, height));
+      const options: image.DecodingOptions = {
+        index: 0,
+        desiredSize: {
+          width: Math.max(1, Math.round(width * factor)),
+          height: Math.max(1, Math.round(height * factor))
+        }
+      };
+      decoded = await source.createPixelMap(options);
+      if (this.disposed || !this.active || generation !== this.generation || path !== this.path) {
+        decoded.release();
+        return;
+      }
+      this.ownedFrame = decoded;
+      this.frame = decoded;
+    } catch (error) {
+      if (!this.disposed && this.active && generation === this.generation && path === this.path) {
+        this.failed = true;
+      }
+    } finally {
+      if (source !== undefined) {
+        try {
+          await source.release();
+        } catch (error) {
+        }
+      }
+    }
+  }
+
+  build() {
+    if (this.frame !== undefined) {
+      Image(this.frame)
+        .width('100%')
+        .height('100%')
+        .objectFit(ImageFit.Contain)
+    } else if (this.failed) {
+      Thumb({ src: this.fallbackUri, label: this.label, fit: ImageFit.Contain })
+    } else {
+      Text('正在加载图片…')
+        .fontSize(Font.aux)
+        .fontColor('#B3FFFFFF')
+    }
+  }
 }
 
 /**
@@ -1020,11 +1145,18 @@ export struct ImageViewer {
         // Swiper 负责左右滑动换图：slide 的增减只换 ForEach 的 key，Swiper 自身不会被重建。
         // `.index()` 受 index 驱动，用户滑完 onChange 把值写回，两边始终一致。
         Swiper() {
-          ForEach(this.slides, (slide: ViewerSlide) => {
+          ForEach(this.slides, (slide: ViewerSlide, slideIndex: number) => {
             Stack({ alignContent: Alignment.Center }) {
               if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
                 // 实况照片：这一页自己装动态照片并播放，装不起来就画静图。
                 LivePhotoSlide({ stillFile: slide.stillPath, motionFile: slide.motionPath })
+              } else if (slide.localPath.length > 0 && !slide.animated) {
+                LocalPreviewImage({
+                  path: slide.localPath,
+                  fallbackUri: slide.src,
+                  label: slide.label,
+                  active: Math.abs(slideIndex - this.index) <= 1
+                })
               } else {
                 Thumb({ src: slide.src, label: slide.label, fit: ImageFit.Contain })
               }

@@ -144,6 +144,8 @@ struct Viewer {
     const slide: ViewerSlide = {
       id: item.id,
       src: landed ? fileUri.getUriFromPath(still.length > 0 ? still : item.path) : item.url,
+      localPath: landed && !live ? item.path : '',
+      animated: landed && item.animated,
       name: item.name,
       label: live ? '实况' : kindOf(item.name),
       stillPath: still,
