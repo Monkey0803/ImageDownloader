@@ -203,6 +203,7 @@ export struct TitleBar {
 @ComponentV2
 export struct IconButton {
   @Param glyph: string = 'dot';
+  @Param accessibilityLabel: string = '';
   @Param glyphSize: number = 21;
   @Param tone: ResourceColor = $r('app.color.font_primary');
   @Param diameter: number = 40;
@@ -221,6 +222,7 @@ export struct IconButton {
     .backgroundColor(this.plain ? Color.Transparent : Palette.glassStrong)
     .backdropBlur(this.plain ? 1 : 30)
     .shadow(this.plain ? Shadow.none() : Shadow.action())
+    .accessibilityText(this.accessibilityLabel)
     .onClick(() => {
       this.onAction();
     })
@@ -312,8 +314,14 @@ export struct StatusChip {
     if (this.status === 'starting') {
       return '正在启动';
     }
+    if (this.status === 'waiting') {
+      return '等待中';
+    }
     if (this.status === 'running' || this.status === 'downloading') {
       return '下载中';
+    }
+    if (this.status === 'paused') {
+      return '已暂停';
     }
     if (this.status === 'packing') {
       return '打包中';
@@ -369,6 +377,9 @@ export struct StatusChip {
     }
     if (this.status === 'cancelled') {
       return 'xCircle';
+    }
+    if (this.status === 'paused') {
+      return 'pause';
     }
     return 'clock';
   }

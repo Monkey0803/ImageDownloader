@@ -37,6 +37,8 @@ export class DeviceViewModel {
   @Trace antiPeepSupported: boolean = true;
   /** 防窥保护「开着但没生效」的原因，写在设置行里。 */
   @Trace antiPeepProblem: string = '';
+  /** 忽略较早一次开关操作迟到的订阅结果与提示。 */
+  private antiPeepPickRevision: number = 0;
 
   attach(ui: UiPort): void {
     this.ui = ui;
@@ -157,6 +159,7 @@ export class DeviceViewModel {
    * 状态，第二次直接搭便车复用它的结果，弹窗永远弹不出来（真机实测踩到）。
    */
   async pickAntiPeep(value: boolean): Promise<void> {
+    const revision: number = ++this.antiPeepPickRevision;
     DownloadStore.setAntiPeepEnabled(value);
     this.sync();
     if (!value) {
@@ -165,6 +168,7 @@ export class DeviceViewModel {
       return;
     }
     const ready: boolean = await AntiPeep.setEnabled(true, this.ui.context());
+    if (revision !== this.antiPeepPickRevision || !DownloadStore.antiPeepEnabled) { return; }
     this.sync();
     const reason: string = AntiPeep.problem.length > 0 ? AntiPeep.problem : '设备不支持防窥保护';
     this.ui.say(ready ? '防窥保护已开启' : '防窥保护未生效：' + reason);

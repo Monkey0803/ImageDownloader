@@ -17,6 +17,8 @@ export interface ScanImage {
   url: string;
   description: string;
   candidates?: ImageCandidate[];
+  width?: number;
+  height?: number;
 }
 
 /**
@@ -63,6 +65,8 @@ export class PictureFactory {
     picture.id = image.url;
     picture.url = image.url;
     picture.description = image.description;
+    picture.width = image.width ?? 0;
+    picture.height = image.height ?? 0;
     picture.name = Naming.suggested(image.url, image.description, index);
     return picture;
   }
@@ -81,6 +85,11 @@ export class PictureFactory {
     for (let i: number = 0; i < images.length; i++) {
       const image: ScanImage = images[i];
       if (found.has(image.url)) {
+        const old: PictureItem = found.get(image.url)!;
+        if ((image.width ?? 0) > 0 && (image.height ?? 0) > 0) {
+          old.width = image.width ?? 0;
+          old.height = image.height ?? 0;
+        }
         continue;
       }
       found.set(image.url, PictureFactory.fromScan(image, i + 1));

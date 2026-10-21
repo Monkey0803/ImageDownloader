@@ -203,6 +203,19 @@ export struct SettingsScreen {
                 Divider().color(Palette.divider).margin({ left: 60 })
 
                 ListRow({
+                  glyph: 'wifi',
+                  heading: '仅 Wi-Fi 下载',
+                  aux: '只影响之后启动的任务；进行中的任务沿用原网络设置'
+                }) {
+                  Toggle({ type: ToggleType.Switch, isOn: this.settings.wifiOnly })
+                    .onChange((value: boolean): void => {
+                      this.settings.setWifiOnly(value);
+                    })
+                }
+
+                Divider().color(Palette.divider).margin({ left: 60 })
+
+                ListRow({
                   glyph: 'folder',
                   heading: '文件名来源',
                   aux: '优先用服务器返回的文件名，其次用网页描述'

@@ -6,6 +6,9 @@
 ![Platform](https://img.shields.io/badge/platform-HarmonyOS%20%2F%20API%2026-lightgrey)
 
 鸿蒙手机应用，可在内置浏览器中扫描当前网页图片，选择单张保存或打包为 ZIP。支持 1–10 个同时下载任务、失败重试、图片与 ZIP 重命名、图库预览、分享和导出，下载位置可选应用文件 / 系统相册 / 自定义目录。
+发现页优先展示扫描结果、选图与下载；格式、尺寸及来源筛选按需展开，启用后即使收起仍会显示筛选状态。
+点击“继续浏览”进入全屏浏览视图，可返回、前进、重载、重扫、收藏及查看最近 100 条浏览记录。扫描完成后点击“查看图片”返回结果，浏览过程不会被自动打断。收藏和历史保存在本机，重启后可恢复；清空浏览记录不影响收藏。
+图库可分别查看同来源 URL、同来源文件名和同内容图片。文件内容检查由用户手动启动，先按文件大小筛选，再计算 SHA-256；不会自动删除文件，也不会保存散列缓存。
 
 ## 仓库结构
 
@@ -32,7 +35,7 @@ DevEco Studio 的 HarmonyOS SDK，按「构建」一节在本地跑。
 
 ## 界面
 
-界面按高保真原型 `designs/image-downloader-ui/` 实现，四个页签：**发现 / 任务 / 图库 / 设置**；
+界面沿用 `designs/image-downloader-ui/` 的设计令牌，四个页签：**发现 / 任务 / 图库 / 设置**。发现页在结果与全屏浏览视图之间切换，浏览器和扫描结果保留同一份页面状态；
 「图库」用分段控件在 **图片 / 压缩包** 之间切换（两种都是已经落到本机的内容，合成一个页签后
 底部少一个入口，进行中的打包任务仍然留在「任务」页）。
 配色、间距、圆角、字号等设计令牌集中在 `entry/src/main/ets/theme/Tokens.ets`，颜色以资源形式落在
@@ -59,6 +62,8 @@ entry/src/main/ets/
 ├─ service/Delivery.ets       第二落点：系统相册 / 自定义目录（含 800ms 防抖）
 ├─ service/FileActions.ets    单个文件的系统操作：导出 / 存相册 / 分享 / 拷进目录
 ├─ service/PageScanner.ets    网页图片扫描：取址策略 + 重扫到张数稳定
+├─ service/BrowserCollection.ets 浏览历史与收藏的本机存储
+├─ service/DuplicateFinder.ets 重复来源提示与手动内容检查
 ├─ service/PictureFactory.ets PictureItem 的构造与按 url 合并
 ├─ service/Clipboard.ets      剪贴板读取（含权限申请顺序）
 ├─ service/ThemeController.ets / MaterialSupport.ets  主题映射 / 材质能力探测
@@ -243,8 +248,8 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
    `declared` 是站点自己声明的大小分（没有就是 0），**只用于排序**。
 2. **择优（`ImageCandidates.Candidates`，完全通用）**：按 URL 去重、按 `declared` 降序排，
    只把前 `SizeArbiter.PER_IMAGE`（= 4）个送进下一步；全部未声明时保持采集顺序。
-3. **仲裁（`SizeArbiter`，机制通用）**：对候选逐个发 `HEAD`，取 `Content-Length` 最大的那个，
-   并设了上限（默认 **32 MB**，超过就退回次大的，避免一次点掉几百 MB）。并发 5、单请求超时 2 s、
+3. **仲裁（`SizeArbiter`，机制通用）**：对候选逐个发 `HEAD`，取 `Content-Length` 最大的那个。
+   自动推测出的替代地址有 **32 MB** 上限；页面已明确给出的原地址即使超过上限，也不会被较小的缩略图替换。并发 5、单请求超时 2 s、
    整轮预算 90 次请求 / 3 s 挂钟，先到先停；结果按 URL 进静态缓存（上限 4096 条），
    所以扫描的稳定性重试轮不会把 HEAD 重发一遍。`HEAD` 走 `@kit.NetworkKit` 的 `http`，
    `INTERNET` 权限本来就有，无需改 `module.json5`；`content-length` 拿不到或请求失败一律记为 0（未知），
@@ -259,7 +264,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   → 表里的 default）。改默认档意味着**升级后扫描结果会变**：以前只拿到缩略图，现在会去取原图，
   单张可能从几十 KB 变成十几 MB。想回到旧行为请手动切到「全部」。
 - **带宽代价是真实存在的**：微博一条 9 图长贴按原图取是 ≈ 105 MB（单张 `large`/`original` 约 11.7 MB）。
-  上限 32 MB 只是防呆，不是省钱；移动网络下用户应该自己切到「网页显示图」。
+  32 MB 上限只限制自动推测地址；页面已给出的大原图仍可供用户选择。移动网络下可切到「网页显示图」。
 - 前两档里**一个 `img` 最多产出一条记录**；`all` 档没有任何优先级，把每个候选地址都塞进以 URL 为键的
   Map（行为逐字保留，零回归）。
 - **`data-src` 优先是经验规则，不是保证**：个别站点的 `data-src` 指小图，也可能懒加载尚未触发，
@@ -678,7 +683,7 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
 
 ## 测试
 
-单元测试在 `entry/src/ohosTest`（hypium），覆盖纯函数：`Naming`（文件名清洗、下载命名、扩展名归一、Content-Type 映射，含 `.livp` / `.livephoto` 不被补 `.jpg`）、`StoreState`（状态解码：缺字段 / 显式 `null` / 脏值兜底，含动图与实况照片的新字段）、`MediaFormat`（扩展名与类型判定、GIF / WebP 的动图头部特征、ZIP 魔数），以及 `DownloadStore` 里不依赖 `UIAbilityContext`、也不写真实文件系统的部分（同名去重、下载位置与取图策略归一）。共 66 条。
+单元测试在 `entry/src/ohosTest`（hypium），覆盖 `Naming`、`StoreState`、`MediaFormat`、`DownloadStore` 中不依赖真实文件系统的逻辑，以及扫描候选图、发现页筛选、图库查询、分享链接校验、大原图候选仲裁、浏览记录归一、重复文件识别和任务状态分组。当前共 102 条，已在 API 26 真机通过。
 
 ```bash
 DEVECO=/Applications/DevEco-Studio.app
@@ -695,8 +700,7 @@ hdc shell "aa test -b com.example.imagedownloader -m entry_test \
   -s unittest OpenHarmonyTestRunner -s timeout 60000"
 ```
 
-结果看 `OHOS_REPORT_RESULT` 一行，例如 `Tests run: 66, Failure: 0, Error: 0, Pass: 66`
-（命名 / 状态编解码 / 格式判定三块纯函数，共 66 条）。
+结果看 `OHOS_REPORT_RESULT` 一行，例如 `Tests run: 102, Failure: 0, Error: 0, Pass: 102`。
 
 ## 使用边界
 

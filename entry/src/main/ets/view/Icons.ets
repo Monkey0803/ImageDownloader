@@ -15,6 +15,7 @@ import { display } from '@kit.ArkUI';
 const ICON_PATHS: Record<string, string> = {
   'search': 'M4 11a7 7 0 1 0 14 0a7 7 0 1 0 -14 0Z M16.6 16.6 21 21',
   'globe': 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z M3 12h18 M12 3c2.6 3 2.6 15 0 18 M12 3c-2.6 3-2.6 15 0 18',
+  'wifi': 'M2.5 8.5a14 14 0 0 1 19 0 M5.5 12a9.5 9.5 0 0 1 13 0 M8.8 15.5a5 5 0 0 1 6.4 0 M12 19.5h0.01',
   'refresh': 'M20.5 12a8.5 8.5 0 1 1-2.6-6.1 M20.5 4.6V10H15',
   'check': 'M5 12.6 10 17.5 19 6.8',
   'close': 'M6 6 18 18 M18 6 6 18',

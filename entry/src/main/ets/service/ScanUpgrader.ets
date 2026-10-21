@@ -12,14 +12,13 @@ import { ScanImage } from './PictureFactory';
  * 3. `Candidates.head`：只取前 `SizeArbiter.PER_IMAGE` 个去量，避免一张图问十条；
  * 4. `SizeArbiter.largest`：量出最大的那个。
  *
- * **只在失败姿态下才保留原地址**：`largest` 返回空串（全都量不出来，或全都超过 `SIZE_CAP`）
- * 时不动 `image.url`，用户至少还能拿到页面上那张图。这条规则让「猜错」的代价仅限于白花几次
- * HEAD，绝不会把一张 404 的地址交给下载器。
+ * `largest` 量不出候选时保留页面原地址；页面已经明确选中的原图即使超过 `SIZE_CAP`
+ * 也不会被较小的缩略图替换。上限只限制自动推测出的替代地址。
  */
 export class ScanUpgrader {
   /**
-   * 单张图的字节上限：微博的 `large` 实测 11.7 MB、`mw2000` 1.85 MB，32 MB 足够容纳
-   * 常见原图，又能拦住「九张图加起来 100 MB」这类失控情况。
+   * 推测地址的字节上限：微博的 `large` 实测 11.7 MB、`mw2000` 1.85 MB。
+   * 页面已明确选出的原图不受此上限约束，用户仍需主动选择才能下载。
    */
   private static readonly SIZE_CAP: number = 32 * 1024 * 1024;
 
@@ -42,8 +41,12 @@ export class ScanUpgrader {
       const expanded: ImageCandidate[] = SiteRules.expand(image.url);
       const ranked: ImageCandidate[] = Candidates.rank(expanded.concat(raw));
       const urls: string[] = Candidates.urls(Candidates.head(ranked, SizeArbiter.PER_IMAGE));
-      const best: string = await SizeArbiter.largest(urls, referer, ScanUpgrader.SIZE_CAP);
+      const best: string = await SizeArbiter.largest(urls, referer, ScanUpgrader.SIZE_CAP, image.url);
       if (best.length > 0) {
+        if (best !== image.url) {
+          image.width = 0;
+          image.height = 0;
+        }
         image.url = best;
       }
     }

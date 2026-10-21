@@ -36,6 +36,11 @@ export interface FolderChoice {
   message: string;
 }
 
+export interface ExportEntry {
+  path: string;
+  name: string;
+}
+
 /** `showAssetsCreationDialog` 单次最多接受 100 个源文件，超过就截断，不让整批失败。 */
 const GALLERY_BATCH_LIMIT: number = 100;
 
@@ -150,6 +155,38 @@ export async function exportFile(context: common.UIAbilityContext, path: string,
     return copied.ok ? { ok: true, message: '已导出文件' } : { ok: false, message: '导出失败：' + copied.message };
   } catch (error) {
     return { ok: false, message: '导出失败：' + String(error) };
+  }
+}
+
+/** 一次选择位置，按文件选择器返回的顺序写入多个文件。 */
+export async function exportFiles(context: common.UIAbilityContext, entries: ExportEntry[]): Promise<ActionOutcome> {
+  if (entries.length === 0) {
+    return { ok: false, message: '请先选择文件' };
+  }
+  try {
+    const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+    const options: picker.DocumentSaveOptions = {
+      newFileNames: entries.map((entry: ExportEntry): string => entry.name)
+    };
+    const targets: string[] = await savePicker.save(options);
+    if (targets.length === 0) {
+      return { ok: false, message: '' };
+    }
+    if (targets.length !== entries.length) {
+      return { ok: false, message: '导出失败：系统返回的文件数量与所选文件不一致' };
+    }
+    let copied: number = 0;
+    for (let index: number = 0; index < entries.length; index++) {
+      const outcome: ActionOutcome = await copyInto(entries[index].path, targets[index]);
+      if (!outcome.ok) {
+        return { ok: false, message: '已导出 ' + copied.toString() + '/' + entries.length.toString()
+          + ' 个文件；剩余文件失败：' + outcome.message };
+      }
+      copied++;
+    }
+    return { ok: true, message: '已导出 ' + copied.toString() + ' 个文件' };
+  } catch (error) {
+    return { ok: false, message: '批量导出失败：' + String(error) };
   }
 }
 
@@ -362,6 +399,33 @@ export async function shareFile(context: common.UIAbilityContext, path: string, 
     return { ok: true, message: '' };
   } catch (error) {
     return { ok: false, message: '分享失败：' + String(error) };
+  }
+}
+
+/** 把同一分段内选中的文件交给一次系统分享面板。 */
+export async function shareFiles(context: common.UIAbilityContext, entries: ExportEntry[],
+  isZip: boolean): Promise<ActionOutcome> {
+  if (entries.length === 0) {
+    return { ok: false, message: '请先选择文件' };
+  }
+  try {
+    const typeId: string = isZip ? utd.UniformDataType.ZIP_ARCHIVE : utd.UniformDataType.IMAGE;
+    const data: systemShare.SharedData = new systemShare.SharedData({
+      utd: typeId, uri: fileUri.getUriFromPath(entries[0].path), title: entries[0].name
+    });
+    for (let index: number = 1; index < entries.length; index++) {
+      data.addRecord({
+        utd: typeId, uri: fileUri.getUriFromPath(entries[index].path), title: entries[index].name
+      });
+    }
+    const controller: systemShare.ShareController = new systemShare.ShareController(data);
+    await controller.show(context, {
+      selectionMode: systemShare.SelectionMode.SINGLE,
+      previewMode: systemShare.SharePreviewMode.DEFAULT
+    });
+    return { ok: true, message: '' };
+  } catch (error) {
+    return { ok: false, message: '批量分享失败：' + String(error) };
   }
 }
 

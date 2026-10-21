@@ -69,11 +69,12 @@ export class SizeArbiter {
   /**
    * 在候选里挑字节数最大的那个，返回它的地址。
    *
-   * - `capBytes` 是安全阀：所有候选都超过它就返回 `''`（宁可保留页面上那张，也不悄悄下 100 MB）；
+   * - `capBytes` 只限制推测出的替代地址；页面已经选出的 `primaryUrl` 可超过上限，
+   *   否则一张大原图会被较小的缩略图悄悄替换；
    * - 量不出来（全是 0）时返回 `''` —— 调用方据此保留原来的地址，这是**最重要的失败姿态**：
    *   探测失败绝不改变用户拿到的结果。
    */
-  static async largest(candidates: string[], referer: string, capBytes: number): Promise<string> {
+  static async largest(candidates: string[], referer: string, capBytes: number, primaryUrl: string = ''): Promise<string> {
     if (candidates.length === 0) {
       return '';
     }
@@ -97,9 +98,14 @@ export class SizeArbiter {
     for (const worker of workers) {
       await worker;
     }
+    return SizeArbiter.selectMeasured(candidates, sizes, capBytes, primaryUrl);
+  }
+
+  /** 根据已量到的大小选地址；提成纯计算，覆盖超上限原图与缩略图并存的回归场景。 */
+  static selectMeasured(candidates: string[], sizes: number[], capBytes: number, primaryUrl: string): string {
     let best: number = -1;
     for (let i: number = 0; i < sizes.length; i++) {
-      if (sizes[i] <= 0 || sizes[i] > capBytes) {
+      if (sizes[i] <= 0 || (sizes[i] > capBytes && candidates[i] !== primaryUrl)) {
         continue;
       }
       if (best < 0 || sizes[i] > sizes[best]) {

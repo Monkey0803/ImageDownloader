@@ -2,9 +2,11 @@ import { webview } from '@kit.ArkWeb';
 import { PictureItem } from '../model/Models';
 import { TAB_TASKS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
+import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
 import { Clipboard } from '../service/Clipboard';
 import { MediaFormat } from '../service/MediaFormat';
 import { PictureFactory, ScanImage } from '../service/PictureFactory';
+import { PictureFilters } from '../service/PictureFilters';
 import { PageScanner, ScanData, ScanEvents } from '../service/PageScanner';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
@@ -28,13 +30,44 @@ import { BusinessError } from '@kit.BasicServicesKit';
 export class DiscoverViewModel {
   private ui: UiPort = new UiPort();
   private browser: webview.WebviewController = new webview.WebviewController();
+  private initialPageFinished: boolean = false;
+  private pendingBrowserUrl: string = '';
+  /** 直链结果显示时，忽略旧 Web 页晚到的导航/扫描回调。 */
+  private directLinkActive: boolean = false;
   private scroller: Scroller = new Scroller();
   private scanner: PageScanner = new PageScanner();
 
   @Trace address: string = '';
   @Trace pageUrl: string = '';
   @Trace pageTitle: string = '';
+  @Trace browserProblem: string = '';
+  @Trace browserPanel: string = '';
+  @Trace history: BrowserEntry[] = [];
+  @Trace bookmarks: BrowserEntry[] = [];
   @Trace pictures: PictureItem[] = [];
+  @Trace filterFormat: string = '';
+  @Trace filterWidth: string = '';
+  @Trace filterHeight: string = '';
+  @Trace filterUrl: string = '';
+  @Computed
+  get visiblePictures(): PictureItem[] {
+    const width: number = PictureFilters.minimum(this.filterWidth);
+    const height: number = PictureFilters.minimum(this.filterHeight);
+    return this.pictures.filter((item: PictureItem): boolean =>
+      PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl));
+  }
+
+  clearFilters(): void {
+    this.filterFormat = '';
+    this.filterWidth = '';
+    this.filterHeight = '';
+    this.filterUrl = '';
+  }
+
+  hasFilters(): boolean {
+    return this.filterFormat.length > 0 || this.filterWidth.length > 0
+      || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0;
+  }
   /**
    * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它。
    *
@@ -60,11 +93,89 @@ export class DiscoverViewModel {
 
   attach(ui: UiPort): void {
     this.ui = ui;
+    const saved: BrowserData = BrowserCollection.load(ui.context());
+    this.history = saved.history;
+    this.bookmarks = saved.bookmarks;
+  }
+
+  isBookmarked(): boolean {
+    return this.bookmarks.some((item: BrowserEntry): boolean => item.url === this.pageUrl);
+  }
+
+  toggleBookmark(): void {
+    if (!BrowserCollection.validUrl(this.pageUrl)) { this.ui.say('请先打开网页'); return; }
+    if (this.isBookmarked()) {
+      this.bookmarks = this.bookmarks.filter((item: BrowserEntry): boolean => item.url !== this.pageUrl);
+      this.ui.say('已取消收藏');
+    } else {
+      this.bookmarks = BrowserCollection.remember(this.bookmarks, this.pageUrl, this.pageTitle,
+        Date.now(), 1000);
+      this.ui.say('已加入收藏');
+    }
+    this.saveBrowserCollection();
+  }
+
+  removeBookmark(url: string): void {
+    this.bookmarks = this.bookmarks.filter((item: BrowserEntry): boolean => item.url !== url);
+    this.saveBrowserCollection();
+  }
+
+  clearHistory(): void {
+    this.ui.confirm('清空浏览记录', '将删除本机的浏览记录，收藏不会受到影响。', '清空', (): void => {
+      this.history = [];
+      this.saveBrowserCollection();
+    });
+  }
+
+  private rememberPage(url: string, title: string): void {
+    if (!BrowserCollection.validUrl(url)) { return; }
+    this.history = BrowserCollection.remember(this.history, url, title, Date.now(),
+      BrowserCollection.HISTORY_LIMIT);
+    // 页面标题可能在跳转后才出现，同时更新已有收藏的标题。
+    this.bookmarks = this.bookmarks.map((item: BrowserEntry): BrowserEntry => {
+      if (item.url !== url || title.trim().length === 0) { return item; }
+      const updated: BrowserEntry = new BrowserEntry();
+      updated.url = item.url;
+      updated.title = title;
+      updated.visitedAt = item.visitedAt;
+      return updated;
+    });
+    this.saveBrowserCollection();
+  }
+
+  private saveBrowserCollection(): void {
+    const data: BrowserData = new BrowserData();
+    data.history = this.history;
+    data.bookmarks = this.bookmarks;
+    if (!BrowserCollection.save(this.ui.context(), data)) {
+      this.ui.say('浏览记录或收藏保存失败，请检查设备存储空间');
+    }
   }
 
   /** 交给 `Web({ controller })`；控制器必须自始至终是同一个实例。 */
   browserController(): webview.WebviewController {
     return this.browser;
+  }
+
+  browserPageEnded(quality: string): void {
+    const firstBlank: boolean = !this.initialPageFinished
+      && this.pendingBrowserUrl.length === 0 && this.pageUrl.length === 0;
+    this.initialPageFinished = true;
+    if (firstBlank) { this.scanning = false; return; }
+    if (this.directLinkActive) { return; }
+    if (this.browserProblem.length > 0) { return; }
+    if (this.pendingBrowserUrl.length === 0) {
+      this.scan(quality);
+      return;
+    }
+    const url: string = this.pendingBrowserUrl;
+    this.pendingBrowserUrl = '';
+    try {
+      this.browser.loadUrl(url);
+    } catch (error) {
+      this.scanning = false;
+      this.ui.say('无法打开该链接：' + String(error));
+    }
   }
 
   /** 交给 `Scroll(scroller)`。 */
@@ -91,6 +202,11 @@ export class DiscoverViewModel {
       yOffset: 0,
       animation: { duration: 320, curve: Curve.FastOutSlowIn }
     });
+  }
+
+  resumeBrowser(): void {
+    this.directLinkActive = false;
+    this.ui.showBrowser();
   }
 
   // ------------------------------------------------------------------ 浏览
@@ -137,27 +253,79 @@ export class DiscoverViewModel {
     this.address = input;
     this.pageUrl = input;
     this.pictures = [];
+    this.pendingBrowserUrl = '';
     const kind: string = MediaFormat.mediaKindOf(input);
     if (kind === 'livephoto') {
+      this.directLinkActive = true;
+      this.scanning = false;
+      this.ui.showResults();
       this.pictures = [PictureFactory.fromUrl(input)];
       this.pageTitle = '实况照片';
       this.ui.say('这是一个实况照片包，下载后可在应用内播放');
+      this.rememberPage(input, this.pageTitle);
       return;
     }
     if (kind === 'image') {
+      this.directLinkActive = true;
+      this.scanning = false;
+      this.ui.showResults();
       this.pictures = [PictureFactory.fromUrl(input)];
       this.pageTitle = '图片';
       this.ui.say('这是一个图片地址');
+      this.rememberPage(input, this.pageTitle);
       return;
     }
     this.pageTitle = '';
+    this.directLinkActive = false;
+    this.browserProblem = '';
     this.scanning = true;
+    this.ui.showBrowser();
+    if (!this.initialPageFinished) {
+      this.pendingBrowserUrl = input;
+      return;
+    }
     try {
       this.browser.loadUrl(input);
     } catch (error) {
       this.scanning = false;
       this.ui.say('无法打开该链接：' + String(error));
     }
+  }
+
+  navigateBack(): void {
+    try {
+      if (this.browser.accessBackward()) { this.browser.backward(); }
+    } catch (error) { this.ui.say('无法返回上一页'); }
+  }
+
+  navigateForward(): void {
+    try {
+      if (this.browser.accessForward()) { this.browser.forward(); }
+    } catch (error) { this.ui.say('无法前进到下一页'); }
+  }
+
+  reload(): void {
+    try {
+      this.browserProblem = '';
+      this.browser.refresh();
+    } catch (error) { this.ui.say('无法重新加载网页'); }
+  }
+
+  navigationStarted(): void {
+    if (this.directLinkActive) { return; }
+    this.scanner.invalidate();
+    this.scanning = true;
+    this.browserProblem = '';
+    this.pageUrl = '';
+    this.pageTitle = '';
+    this.pictures = [];
+  }
+
+  navigationFailed(message: string): void {
+    if (this.directLinkActive) { return; }
+    this.scanner.invalidate();
+    this.scanning = false;
+    this.browserProblem = message.length > 0 ? message : '网页加载失败，请检查链接或网络后重试';
   }
 
   /**
@@ -170,9 +338,13 @@ export class DiscoverViewModel {
     this.scanning = true;
     const events: ScanEvents = {
       onProgress: (data: ScanData): void => {
+        if (data.url !== this.pageUrl) { this.pictures = []; }
         this.pageUrl = data.url;
         this.address = data.url;
         this.pageTitle = data.title;
+        if (data.url !== this.history[0]?.url || data.title !== this.history[0]?.title) {
+          this.rememberPage(data.url, data.title);
+        }
         this.pictures = PictureFactory.merge(this.pictures, data.images);
         // 扫描是「按 url 合并」的：上一轮选中的图会被复用，计数要跟着重算。
         },
@@ -222,17 +394,17 @@ export class DiscoverViewModel {
   }
 
   selectAll(selected: boolean): void {
-    for (const item of this.pictures) {
+    for (const item of this.visiblePictures) {
       item.selected = selected;
     }
   }
 
   invertSelection(): void {
-    if (this.pictures.length === 0) {
+    if (this.visiblePictures.length === 0) {
       this.ui.say('还没有扫描到图片');
       return;
     }
-    for (const item of this.pictures) {
+    for (const item of this.visiblePictures) {
       item.selected = !item.selected;
     }
     this.ui.say('已反选，选中 ' + this.selectedTotal.toString() + ' 张');

@@ -30,6 +30,7 @@ export class SettingsViewModel {
   /** 沉浸光感材质等级；与 DownloadStore.materialLevel 同步。 */
   @Trace materialLevel: string = 'adaptive';
   @Trace lightEffect: boolean = true;
+  @Trace wifiOnly: boolean = false;
   /** 下载位置；与 DownloadStore.downloadLocation 同步。 */
   @Trace downloadLocation: string = 'app';
   /** 扫描取图策略（「下载图片质量」那一行）；与 DownloadStore.pictureQuality 同步。 */
@@ -56,6 +57,7 @@ export class SettingsViewModel {
     this.materialType = DownloadStore.materialType;
     this.materialLevel = DownloadStore.materialLevel;
     this.lightEffect = DownloadStore.lightEffect;
+    this.wifiOnly = DownloadStore.wifiOnly;
     this.downloadLocation = DownloadStore.downloadLocation;
     this.pictureQuality = DownloadStore.pictureQuality;
     this.customDirName = DownloadStore.customDirName;
@@ -67,6 +69,10 @@ export class SettingsViewModel {
   }
 
   // ------------------------------------------------------------------ 数据
+
+  setWifiOnly(value: boolean): void {
+    DownloadStore.setWifiOnly(value);
+  }
 
   /** 清掉打包中断后残留在暂存目录的图片，并把释放的空间说给用户听。 */
   cleanTemp(): void {

@@ -19,6 +19,7 @@ import { display, window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { DownloadStore } from '../service/DownloadStore';
+import { ShareInbox } from '../service/ShareInbox';
 
 const DOMAIN = 0x0000;
 
@@ -49,6 +50,11 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    ShareInbox.receive(want);
+  }
+
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    ShareInbox.receive(want);
   }
 
   onDestroy(): void {

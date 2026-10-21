@@ -4,6 +4,7 @@ import { DownloadItem } from '../model/Models';
 import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
 import { UiPort } from '../service/UiPort';
+import { ShareInbox } from '../service/ShareInbox';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../viewmodel/DeviceViewModel';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
@@ -60,6 +61,7 @@ struct Index {
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Local private currentTab: number = TAB_DISCOVER;
+  @Local private browserOpen: boolean = false;
   @Local private notice: string = '';
 
   /**
@@ -72,6 +74,7 @@ struct Index {
   private listener: () => void = (): void => {
     this.storeChanged();
   };
+  private sharedLinkListener: () => void = (): void => { this.consumeSharedLink(); };
 
   aboutToAppear(): void {
     const context: common.UIAbilityContext = this.hostContext();
@@ -89,6 +92,8 @@ struct Index {
     DownloadStore.initialize(context, this.listener);
     this.storeChanged();
     this.settings.applyTheme();
+    ShareInbox.subscribe(this.sharedLinkListener);
+    this.consumeSharedLink();
   }
 
   /**
@@ -99,10 +104,19 @@ struct Index {
   onPageShow(): void {
     this.pageVisible = true;
     this.flushNotice();
+    this.consumeSharedLink();
   }
 
   onPageHide(): void {
     this.pageVisible = false;
+  }
+
+  onBackPress(): boolean {
+    if (this.currentTab === TAB_DISCOVER && this.browserOpen) {
+      this.browserOpen = false;
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -113,10 +127,22 @@ struct Index {
    */
   aboutToDisappear(): void {
     DownloadStore.unsubscribe(this.listener);
+    ShareInbox.unsubscribe(this.sharedLinkListener);
     this.device.stop();
     this.discover.cancelScan();
     // 提示的定时器与「销毁后不再弹」一起收掉。
     this.toast.release();
+  }
+
+  private consumeSharedLink(): void {
+    if (!this.pageVisible) { return; }
+    const problem: string = ShareInbox.takeError();
+    if (problem.length > 0) { this.say(problem); }
+    const link: string = ShareInbox.take();
+    if (link.length === 0 || link === this.discover.pageUrl) { return; }
+    this.currentTab = TAB_DISCOVER;
+    this.discover.address = link;
+    this.discover.visit();
   }
 
   private hostContext(): common.UIAbilityContext {
@@ -139,6 +165,12 @@ struct Index {
     port.context = (): common.UIAbilityContext => this.hostContext();
     port.switchTab = (index: number): void => {
       this.currentTab = index;
+    };
+    port.showBrowser = (): void => {
+      this.browserOpen = true;
+    };
+    port.showResults = (): void => {
+      this.browserOpen = false;
     };
     port.focusLibrary = (name: string): void => {
       this.library.focus(name);
@@ -216,7 +248,7 @@ struct Index {
 
   /** 当前页签自己的「滚远了没有」；设置页没有列表，永远 false。 */
   private topVisible(): boolean {
-    if (this.currentTab === TAB_DISCOVER) {
+    if (this.currentTab === TAB_DISCOVER && !this.browserOpen) {
       return this.discover.scrolled;
     }
     if (this.currentTab === TAB_TASKS) {
@@ -264,7 +296,10 @@ struct Index {
         DiscoverScreen({
           discover: this.discover,
           settings: this.settings,
-          device: this.device
+          device: this.device,
+          browserOpen: this.browserOpen,
+          onOpenBrowser: (): void => { this.discover.resumeBrowser(); },
+          onShowResults: (): void => { this.browserOpen = false; }
         })
       }
       .width('100%')
@@ -299,7 +334,7 @@ struct Index {
       // 大图预览已改成独立页面（pages/Viewer.ets，见 openViewer）：
       // 这里不再画浮层，否则系统返回键会绕过预览直接退出应用。
 
-      if (this.topVisible()) {
+      if ((this.currentTab !== TAB_DISCOVER || !this.browserOpen) && this.topVisible()) {
         ToTopButton({
           mirror: this.device.gripLeft(),
           bottomSpace: this.toTopBottomInset(),
@@ -309,7 +344,8 @@ struct Index {
         })
       }
 
-      if (this.currentTab === TAB_DISCOVER && (this.discover.selectedTotal > 0 || this.device.gripChipVisible())) {
+      if (this.currentTab === TAB_DISCOVER && !this.browserOpen
+        && (this.discover.selectedTotal > 0 || this.device.gripChipVisible())) {
         Column({ space: Space.s8 }) {
           if (this.device.gripChipVisible()) {
             GripChip({ device: this.device })
@@ -331,13 +367,15 @@ struct Index {
         PrivacyVeil({ device: this.device })
       }
 
-      TabBar({
-        active: this.currentTab,
-        badge: this.tasks.running,
-        onSelect: (index: number): void => {
-          this.currentTab = index;
-        }
-      })
+      if (!this.browserOpen || this.currentTab !== TAB_DISCOVER) {
+        TabBar({
+          active: this.currentTab,
+          badge: this.tasks.running,
+          onSelect: (index: number): void => {
+            this.currentTab = index;
+          }
+        })
+      }
 
       if (this.notice.length > 0) {
         Column() {
@@ -350,7 +388,10 @@ struct Index {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          bottom: SCREEN_INSETS.keyboardHeight > 0 ? Space.s16 : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + 88
+          bottom: SCREEN_INSETS.keyboardHeight > 0 ? Space.s16
+            : this.currentTab === TAB_DISCOVER && this.browserOpen
+              ? SCREEN_INSETS.safeBottom + Space.s16
+              : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + 88
         })
         // 这层盒子横跨整屏宽：键盘收起时它还把页签栏整个盖住。它纯粹是装饰，
         // 没有任何可点内容，所以整层退出命中测试：不设的话 toast 一出现，

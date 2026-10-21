@@ -105,6 +105,12 @@ export class ScanProtocol {
         } catch (_) { return ''; }
       };
       const IMAGE_EXT = /\\.(jpe?g|png|gif|webp|bmp|avif|jfif)([?#]|$)/i;
+      const measured = (img, url) => {
+        const shown = absolute(img.currentSrc);
+        return shown && shown === url && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+          ? { width: img.naturalWidth, height: img.naturalHeight }
+          : { width: 0, height: 0 };
+      };
       const LAZY = ['data-lazy-src','data-lazysrc','data-actualsrc','data-echo','data-hi-res-src','data-original-src','data-large-src','data-large','data-big','data-zoom-image','data-image','data-original','data-src'];
       const JSON_ATTRS = ['m','data-m','data-json','data-info','data-obj','data-item'];
       const descriptor = (text) => {
@@ -192,7 +198,7 @@ export class ScanProtocol {
           for (const raw of sources) {
             if (!raw) continue;
             const url = absolute(raw);
-            if (url) found.set(url, { url: url, description: description });
+            if (url) found.set(url, { url: url, description: description, ...measured(img, url) });
           }
           continue;
         }
@@ -210,8 +216,8 @@ export class ScanProtocol {
         if (!primary) continue;
         if (found.has(primary)) continue;
         found.set(primary, upgrade
-          ? { url: primary, description: description, candidates: candidates }
-          : { url: primary, description: description });
+          ? { url: primary, description: description, candidates: candidates, ...measured(img, primary) }
+          : { url: primary, description: description, ...measured(img, primary) });
       }
       return JSON.stringify({ title: document.title || '', url: location.href, images: Array.from(found.values()) });
     })()`;
@@ -239,6 +245,8 @@ export class ScanProtocol {
       data.images = [];
     }
     for (const image of data.images) {
+      image.width = typeof image.width === 'number' && image.width > 0 ? Math.floor(image.width) : 0;
+      image.height = typeof image.height === 'number' && image.height > 0 ? Math.floor(image.height) : 0;
       const candidates: ImageCandidate[] = [];
       const received: ImageCandidate[] | undefined = image.candidates;
       if (received !== undefined && Array.isArray(received)) {

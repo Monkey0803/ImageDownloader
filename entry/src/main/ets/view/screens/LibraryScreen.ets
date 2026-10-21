@@ -1,4 +1,5 @@
 import { DownloadItem, ZipItem } from '../../model/Models';
+import { DuplicateGroup } from '../../service/DuplicateFinder';
 import { LibraryViewModel } from '../../viewmodel/LibraryViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
@@ -6,8 +7,15 @@ import { Font, formatBytes, Layout, Palette, Radius, Shadow, Space } from '../..
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { ArchiveCard, ShotTile } from '../Cards';
-import { EmptyState, LibrarySegment, TitleBar } from '../Widgets';
+import { EmptyState, LibrarySegment, PillButton, SettingSelect, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
+
+const SORT_IDS: string[] = ['newest', 'oldest', 'name', 'size'];
+const SORT_LABELS: string[] = ['最新', '最早', '名称', '大小'];
+const SORT_OPTIONS: SelectOption[] = SORT_LABELS.map((label: string): SelectOption => ({ value: label }));
+const FORMAT_IDS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'heic', 'avif'];
+const FORMAT_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', 'HEIC', 'AVIF'];
+const FORMAT_OPTIONS: SelectOption[] = FORMAT_LABELS.map((label: string): SelectOption => ({ value: label }));
 
 /**
  * 「图库」页：图片 / 压缩包分段 + 搜索 + 密度切换。
@@ -59,6 +67,139 @@ export struct LibraryScreen {
   }
 
   @Builder
+  private organizeControls() {
+    Column({ space: Space.s8 }) {
+      Row({ space: Space.s8 }) {
+        SettingSelect({
+          options: SORT_OPTIONS,
+          selectedIndex: SORT_IDS.indexOf(this.library.sortOrder),
+          label: SORT_LABELS[SORT_IDS.indexOf(this.library.sortOrder)],
+          onPick: (index: number): void => { this.library.sortOrder = SORT_IDS[index]; }
+        })
+        if (!this.library.isZips()) {
+          SettingSelect({
+            options: FORMAT_OPTIONS,
+            selectedIndex: FORMAT_IDS.indexOf(this.library.formatFilter),
+            label: FORMAT_LABELS[FORMAT_IDS.indexOf(this.library.formatFilter)],
+            onPick: (index: number): void => { this.library.formatFilter = FORMAT_IDS[index]; }
+          })
+        }
+      }
+      .width('100%')
+      if (!this.library.isZips()) {
+        TextInput({ placeholder: '按来源网页搜索', text: this.library.sourceQuery })
+          .fontSize(Font.aux).fontColor(Palette.fontPrimary)
+          .backgroundColor(Palette.card).borderRadius(Radius.r4)
+          .width('100%')
+          .onChange((value: string): void => { this.library.sourceQuery = value; })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private duplicateSection(title: string, groups: DuplicateGroup[], showKey: boolean) {
+    Text(title + ' · ' + groups.length.toString() + ' 组')
+      .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+    if (groups.length === 0) {
+      Text('未发现').fontSize(Font.caption).fontColor(Palette.fontTertiary)
+    } else {
+      ForEach(groups.slice(0, 10), (group: DuplicateGroup) => {
+        Column({ space: Space.s4 }) {
+          Text((showKey ? group.key : 'SHA-256 一致') + ' · ' + group.items.length.toString() + ' 张')
+            .fontSize(Font.aux).fontColor(Palette.fontPrimary)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(group.items.map((item: DownloadItem): string => item.name).join('、'))
+            .fontSize(Font.caption).fontColor(Palette.fontTertiary)
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+        .padding({ top: Space.s6, bottom: Space.s6 })
+      }, (group: DuplicateGroup) => group.key)
+      if (groups.length > 10) {
+        Text('另有 ' + (groups.length - 10).toString() + ' 组未展开')
+          .fontSize(Font.caption).fontColor(Palette.fontTertiary)
+      }
+    }
+  }
+
+  @Builder
+  private duplicatePanel() {
+    Column({ space: Space.s8 }) {
+      PillButton({
+        label: this.library.duplicateOpen ? '收起重复提示' : '查找重复图片',
+        variant: 'ghost', small: true,
+        onAction: (): void => { this.library.duplicateOpen = !this.library.duplicateOpen; }
+      })
+      if (this.library.duplicateOpen) {
+        Text('同来源地址、同来源文件名不代表文件内容相同。以下统计整个图库，不会自动删除文件。')
+          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        this.duplicateSection('同来源 URL', this.library.sameUrlGroups, true)
+        this.duplicateSection('同来源文件名', this.library.sameSourceNameGroups, true)
+        PillButton({
+          label: this.library.contentAnalyzing ? '正在检查…' : '检查文件内容',
+          variant: 'tonal', small: true, active: !this.library.contentAnalyzing,
+          onAction: (): void => { this.library.analyzeContent(); }
+        })
+        if (this.library.contentAnalyzing) {
+          Text(this.library.contentProgress).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        }
+        if (this.library.contentChecked) {
+          this.duplicateSection('文件内容一致', this.library.contentReport.groups, false)
+          Text('检查 ' + this.library.contentReport.candidates.toString() + ' 个同大小候选，合计 '
+            + formatBytes(this.library.contentReport.bytes) + '，耗时 '
+            + (this.library.contentReport.elapsedMs / 1000).toFixed(2) + ' 秒；'
+            + this.library.contentReport.failures.toString() + ' 个文件无法读取。')
+            .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        }
+      }
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+    .padding(Space.s12)
+    .borderRadius(Radius.r8)
+    .backgroundColor(Palette.card)
+  }
+
+  @Builder
+  private selectionControls() {
+    Row({ space: Space.s8 }) {
+      PillButton({
+        label: this.library.selecting ? '完成' : '选择', variant: 'ghost', small: true,
+        onAction: (): void => {
+          if (this.library.selecting) { this.library.endSelection(); }
+          else { this.library.startSelection(); }
+        }
+      })
+      if (this.library.selecting) {
+        Text('当前结果已选 ' + this.library.visibleSelectedCount.toString())
+          .fontSize(Font.aux).fontColor(Palette.fontSecondary)
+        PillButton({ label: '全选', variant: 'ghost', small: true,
+          onAction: (): void => { this.library.selectVisible(); } })
+        PillButton({ label: '清空', variant: 'ghost', small: true,
+          onAction: (): void => { this.library.clearVisibleSelection(); } })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private selectionActions() {
+    if (this.library.selecting && this.library.visibleSelectedCount > 0) {
+      Row({ space: Space.s8 }) {
+        PillButton({ label: '分享', variant: 'ghost', small: true,
+          onAction: (): void => { this.library.shareSelected(); } })
+        PillButton({ label: '导出', variant: 'ghost', small: true,
+          onAction: (): void => { this.library.exportSelected(); } })
+        PillButton({ label: '删除', variant: 'ghost', small: true,
+          onAction: (): void => { this.library.deleteSelected(); } })
+      }
+      .width('100%')
+    }
+  }
+
+  @Builder
   private galleryGrid() {
     Column({ space: Space.s12 }) {
       ForEach(chunkRows<DownloadItem>(this.library.images, this.library.density),
@@ -69,10 +210,13 @@ export struct LibraryScreen {
                 ShotTile({
                   image: cell,
                   dense: this.library.density === 3,
+                  selecting: this.library.selecting,
+                  selected: this.library.isSelected(cell.id),
                   // 图库进预览可以改名（任务页进来不给改），并带上当前显示的整批图片，
                   // 预览页里左右滑动就是在这批图之间换（搜索后只在结果里滑）。
                   onOpen: (item: DownloadItem): void => {
-                    this.library.openImage(item);
+                    if (this.library.selecting) { this.library.toggleSelection(item.id); }
+                    else { this.library.openImage(item); }
                   }
                 })
               }
@@ -113,6 +257,9 @@ export struct LibraryScreen {
         ForEach(this.library.archives, (zip: ZipItem) => {
           ArchiveCard({
             zip: zip,
+            selecting: this.library.selecting,
+            selected: this.library.isSelected(zip.id),
+            onSelect: (item: ZipItem): void => { this.library.toggleSelection(item.id); },
             onRename: (item: ZipItem): void => {
               this.library.startZipRename(item);
             },
@@ -156,6 +303,12 @@ export struct LibraryScreen {
           })
 
           this.searchPill()
+          this.organizeControls()
+          if (!this.library.isZips()) {
+            this.duplicatePanel()
+          }
+          this.selectionControls()
+          this.selectionActions()
 
           if (this.library.isZips()) {
             this.libraryArchives()

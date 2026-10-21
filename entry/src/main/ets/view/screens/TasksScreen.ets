@@ -10,40 +10,26 @@ import { SCREEN_INSETS } from '../../theme/Metrics';
 /**
  * 「任务」页：打包任务卡 + 进行中 + 已结束。
  *
- * 从 Index 的 `tasksScreen()` / `taskList()` 搬过来。三个分组原来各自调一次
- * `activeTasks()` / `settledTasks()` / `batchViews()`，一次渲染要扫好几遍 `downloads`；
- * 现在读的是 `TasksViewModel` 在 `sync()` 里算好的派生数组，build 里只有读取。
+ * 从 Index 的 `tasksScreen()` / `taskList()` 搬过来。分组数组由
+ * `TasksViewModel.sync()` 更新，ForEach 直接读取响应式字段。
  */
 @ComponentV2
 export struct TasksScreen {
   @Require @Param tasks: TasksViewModel;
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
-  private taskList(items: DownloadItem[]) {
-    Column({ space: Space.s12 }) {
-      ForEach(items, (task: DownloadItem) => {
-        TaskCard({
-          task: task,
-          onCancel: (item: DownloadItem): void => {
-            this.tasks.cancel(item);
-          },
-          onRetry: (item: DownloadItem): void => {
-            this.tasks.retry(item);
-          },
-          onLocate: (item: DownloadItem): void => {
-            this.tasks.locate(item);
-          },
-          // 点缩略图看大图；任务页不给改名，所以 rename 传 false，也只给这一张（不滑动换图）。
-          onOpen: (item: DownloadItem): void => {
-            this.tasks.openTask(item);
-          }
-        })
-      }, (task: DownloadItem) => task.id)
-    }
-    .width('100%')
+  private taskCard(task: DownloadItem) {
+    TaskCard({
+      task: task,
+      onCancel: (item: DownloadItem): void => { this.tasks.cancel(item); },
+      onPause: (item: DownloadItem): void => { this.tasks.pause(item); },
+      onResume: (item: DownloadItem): void => { this.tasks.resume(item); },
+      onRetry: (item: DownloadItem): void => { this.tasks.retry(item); },
+      onLocate: (item: DownloadItem): void => { this.tasks.locate(item); },
+      onOpen: (item: DownloadItem): void => { this.tasks.openTask(item); }
+    })
   }
 
   build() {
@@ -82,7 +68,12 @@ export struct TasksScreen {
           if (this.tasks.active.length > 0) {
             Column({ space: Space.s10 }) {
               SectionHead({ heading: '进行中', meta: this.tasks.active.length.toString() })
-              this.taskList(this.tasks.active)
+              Column({ space: Space.s12 }) {
+                ForEach(this.tasks.active, (task: DownloadItem) => {
+                  this.taskCard(task)
+                }, (task: DownloadItem) => 'active|' + task.id + '|' + task.status)
+              }
+              .width('100%')
             }
             .width('100%')
             .alignItems(HorizontalAlign.Start)
@@ -94,7 +85,12 @@ export struct TasksScreen {
               // 写成「已完成 / 失败」会让这个数字看起来同时属于两个状态，也漏掉了已取消。
               // 单张卡片的 chip 仍逐条区分已完成 / 失败 / 已取消。
               SectionHead({ heading: '已结束', meta: this.tasks.settled.length.toString() })
-              this.taskList(this.tasks.settled)
+              Column({ space: Space.s12 }) {
+                ForEach(this.tasks.settled, (task: DownloadItem) => {
+                  this.taskCard(task)
+                }, (task: DownloadItem) => 'settled|' + task.id + '|' + task.status)
+              }
+              .width('100%')
             }
             .width('100%')
             .alignItems(HorizontalAlign.Start)

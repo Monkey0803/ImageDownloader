@@ -84,6 +84,7 @@ class StateWire {
   zips: ZipWire[] = [];
   batches: BatchWire[] = [];
   concurrency: number = 3;
+  wifiOnly: boolean = false;
   themeMode: string = 'system';
   materialType: string = 'adaptive';
   materialLevel: string = 'adaptive';
@@ -153,6 +154,7 @@ export class StoreState {
       return out;
     });
     wire.concurrency = state.concurrency;
+    wire.wifiOnly = state.wifiOnly;
     wire.themeMode = state.themeMode;
     wire.materialType = state.materialType;
     wire.materialLevel = state.materialLevel;
@@ -238,6 +240,7 @@ export class StoreState {
     });
 
     safe.concurrency = Math.max(1, Math.min(10, orNumber(state.concurrency, 3)));
+    safe.wifiOnly = orBoolean(state.wifiOnly, false);
     safe.themeMode = orString(state.themeMode, 'system');
     safe.materialType = orString(state.materialType, 'adaptive');
     safe.materialLevel = orString(state.materialLevel, 'adaptive');

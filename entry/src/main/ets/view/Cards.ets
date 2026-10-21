@@ -191,6 +191,19 @@ export struct SelectTile {
       }
 
       // the prototype's bottom-left index badge
+      Row() {
+        Text(this.picture.width > 0 && this.picture.height > 0
+          ? this.picture.width.toString() + '×' + this.picture.height.toString() : '尺寸未知')
+          .fontSize(9)
+          .fontColor(Palette.white)
+          .backgroundColor('#8C000000')
+          .borderRadius(4)
+          .padding({ left: 3, right: 3 })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ top: 5, right: 5 })
+
       Column() {
         Text((this.index + 1) < 10 ? '0' + (this.index + 1).toString() : (this.index + 1).toString())
           .fontSize(10)
@@ -224,6 +237,8 @@ export struct ShotTile {
   @Require @Param image: DownloadItem;
   /** @Prop：密度是运行时切换的（标题栏那颗九宫格按钮），普通成员刷不进来。 */
   @Param dense: boolean = false;
+  @Param selecting: boolean = false;
+  @Param selected: boolean = false;
   @Event onOpen: (image: DownloadItem) => void = () => {
   };
 
@@ -269,6 +284,15 @@ export struct ShotTile {
           .height('100%')
           .borderRadius(Radius.r6)
           .border({ width: 1, color: Palette.divider, radius: Radius.r6 })
+        if (this.selecting) {
+          Text(this.selected ? '✓' : '○')
+            .fontSize(20)
+            .fontColor(this.selected ? Palette.brand : Palette.fontPrimary)
+            .backgroundColor(Palette.card)
+            .borderRadius(Radius.full)
+            .padding({ left: Space.s4, right: Space.s4 })
+            .align(Alignment.TopEnd)
+        }
       }
       .width('100%')
       .aspectRatio(1)
@@ -308,6 +332,10 @@ export struct ShotTile {
 @ComponentV2
 export struct TaskCard {
   @Require @Param task: DownloadItem;
+  @Event onPause: (task: DownloadItem) => void = () => {
+  };
+  @Event onResume: (task: DownloadItem) => void = () => {
+  };
   @Event onCancel: (task: DownloadItem) => void = () => {
   };
   @Event onRetry: (task: DownloadItem) => void = () => {
@@ -325,7 +353,8 @@ export struct TaskCard {
 
   private isActive(): boolean {
     return this.task.status === 'queued' || this.task.status === 'starting'
-      || this.task.status === 'running' || this.task.status === 'packing';
+      || this.task.status === 'running' || this.task.status === 'waiting' || this.task.status === 'paused'
+      || this.task.status === 'packing';
   }
 
   private isSettled(): boolean {
@@ -334,14 +363,27 @@ export struct TaskCard {
 
   private meta(): string {
     if (this.task.status === 'running') {
-      return formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total)
+      let label: string = formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total)
         + ' · ' + percentOf(this.task.processed, this.task.total).toString() + '%';
+      if (this.task.speedBps > 0 && this.task.etaSeconds > 0) {
+        const remaining: string = this.task.etaSeconds < 60
+          ? this.task.etaSeconds.toString() + ' 秒'
+          : Math.ceil(this.task.etaSeconds / 60).toString() + ' 分钟';
+        label += ' · ' + formatBytes(this.task.speedBps) + '/秒 · 约 ' + remaining;
+      }
+      return label;
     }
     if (this.task.status === 'queued') {
       return '等待并发空位 · ' + formatBytes(this.task.total);
     }
     if (this.task.status === 'starting') {
       return '正在建立连接 · ' + formatBytes(this.task.total);
+    }
+    if (this.task.status === 'waiting') {
+      return '等待网络或系统资源 · ' + formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total);
+    }
+    if (this.task.status === 'paused') {
+      return '已暂停 · ' + formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total);
     }
     if (this.task.status === 'completed') {
       return '已保存 · ' + formatBytes(this.task.size);
@@ -425,6 +467,18 @@ export struct TaskCard {
         .layoutWeight(1)
 
         Row({ space: Space.s2 }) {
+          if (this.task.status === 'running') {
+            IconButton({
+              glyph: 'pause', glyphSize: 18, diameter: 34, plain: true,
+              onAction: () => { this.onPause(this.task); }
+            })
+          }
+          if (this.task.status === 'paused') {
+            IconButton({
+              glyph: 'play', glyphSize: 18, diameter: 34, plain: true,
+              onAction: () => { this.onResume(this.task); }
+            })
+          }
           if (this.isActive()) {
             IconButton({
               glyph: 'close', glyphSize: 18, diameter: 34, plain: true,
@@ -647,6 +701,10 @@ export struct ArchiveStack {
 @ComponentV2
 export struct ArchiveCard {
   @Require @Param zip: ZipItem;
+  @Param selecting: boolean = false;
+  @Param selected: boolean = false;
+  @Event onSelect: (zip: ZipItem) => void = () => {
+  };
   @Event onRename: (zip: ZipItem) => void = () => {
   };
   @Event onExport: (zip: ZipItem) => void = () => {
@@ -660,6 +718,12 @@ export struct ArchiveCard {
     Column() {
       Row({ space: Space.s12 }) {
         ArchiveStack({ thumbs: this.zip.thumbs })
+
+        if (this.selecting) {
+          Text(this.selected ? '✓' : '○')
+            .fontSize(20)
+            .fontColor(this.selected ? Palette.brand : Palette.fontSecondary)
+        }
 
         Column({ space: Space.s2 }) {
           Text(this.zip.name)
@@ -692,35 +756,37 @@ export struct ArchiveCard {
       .width('100%')
       .alignItems(VerticalAlign.Top)
 
-      Row({ space: Space.s4 }) {
-        PillButton({
-          label: '重命名', variant: 'ghost', icon: 'pencil', small: true,
-          onAction: () => {
-            this.onRename(this.zip);
-          }
-        })
-        PillButton({
-          label: '导出', variant: 'ghost', icon: 'export', small: true,
-          onAction: () => {
-            this.onExport(this.zip);
-          }
-        })
-        PillButton({
-          label: '分享', variant: 'ghost', icon: 'share', small: true,
-          onAction: () => {
-            this.onShare(this.zip);
-          }
-        })
-        Blank()
-        IconButton({
-          glyph: 'trash', glyphSize: 18, diameter: 34, plain: true, tone: Palette.warning,
-          onAction: () => {
-            this.onDelete(this.zip);
-          }
-        })
+      if (!this.selecting) {
+        Row({ space: Space.s4 }) {
+          PillButton({
+            label: '重命名', variant: 'ghost', icon: 'pencil', small: true,
+            onAction: () => {
+              this.onRename(this.zip);
+            }
+          })
+          PillButton({
+            label: '导出', variant: 'ghost', icon: 'export', small: true,
+            onAction: () => {
+              this.onExport(this.zip);
+            }
+          })
+          PillButton({
+            label: '分享', variant: 'ghost', icon: 'share', small: true,
+            onAction: () => {
+              this.onShare(this.zip);
+            }
+          })
+          Blank()
+          IconButton({
+            glyph: 'trash', glyphSize: 18, diameter: 34, plain: true, tone: Palette.warning,
+            onAction: () => {
+              this.onDelete(this.zip);
+            }
+          })
+        }
+        .width('100%')
+        .margin({ top: Space.s12 })
       }
-      .width('100%')
-      .margin({ top: Space.s12 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -728,6 +794,9 @@ export struct ArchiveCard {
     .borderRadius(Radius.r8)
     .backgroundColor(Palette.card)
     .shadow(Shadow.card())
+    .onClick((): void => {
+      if (this.selecting) { this.onSelect(this.zip); }
+    })
   }
 }
 

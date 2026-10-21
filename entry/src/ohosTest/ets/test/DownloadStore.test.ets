@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from '@ohos/hypium';
+import { request } from '@kit.BasicServicesKit';
 import { DownloadStore } from '../../../main/ets/service/DownloadStore';
 import { Naming } from '../../../main/ets/service/Naming';
 import { StoreState } from '../../../main/ets/service/StoreState';
@@ -19,6 +20,69 @@ function makeDownload(path: string): DownloadItem {
 }
 
 export default function downloadStoreTest() {
+  describe('DownloadStore.acceptsAgentEvent', () => {
+    it('ignores_old_attempt_and_terminal_callbacks', 0, () => {
+      const item: DownloadItem = makeDownload('/staging/retry.png');
+      item.taskId = 'new-task';
+      item.status = 'running';
+      expect(DownloadStore.acceptsAgentEvent(item, '')).assertFalse();
+      expect(DownloadStore.acceptsAgentEvent(item, 'old-task')).assertFalse();
+      expect(DownloadStore.acceptsAgentEvent(item, 'new-task')).assertTrue();
+      item.status = 'cancelled';
+      expect(DownloadStore.acceptsAgentEvent(item, 'new-task')).assertFalse();
+      item.status = 'failed';
+      expect(DownloadStore.acceptsAgentEvent(item, 'new-task')).assertFalse();
+      item.status = 'completed';
+      expect(DownloadStore.acceptsAgentEvent(item, 'new-task')).assertFalse();
+    });
+  });
+
+  describe('DownloadStore.agentStatus', () => {
+    it('shows_system_wait_and_recovers_when_running', 0, () => {
+      expect(DownloadStore.agentStatus('running', request.agent.State.WAITING)).assertEqual('waiting');
+      expect(DownloadStore.agentStatus('starting', request.agent.State.PAUSED)).assertEqual('waiting');
+      expect(DownloadStore.agentStatus('waiting', request.agent.State.RUNNING)).assertEqual('running');
+      expect(DownloadStore.agentStatus('waiting', request.agent.State.RETRYING)).assertEqual('running');
+      expect(DownloadStore.agentStatus('running', request.agent.State.PAUSED, true)).assertEqual('paused');
+    });
+
+    it('keeps_manual_pause_and_settled_states', 0, () => {
+      expect(DownloadStore.agentStatus('paused', request.agent.State.RUNNING)).assertEqual('paused');
+      expect(DownloadStore.agentStatus('cancelled', request.agent.State.WAITING)).assertEqual('cancelled');
+      expect(DownloadStore.agentStatus('cancelled', request.agent.State.PAUSED, true)).assertEqual('cancelled');
+      expect(DownloadStore.agentStatus('completed', request.agent.State.PAUSED)).assertEqual('completed');
+    });
+  });
+
+  describe('DownloadStore.prepareRetry', () => {
+    it('resets_failed_and_cancelled_members_without_touching_completed_sibling', 0, () => {
+      const failed: DownloadItem = makeDownload('/staging/failed.png');
+      failed.status = 'failed'; failed.error = 'HTTP 503'; failed.processed = 120;
+      failed.total = 200; failed.taskId = 'old-task'; failed.speedBps = 40; failed.etaSeconds = 2;
+      const cancelled: DownloadItem = makeDownload('/staging/cancelled.png');
+      cancelled.status = 'cancelled'; cancelled.error = '已取消'; cancelled.taskId = 'stopped-task';
+      const completed: DownloadItem = makeDownload('/staging/good.png');
+      completed.status = 'completed'; completed.processed = 200; completed.total = 200;
+
+      expect(DownloadStore.prepareRetry(failed)).assertTrue();
+      expect(DownloadStore.prepareRetry(cancelled)).assertTrue();
+      expect(DownloadStore.prepareRetry(completed)).assertFalse();
+      expect(DownloadStore.retry(completed)).assertFalse();
+      expect(failed.status).assertEqual('queued');
+      expect(failed.error).assertEqual('');
+      expect(failed.processed).assertEqual(0);
+      expect(failed.total).assertEqual(0);
+      expect(failed.taskId).assertEqual('');
+      expect(failed.speedBps).assertEqual(0);
+      expect(failed.etaSeconds).assertEqual(0);
+      expect(cancelled.status).assertEqual('queued');
+      expect(cancelled.taskId).assertEqual('');
+      expect(completed.status).assertEqual('completed');
+      expect(completed.processed).assertEqual(200);
+      expect(completed.path).assertEqual('/staging/good.png');
+    });
+  });
+
   describe('Naming.clean', () => {
     it('replaces_illegal_chars', 0, () => {
       expect(Naming.clean('a/b\\c:d*e?f"g<h>i|j', 'fb')).assertEqual('a_b_c_d_e_f_g_h_i_j');
@@ -319,6 +383,7 @@ export default function downloadStoreTest() {
       item.auxSize = 4096;
       item.note = '解包成功';
       state.downloads = [item];
+      state.wifiOnly = true;
 
       const raw: string = StoreState.serialize(state);
       // 线格式里出现代理痕迹，即代表有人又直接 stringify 了模型实例。
@@ -334,6 +399,7 @@ export default function downloadStoreTest() {
       expect(back.downloads[0].auxSize).assertEqual(4096);
       expect(back.downloads[0].stillPath).assertEqual('/data/files/images/p1.jpg');
       expect(back.downloads[0].note).assertEqual('解包成功');
+      expect(back.wifiOnly).assertTrue();
     });
 
     it('normalized_fills_missing_fields_of_an_old_file', 0, () => {
@@ -342,6 +408,7 @@ export default function downloadStoreTest() {
       expect(safe.zips.length).assertEqual(0);
       expect(safe.batches.length).assertEqual(0);
       expect(safe.concurrency).assertEqual(3);
+      expect(safe.wifiOnly).assertFalse();
       expect(safe.themeMode).assertEqual('system');
       expect(safe.materialType).assertEqual('adaptive');
       expect(safe.materialLevel).assertEqual('adaptive');

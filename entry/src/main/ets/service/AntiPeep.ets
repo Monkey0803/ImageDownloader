@@ -46,6 +46,8 @@ export class AntiPeep {
   static liveViewFailed: boolean = false;
   /** The page registers here to re-render when the peeping status changes. */
   static listener: (() => void) | undefined = undefined;
+  /** 让关闭开关或页面销毁后尚未返回的系统探测失效。 */
+  private static openRevision: number = 0;
 
   static attach(listener: () => void): void {
     AntiPeep.listener = listener;
@@ -72,11 +74,13 @@ export class AntiPeep {
       AntiPeep.stop();
       return false;
     }
-    return await AntiPeep.doOpen(context);
+    const revision: number = ++AntiPeep.openRevision;
+    return await AntiPeep.doOpen(context, revision);
   }
 
   /** 取消订阅并清掉窥视状态：关开关和页面销毁都走这里。 */
   static stop(): void {
+    AntiPeep.openRevision++;
     if (AntiPeep.subscribed) {
       try {
         // @SuppressWarnings syscap
@@ -111,14 +115,14 @@ export class AntiPeep {
   }
 
   /**
-   * 文档给的顺序：查能力 → 查系统开关 → 订阅 → 取初始状态。每个 await 之后重查订阅。
+   * 文档给的顺序：查能力 → 查系统开关 → 订阅 → 取初始状态。每个 await 之后核对请求版本。
    *
    * 不加"同一时刻只跑一遍"的合并：那样界面主动开开关的那一遍（带 context、能拉系统弹窗）
    * 会搭上启动探测那一遍（没 context）的便车，系统弹窗永远弹不出来——真机实测踩过。
-   * 并发安全靠 `if (subscribed) return true` 到 `on()` 之间没有 await：两遍同时跑最多多发
-   * 一次探测 IPC，绝不会注册出两个回调。启动恢复（initialize）与用户点击确实可能撞在一起。
+   * 启动恢复与用户点击可能同时探测；只允许最后一次开启继续订阅。关闭或页面销毁也会
+   * 使尚未返回的探测失效，避免关掉开关后又挂上回调。
    */
-  private static async doOpen(context?: common.UIAbilityContext): Promise<boolean> {
+  private static async doOpen(context: common.UIAbilityContext | undefined, revision: number): Promise<boolean> {
     try {
       // 设备级不支持是终态，探到一次就别再举手。少了这道短路，后面任何一遍探测都会把
       // 「设备不支持防窥保护」覆盖成「请在系统设置中开启防窥保护」，用户就去找一个
@@ -133,7 +137,9 @@ export class AntiPeep {
         return false;
       }
       AntiPeep.supported = true;
-      AntiPeep.systemSwitchOn = await AntiPeep.readSystemSwitch();
+      const initialSwitchOn: boolean = await AntiPeep.readSystemSwitch();
+      if (revision !== AntiPeep.openRevision) { return false; }
+      AntiPeep.systemSwitchOn = initialSwitchOn;
       // readSystemSwitch 探到 801（设备没这个能力）时会把 supported 翻下去：这是终态，
       // 不能再用「系统开关没开」糊过去——用户会照着去找一个根本不存在的能力。
       if (!AntiPeep.supported) {
@@ -145,7 +151,10 @@ export class AntiPeep {
       if (!AntiPeep.systemSwitchOn && context !== undefined) {
         // API 23 起可以直接把用户送到系统开关上，不用他自己翻设置。
         reason = await AntiPeep.askSystemSwitch(context);
-        AntiPeep.systemSwitchOn = await AntiPeep.readSystemSwitch();
+        if (revision !== AntiPeep.openRevision) { return false; }
+        const confirmedSwitchOn: boolean = await AntiPeep.readSystemSwitch();
+        if (revision !== AntiPeep.openRevision) { return false; }
+        AntiPeep.systemSwitchOn = confirmedSwitchOn;
       }
       if (!AntiPeep.systemSwitchOn) {
         AntiPeep.problem = reason.length > 0 ? reason : '请在系统设置中开启防窥保护';

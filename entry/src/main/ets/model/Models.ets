@@ -25,6 +25,9 @@ export class PictureItem {
   @Trace description: string = '';
   @Trace selected: boolean = false;
   @Trace userNamed: boolean = false;
+  /** 仅当下载地址就是浏览器已解码的 currentSrc 时，尺寸才可信；0 表示未知。 */
+  @Trace width: number = 0;
+  @Trace height: number = 0;
   /**
    * 'image' | 'livephoto'，见 `MediaFormat.mediaKindOf`。
    *
@@ -49,6 +52,9 @@ export class DownloadItem {
   @Trace status: string = 'queued';
   @Trace processed: number = 0;
   @Trace total: number = 0;
+  /** 当前进程内的实测速度；重启后等待新采样，不从旧进度推测。 */
+  @Trace speedBps: number = 0;
+  @Trace etaSeconds: number = 0;
   /** Final on-disk byte count, recorded when the download completes. */
   @Trace size: number = 0;
   @Trace error: string = '';
@@ -106,6 +112,7 @@ export class SavedState {
   zips: ZipItem[] = [];
   batches: BatchItem[] = [];
   concurrency: number = 3;
+  wifiOnly: boolean = false;
   /** 'system' | 'light' | 'dark' */
   themeMode: string = 'system';
   /** 'adaptive' | 'immersive' */

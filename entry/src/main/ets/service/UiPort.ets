@@ -30,6 +30,12 @@ export class UiPort {
   switchTab: (index: number) => void = (index: number): void => {
   };
 
+  /** 发现页的结果与全屏浏览视图共用一个 Web 控制器。 */
+  showBrowser: () => void = (): void => {
+  };
+  showResults: () => void = (): void => {
+  };
+
   /** 跳到图库并按关键词定位一条记录（任务页「在图中定位」用）。 */
   focusLibrary: (name: string) => void = (name: string): void => {
   };

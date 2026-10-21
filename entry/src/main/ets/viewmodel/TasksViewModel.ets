@@ -11,8 +11,8 @@ import { ScreenMetrics } from '../theme/Metrics';
  * 而 build 会**反复调用**它们 —— 一次渲染里 `activeTasks()` 被调 2 次、`settledTasks()` 3 次、
  * `batchViews()` 2 次，每次都是对 `downloads` 的一次全量扫描。列表一长就是几百次无谓比较。
  *
- * 这里改成**派生状态只在 `sync()` 时算一次**存成字段，build 只读数组。`sync()` 由界面在
- * 商店通知（`DownloadStore` 的监听回调）里调，也就是「数据真的变了」的那一刻，而不是每一帧。
+ * 派生状态只在 `sync()` 时算一次并写入 @Trace 字段，build 只读结果。任务状态从
+ * 「进行中」转到「已结束」时，ForEach 需要观察到新数组，才能插入对应卡片。
  */
 @ObservedV2
 export class TasksViewModel {
@@ -25,58 +25,11 @@ export class TasksViewModel {
   @Trace concurrency: number = 3;
   @Trace scrolled: boolean = false;
 
-  /**
-   * 以下四个是**派生**状态，改成 `@Computed`：
-   * 原来靠 `recompute()` 手写重算，字段和依赖要人肉对齐（漏一处就静默不刷新）。
-   * `@Computed` 按依赖缓存，读到的 @Trace 变了才重算，sync() 只需要拉原始镜像。
-   */
-  @Computed
-  get active(): DownloadItem[] {
-    return this.downloads.filter((item: DownloadItem): boolean =>
-      item.batchId.length === 0
-        && (item.status === 'running' || item.status === 'starting' || item.status === 'queued'));
-  }
-
-  @Computed
-  get settled(): DownloadItem[] {
-    return this.downloads.filter((item: DownloadItem): boolean =>
-      item.batchId.length === 0
-        && (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
-  }
-
-  @Computed
-  get batchViews(): BatchView[] {
-    const views: BatchView[] = [];
-    for (const batch of this.batches) {
-      const members: DownloadItem[] =
-        this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
-      const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
-      const failed: number = members.filter((item: DownloadItem): boolean =>
-        item.status === 'failed' || item.status === 'cancelled').length;
-      views.push(batchViewOf(batch, members, done, failed));
-    }
-    return views;
-  }
-
-  /**
-   * 「进行中」= 队列里跑着的单张任务 + 还在下载 / 打包的批次，这就是页签徽标。
-   * 判据与改动前一致：**不过滤 batchId**（批次成员也算在跑），批次则看批次记录自己的状态。
-   */
-  @Computed
-  get running(): number {
-    let total: number = 0;
-    for (const item of this.downloads) {
-      if (item.status === 'running' || item.status === 'starting' || item.status === 'queued') {
-        total++;
-      }
-    }
-    for (const batch of this.batches) {
-      if (batch.status === 'downloading' || batch.status === 'packing') {
-        total++;
-      }
-    }
-    return total;
-  }
+  @Trace active: DownloadItem[] = [];
+  @Trace settled: DownloadItem[] = [];
+  @Trace batchViews: BatchView[] = [];
+  /** 包含批次成员和批次本身，供页签徽标使用。 */
+  @Trace running: number = 0;
 
   attach(ui: UiPort): void {
     this.ui = ui;
@@ -98,16 +51,46 @@ export class TasksViewModel {
     });
   }
 
-  /** 数据变了：只拉原始镜像；派生列表由 @Computed 自己按依赖重算。 */
+  /** 数据变了：重新生成每个分组的数组，让 ForEach 正确观察到跨分组的任务。 */
   sync(): void {
     this.downloads = DownloadStore.downloads.slice();
     this.batches = DownloadStore.batches.slice();
     this.concurrency = DownloadStore.concurrency;
+    this.active = this.downloads.filter((item: DownloadItem): boolean =>
+      item.batchId.length === 0
+        && (item.status === 'running' || item.status === 'starting'
+          || item.status === 'queued' || item.status === 'waiting' || item.status === 'paused'));
+    this.settled = this.downloads.filter((item: DownloadItem): boolean =>
+      item.batchId.length === 0
+        && (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
+    const views: BatchView[] = [];
+    for (const batch of this.batches) {
+      const members: DownloadItem[] =
+        this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
+      const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
+      const failed: number = members.filter((item: DownloadItem): boolean =>
+        item.status === 'failed' || item.status === 'cancelled').length;
+      views.push(batchViewOf(batch, members, done, failed));
+    }
+    this.batchViews = views;
+    let running: number = 0;
+    for (const item of this.downloads) {
+      if (item.status === 'running' || item.status === 'starting'
+        || item.status === 'queued' || item.status === 'waiting' || item.status === 'paused') {
+        running++;
+      }
+    }
+    for (const batch of this.batches) {
+      if (batch.status === 'downloading' || batch.status === 'packing') {
+        running++;
+      }
+    }
+    this.running = running;
   }
 
-  /** 任务页没有任何卡片时显示空态（与改动前同一判据）。 */
+  /** 只有单任务和打包批次都没有卡片时才显示空态。 */
   isEmpty(): boolean {
-    return this.running === 0 && this.settled.length === 0;
+    return this.active.length === 0 && this.settled.length === 0 && this.batchViews.length === 0;
   }
 
   setConcurrency(value: number): void {
@@ -119,14 +102,20 @@ export class TasksViewModel {
     this.ui.say('已取消 ' + task.name);
   }
 
+  async pause(task: DownloadItem): Promise<void> {
+    this.ui.say(await DownloadStore.pause(task) ? '已暂停 ' + task.name : '暂停失败，请重试');
+  }
+
+  async resume(task: DownloadItem): Promise<void> {
+    this.ui.say(await DownloadStore.resume(task) ? '已继续 ' + task.name : '继续失败，请重试');
+  }
+
   retry(task: DownloadItem): void {
-    DownloadStore.retry(task);
-    this.ui.say('重新加入队列');
+    this.ui.say(DownloadStore.retry(task) ? '重新加入队列' : '任务尚未准备好重试');
   }
 
   retryBatch(batch: BatchView): void {
-    DownloadStore.retryBatch(batch.id);
-    this.ui.say('重新打包 ' + batch.name);
+    this.ui.say(DownloadStore.retryBatch(batch.id) ? '重新打包 ' + batch.name : '批次尚未准备好重试');
   }
 
   dismissBatch(batch: BatchView): void {
