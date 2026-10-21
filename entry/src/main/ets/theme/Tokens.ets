@@ -25,6 +25,7 @@ export class Palette {
   static readonly bg: Resource = $r('app.color.bg');
   static readonly bgCanvas: Resource = $r('app.color.bg_canvas');
   static readonly card: Resource = $r('app.color.card');
+  static readonly sheetTint: Resource = $r('app.color.sheet_tint');
   static readonly cardSunken: Resource = $r('app.color.card_sunken');
   static readonly divider: Resource = $r('app.color.divider');
   static readonly switchOff: Resource = $r('app.color.switch_off');

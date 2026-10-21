@@ -1,5 +1,8 @@
 import { PictureItem } from '../../model/Models';
+import { HdsNavigation, HdsNavigationTitleMode } from '@kit.UIDesignKit';
+import { uiMaterial } from '@kit.ArkUI';
 import { BrowserEntry } from '../../service/BrowserCollection';
+import { MaterialSupport } from '../../service/MaterialSupport';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
@@ -8,7 +11,7 @@ import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { SelectTile, Thumb } from '../Cards';
-import { HintRow, IconButton, PillButton, SectionHead, SettingSelect, TitleBar } from '../Widgets';
+import { HintRow, IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
@@ -39,6 +42,8 @@ export struct DiscoverScreen {
   @Event onOpenBrowser: () => void = (): void => {};
   @Event onShowResults: () => void = (): void => {};
   @Local private filtersOpen: boolean = false;
+  private inspectionMaterial: uiMaterial.Material | undefined = undefined;
+  private inspectionDialogId: number | undefined = undefined;
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -77,6 +82,25 @@ export struct DiscoverScreen {
   }
 
   @Builder
+  private addressTitleBar() {
+    Row({ space: Space.s6 }) {
+      if (this.browserOpen) {
+        IconButton({ glyph: 'chevronRight', glyphSize: 18, diameter: 36, plain: true,
+          accessibilityLabel: '返回结果', onAction: this.onShowResults }).rotate({ angle: 180 })
+      }
+      Column() {
+        this.addressEntry()
+      }.layoutWeight(1)
+      IconButton({ glyph: this.discover.isBookmarked() ? 'bookmarkFill' : 'bookmark',
+        glyphSize: 20, diameter: 36, plain: true,
+        accessibilityLabel: this.discover.isBookmarked() ? '取消收藏当前网页' : '收藏当前网页',
+        onAction: (): void => { this.discover.toggleBookmark(); } })
+    }
+    .width('100%')
+    .padding({ left: Layout.pagePad, right: Layout.pagePad })
+  }
+
+  @Builder
   private batchEntry() {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
@@ -107,30 +131,14 @@ export struct DiscoverScreen {
   }
 
   @Builder
-  private suggestedCard(item: PictureItem) {
-    Row({ space: Space.s10 }) {
-      Thumb({ src: item.url, label: 'IMG', fallbackText: '预览不可用' })
-        .width(66).height(66).borderRadius(Radius.r4)
-      Column({ space: Space.s4 }) {
-        Text('可能的主图').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
-        Text(item.width > 0 && item.height > 0
-          ? item.width.toString() + '×' + item.height.toString() + ' · 已测得' : '尺寸未知')
-          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        PillButton({ label: '查看详情', variant: 'tonal', small: true,
-          onAction: (): void => { this.discover.inspect(item.uid); } })
-      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-    }
-    .width('100%').padding(Space.s10).borderRadius(Radius.r8).backgroundColor(Palette.card)
-  }
-
-  @Builder
   private inspectionPanel(item: PictureItem) {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
         Text('图片详情').fontSize(Font.body).fontWeight(FontWeight.Bold)
           .fontColor(Palette.fontPrimary).layoutWeight(1)
-        PillButton({ label: '关闭', variant: 'ghost', small: true,
-          onAction: (): void => { this.discover.inspectedUid = ''; } })
+        IconButton({ glyph: 'close', glyphSize: 18, diameter: 36,
+          accessibilityLabel: '关闭图片详情',
+          onAction: (): void => { this.closeInspection(); } })
       }.width('100%')
       Thumb({ src: item.url, label: 'IMG', fallbackText: '预览不可用' })
         .width('100%').height(180).borderRadius(Radius.r4)
@@ -144,31 +152,87 @@ export struct DiscoverScreen {
       Text('需要登录的图片可能无法在列表预览；下载仍会使用当前网页的登录信息。')
         .fontSize(Font.caption).fontColor(Palette.fontTertiary)
       Row({ space: Space.s8 }) {
-        PillButton({ label: item.selected ? '取消选择' : '选择此图', variant: 'tonal', small: true,
+        IconButton({ glyph: item.selected ? 'xCircle' : 'checkCircle', glyphSize: 20,
+          accessibilityLabel: item.selected ? '取消选择此图' : '选择此图',
           onAction: (): void => { this.discover.togglePicture(item.uid); } })
         if (this.discover.pageUrl !== item.url && this.discover.pageUrl.startsWith('http')) {
-          PillButton({ label: '查看来源页', variant: 'ghost', small: true,
-            onAction: (): void => { this.discover.resumeBrowser(); } })
+          IconButton({ glyph: 'arrowRight', glyphSize: 20,
+            accessibilityLabel: '查看来源页',
+            onAction: (): void => {
+              this.closeInspection();
+              this.discover.resumeBrowser();
+            } })
         }
       }.width('100%')
     }
     .alignItems(HorizontalAlign.Start).width('100%')
-    .padding(Space.s12).borderRadius(Radius.r8).backgroundColor(Palette.card)
+    .padding(Space.s12)
+  }
+
+  private sheetMaterial(): uiMaterial.Material | undefined {
+    if (!MaterialSupport.immersiveSupported()) {
+      return undefined;
+    }
+    if (!this.settings.lightEffect || this.settings.materialType === 'none') {
+      return uiMaterial.Material.empty;
+    }
+    if (this.inspectionMaterial === undefined) {
+      this.inspectionMaterial = new uiMaterial.ImmersiveMaterial({
+        style: uiMaterial.ImmersiveStyle.THICK,
+        materialColor: Palette.sheetTint,
+        interactive: true,
+        lightEffect: { color: Palette.brand }
+      });
+    }
+    return this.inspectionMaterial;
+  }
+
+  @Builder
+  private inspectionSheet() {
+    Scroll() {
+      Column() {
+        ForEach(this.discover.inspectedPicture === undefined ? [] : [this.discover.inspectedPicture!],
+          (item: PictureItem) => {
+            this.inspectionPanel(item)
+          }, (item: PictureItem) => item.uid)
+      }.width('100%')
+    }
+    .width('100%')
+    .constraintSize({ maxHeight: ScreenMetrics.height() * 0.7 })
+    .scrollBar(BarState.Auto)
+  }
+
+  private openInspection(uid: string): void {
+    this.discover.inspect(uid);
+    if (this.inspectionDialogId !== undefined) {
+      return;
+    }
+    this.getUIContext().getPromptAction().openCustomDialog({
+      builder: (): void => { this.inspectionSheet(); },
+      alignment: DialogAlignment.Center,
+      width: '90%',
+      autoCancel: true,
+      backgroundColor: Palette.card,
+      systemMaterial: this.sheetMaterial(),
+      onWillDismiss: (action: DismissDialogAction): void => {
+        this.discover.inspectedUid = '';
+        this.inspectionDialogId = undefined;
+        action.dismiss();
+      }
+    }).then((id: number): void => { this.inspectionDialogId = id; });
+  }
+
+  private closeInspection(): void {
+    this.discover.inspectedUid = '';
+    if (this.inspectionDialogId !== undefined) {
+      this.getUIContext().getPromptAction().closeCustomDialog(this.inspectionDialogId);
+      this.inspectionDialogId = undefined;
+    }
   }
 
   @Builder
   private browserView() {
     Column({ space: Space.s10 }) {
-      Row({ space: Space.s8 }) {
-        PillButton({ label: '返回结果', variant: 'ghost', small: true,
-          onAction: this.onShowResults })
-        Text('浏览网页').fontSize(Font.title).fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary).layoutWeight(1)
-      }
-      .width('100%')
-
-      this.addressEntry()
-
       Row({ space: Space.s6 }) {
         IconButton({ glyph: 'chevronRight', glyphSize: 18, plain: true,
           accessibilityLabel: '返回上一页',
@@ -240,7 +304,7 @@ export struct DiscoverScreen {
     .height('100%')
     .padding({
       left: Layout.pagePad, right: Layout.pagePad,
-      top: SCREEN_INSETS.safeTop + Space.s12,
+      top: Space.s12,
       bottom: SCREEN_INSETS.safeBottom + Space.s12
     })
     .backgroundColor(Palette.bg)
@@ -281,11 +345,6 @@ export struct DiscoverScreen {
   private browserLibrary() {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
-        PillButton({
-          label: this.discover.isBookmarked() ? '已收藏' : '收藏此页',
-          variant: this.discover.isBookmarked() ? 'tonal' : 'ghost', small: true,
-          onAction: (): void => { this.discover.toggleBookmark(); }
-        })
         PillButton({
           label: '收藏 ' + this.discover.bookmarks.length.toString(), variant: 'ghost', small: true,
           onAction: (): void => {
@@ -354,7 +413,7 @@ export struct DiscoverScreen {
         ForEach(chunkRows<PictureItem>(this.discover.visiblePictures, 3), (row: PictureItem[], rowIndex: number) => {
           Row({ space: Space.s8 }) {
             ForEach(row, (cell: PictureItem, colIndex: number) => {
-              Column() {
+              Stack({ alignContent: Alignment.BottomEnd }) {
                 SelectTile({
                   picture: cell,
                   index: rowIndex * 3 + colIndex,
@@ -364,9 +423,12 @@ export struct DiscoverScreen {
                     this.discover.togglePicture(uid);
                   }
                 })
-                PillButton({ label: '详情', variant: 'ghost', small: true,
-                  onAction: (): void => { this.discover.inspect(cell.uid); } })
+                IconButton({ glyph: 'info', glyphSize: 18, diameter: 36,
+                  accessibilityLabel: '查看图片详情',
+                  onAction: (): void => { this.openInspection(cell.uid); } })
+                  .margin({ right: Space.s4, bottom: Space.s4 })
               }
+              .width('100%')
               .layoutWeight(1)
             }, (cell: PictureItem) => cell.uid)
 
@@ -448,14 +510,11 @@ export struct DiscoverScreen {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Scroll(this.discover.scrollController()) {
+      HdsNavigation() {
+        Scroll(this.discover.scrollController()) {
         Column({ space: Space.s16 }) {
-          this.addressEntry()
           this.batchEntry()
           this.pageSummary()
-          if (this.discover.featuredPicture !== undefined) {
-            this.suggestedCard(this.discover.featuredPicture!)
-          }
 
           Column({ space: Space.s10 }) {
             SectionHead({
@@ -498,10 +557,6 @@ export struct DiscoverScreen {
               this.filterPanel()
             }
 
-            if (this.discover.inspectedPicture !== undefined) {
-              this.inspectionPanel(this.discover.inspectedPicture!)
-            }
-
             this.resultGrid()
           }
           .width('100%')
@@ -518,7 +573,7 @@ export struct DiscoverScreen {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+          top: Space.s12,
           bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom,
             (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0))
         })
@@ -530,21 +585,32 @@ export struct DiscoverScreen {
       .onDidScroll((): void => {
         this.discover.markScrolled();
       })
-      .visibility(this.browserOpen ? Visibility.None : Visibility.Visible)
-
-      TitleBar({
-        heading: '发现',
-        caption: this.discover.scanning ? '正在扫描当前网页…' : '',
-        layer: Layout.tbLayerSecondary
-      })
-      .visibility(this.browserOpen ? Visibility.None : Visibility.Visible)
-
-      Column() {
-        this.browserView()
       }
+      .titleBar({ enableComponentSafeArea: true, content: {
+        stackBuilder: (): void => { this.addressTitleBar(); }
+      } })
+      .titleMode(HdsNavigationTitleMode.MINI)
+      .hideBackButton(true)
+      .mode(NavigationMode.Stack)
       .width('100%')
       .height('100%')
+      .padding({ top: SCREEN_INSETS.safeTop })
+      .visibility(this.browserOpen ? Visibility.None : Visibility.Visible)
+
+      HdsNavigation() {
+        this.browserView()
+      }
+      .titleBar({ enableComponentSafeArea: true, content: {
+        stackBuilder: (): void => { this.addressTitleBar(); }
+      } })
+      .titleMode(HdsNavigationTitleMode.MINI)
+      .hideBackButton(true)
+      .mode(NavigationMode.Stack)
+      .width('100%')
+      .height('100%')
+      .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.Visible : Visibility.None)
+
     }
     .width('100%')
     .height('100%')

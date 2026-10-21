@@ -18,6 +18,7 @@
     { "name": "bg", "value": "#191A1C" },
     { "name": "bg_canvas", "value": "#0E0F10" },
     { "name": "card", "value": "#202224" },
+    { "name": "sheet_tint", "value": "#E6202224" },
     { "name": "card_sunken", "value": "#0DFFFFFF" },
     { "name": "divider", "value": "#1AFFFFFF" },
     { "name": "switch_off", "value": "#2EFFFFFF" },

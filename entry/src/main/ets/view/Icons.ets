@@ -99,6 +99,9 @@ const SYMBOL_RES: Record<string, Resource> = {
   'inbox': $r('sys.symbol.arrow_down_circle'),
   'sparkle': $r('sys.symbol.rays'),
   'eye': $r('sys.symbol.eye'),
+  'info': $r('sys.symbol.info_circle'),
+  'bookmark': $r('sys.symbol.bookmark'),
+  'bookmarkFill': $r('sys.symbol.bookmark_fill'),
   // 只在符号层存在的两个名字：地址栏的「粘贴」与「前往」。
   'paste': $r('sys.symbol.text_clipboard'),
   'arrowRight': $r('sys.symbol.arrow_right')
