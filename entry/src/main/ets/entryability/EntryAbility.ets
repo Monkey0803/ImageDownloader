@@ -20,6 +20,7 @@ import { webview } from '@kit.ArkWeb';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { DownloadStore } from '../service/DownloadStore';
 import { ShareInbox } from '../service/ShareInbox';
+import { WidgetLaunch } from '../service/WidgetLaunch';
 
 const DOMAIN = 0x0000;
 
@@ -51,10 +52,12 @@ export default class EntryAbility extends UIAbility {
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     ShareInbox.receive(want);
+    WidgetLaunch.receive(want);
   }
 
   onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     ShareInbox.receive(want);
+    WidgetLaunch.receive(want);
   }
 
   onDestroy(): void {

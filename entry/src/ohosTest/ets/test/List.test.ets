@@ -9,6 +9,7 @@ import browserCollectionTest from './BrowserCollection.test';
 import duplicateFinderTest from './DuplicateFinder.test';
 import tasksViewModelTest from './TasksViewModel.test';
 import batchLinksTest from './BatchLinks.test';
+import widgetSnapshotTest from './WidgetSnapshot.test';
 
 export default function testsuite() {
   downloadStoreTest();
@@ -22,4 +23,5 @@ export default function testsuite() {
   duplicateFinderTest();
   tasksViewModelTest();
   batchLinksTest();
+  widgetSnapshotTest();
 }

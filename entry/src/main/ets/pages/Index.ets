@@ -5,6 +5,7 @@ import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Nav
 import { DownloadStore } from '../service/DownloadStore';
 import { UiPort } from '../service/UiPort';
 import { ShareInbox } from '../service/ShareInbox';
+import { WidgetLaunch } from '../service/WidgetLaunch';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../viewmodel/DeviceViewModel';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
@@ -75,6 +76,7 @@ struct Index {
     this.storeChanged();
   };
   private sharedLinkListener: () => void = (): void => { this.consumeSharedLink(); };
+  private widgetLaunchListener: () => void = (): void => { this.consumeWidgetLaunch(); };
 
   aboutToAppear(): void {
     const context: common.UIAbilityContext = this.hostContext();
@@ -93,7 +95,9 @@ struct Index {
     this.storeChanged();
     this.settings.applyTheme();
     ShareInbox.subscribe(this.sharedLinkListener);
+    WidgetLaunch.subscribe(this.widgetLaunchListener);
     this.consumeSharedLink();
+    this.consumeWidgetLaunch();
   }
 
   /**
@@ -105,6 +109,7 @@ struct Index {
     this.pageVisible = true;
     this.flushNotice();
     this.consumeSharedLink();
+    this.consumeWidgetLaunch();
   }
 
   onPageHide(): void {
@@ -128,6 +133,7 @@ struct Index {
   aboutToDisappear(): void {
     DownloadStore.unsubscribe(this.listener);
     ShareInbox.unsubscribe(this.sharedLinkListener);
+    WidgetLaunch.unsubscribe(this.widgetLaunchListener);
     this.device.stop();
     this.discover.cancelScan();
     // 提示的定时器与「销毁后不再弹」一起收掉。
@@ -143,6 +149,12 @@ struct Index {
     this.currentTab = TAB_DISCOVER;
     this.discover.address = link;
     this.discover.visit();
+  }
+
+  private consumeWidgetLaunch(): void {
+    if (!this.pageVisible || !WidgetLaunch.takeTasks()) { return; }
+    this.browserOpen = false;
+    this.currentTab = TAB_TASKS;
   }
 
   private hostContext(): common.UIAbilityContext {

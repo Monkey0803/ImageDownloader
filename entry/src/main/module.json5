@@ -58,6 +58,16 @@
     ],
     "extensionAbilities": [
       {
+        "name": "EntryFormAbility",
+        "srcEntry": "./ets/entryformability/EntryFormAbility.ets",
+        "type": "form",
+        "label": "$string:download_widget_name",
+        "description": "$string:download_widget_desc",
+        "metadata": [
+          { "name": "ohos.extension.form", "resource": "$profile:form_config" }
+        ]
+      },
+      {
         "name": "EntryBackupAbility",
         "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",
         "type": "backup",

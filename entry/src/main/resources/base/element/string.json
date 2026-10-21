@@ -15,6 +15,14 @@
     {
       "name": "pasteboard_reason",
       "value": "读取剪贴板里的链接，粘贴到地址栏后打开"
+    },
+    {
+      "name": "download_widget_name",
+      "value": "下载概览"
+    },
+    {
+      "name": "download_widget_desc",
+      "value": "查看待处理的图片下载任务"
     }
   ]
 }

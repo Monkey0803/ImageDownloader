@@ -14,6 +14,8 @@ import { ActionOutcome, activateFolder } from './FileActions';
 import { Delivery, DeliveryTarget } from './Delivery';
 import { LivePhoto, LivePhotoContent } from './LivePhoto';
 import { StillFrames } from './StillFrames';
+import { WidgetForms } from '../widget/WidgetForms';
+import { WidgetSnapshot } from '../widget/WidgetSnapshot';
 
 interface ProgressSample {
   bytes: number;
@@ -68,6 +70,7 @@ export class DownloadStore {
   static listeners: (() => void)[] = [];
   static serial: number = 0;
   static lastProgressSaveAt: number = 0;
+  private static lastWidgetProgressAt: number = 0;
   /**
    * 合并落盘的定时器；-1 表示没有排队中的写盘。
    *
@@ -130,6 +133,7 @@ export class DownloadStore {
       DownloadStore.adopt(parsed ?? new SavedState());
     }
     DownloadStore.recover();
+    DownloadStore.publishWidget();
     // 状态文件里记着开关：启动时把订阅恢复成和开关一致，否则重启后主操作不再跟随握持手。
     GripSensor.setEnabled(DownloadStore.gripEnabled);
     // 防窥保护同理，但这里不带 context：启动恢复订阅绝不能拉起系统弹窗去打扰用户。
@@ -246,6 +250,7 @@ export class DownloadStore {
     // 立刻写盘就等于把排队中的那次合并写盘取代了，先撤掉定时器，免得再白写一遍。
     DownloadStore.cancelPendingSave();
     DownloadStore.save();
+    DownloadStore.publishWidget();
     DownloadStore.emit();
   }
 
@@ -258,7 +263,18 @@ export class DownloadStore {
    */
   static notifyProgress(): void {
     DownloadStore.scheduleSave();
+    const now: number = Date.now();
+    if (now - DownloadStore.lastWidgetProgressAt >= 15000) {
+      DownloadStore.lastWidgetProgressAt = now;
+      DownloadStore.publishWidget();
+    }
     DownloadStore.emit();
+  }
+
+  private static publishWidget(): void {
+    if (DownloadStore.context === undefined) { return; }
+    WidgetForms.publish(DownloadStore.context.filesDir,
+      WidgetSnapshot.from(DownloadStore.downloads, DownloadStore.batches, DownloadStore.antiPeepEnabled));
   }
 
   /** 把界面回调跑一遍；先取快照，回调里（预览页的 onDelete）可能把自己摘掉。 */
@@ -928,6 +944,7 @@ export class DownloadStore {
       DownloadStore.saveTimer = -1;
     }
     DownloadStore.save();
+    DownloadStore.publishWidget();
   }
 
   /**
