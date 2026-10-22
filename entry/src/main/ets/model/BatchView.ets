@@ -10,7 +10,7 @@ import { BatchItem, DownloadItem } from './Models';
 export class BatchView {
   id: string = '';
   name: string = '';
-  /** 'downloading' | 'packing' | 'failed' | 'completed' */
+  /** 'downloading' | 'waiting' | 'packing' | 'failed' | 'completed' */
   status: string = 'downloading';
   total: number = 0;
   done: number = 0;
@@ -33,8 +33,13 @@ export function batchViewOf(batch: BatchItem, members: DownloadItem[],
   // members are gone, so member counts alone would read as "0/0 下载中".
   if (batch.status === 'failed' || batch.status === 'completed') {
     view.status = batch.status;
+  } else if (members.length > 0 && (done + failed) >= members.length) {
+    view.status = 'packing';
   } else {
-    view.status = members.length > 0 && (done + failed) >= members.length ? 'packing' : 'downloading';
+    const waiting: boolean = members.some((item: DownloadItem): boolean => item.status === 'waiting');
+    const transferring: boolean = members.some((item: DownloadItem): boolean =>
+      item.status === 'running' || item.status === 'starting');
+    view.status = waiting && !transferring ? 'waiting' : 'downloading';
   }
   view.thumbs = members.slice(0, 3).map((item: DownloadItem): string => item.url);
   return view;

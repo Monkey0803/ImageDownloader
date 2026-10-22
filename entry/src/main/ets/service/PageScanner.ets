@@ -384,7 +384,7 @@ export class PageScanner {
     if (strategy.arbitrate() && data.images.length > 0) {
       // 用 HEAD 的 Content-Length 在候选里挑最大的那张。失败就保持页面原本的地址，
       // 所以这一步只会让结果变好，不会因为猜错地址而丢图。
-      await ScanUpgrader.apply(data.images, data.url);
+      await ScanUpgrader.apply(data.images, data.url, (): boolean => generation === this.generation);
       if (generation !== this.generation) {
         return;
       }

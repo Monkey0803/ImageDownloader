@@ -10,6 +10,10 @@ import duplicateFinderTest from './DuplicateFinder.test';
 import tasksViewModelTest from './TasksViewModel.test';
 import batchLinksTest from './BatchLinks.test';
 import widgetSnapshotTest from './WidgetSnapshot.test';
+import galleryBatchingTest from './GalleryBatching.test';
+import pageExpansionTest from './PageExpansion.test';
+import saveReceiptTest from './SaveReceipt.test';
+import batchViewTest from './BatchView.test';
 
 export default function testsuite() {
   downloadStoreTest();
@@ -24,4 +28,8 @@ export default function testsuite() {
   tasksViewModelTest();
   batchLinksTest();
   widgetSnapshotTest();
+  galleryBatchingTest();
+  pageExpansionTest();
+  saveReceiptTest();
+  batchViewTest();
 }

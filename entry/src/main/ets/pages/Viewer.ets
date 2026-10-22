@@ -3,10 +3,8 @@ import { fileUri } from '@kit.CoreFileKit';
 import { DownloadItem } from '../model/Models';
 import { DownloadStore } from '../service/DownloadStore';
 import {
-  ActionOutcome, exportFile, saveImageToGallery, saveLivePhotoToGallery, shareFile, shareLivePhoto
+  ActionOutcome, exportFile, shareFile, shareLivePhoto
 } from '../service/FileActions';
-import { MediaFormat } from '../service/MediaFormat';
-import { Naming } from '../service/Naming';
 import { kindOf, Palette, Space } from '../theme/Tokens';
 import { ToastLatch } from '../util/Toast';
 import { ImageViewer, ViewerSlide } from '../view/Cards';
@@ -207,8 +205,8 @@ struct Viewer {
    */
   private localHint(): string {
     const item: DownloadItem | undefined = this.item();
-    if (this.local && item !== undefined && item.note.length > 0) {
-      return item.note;
+    if (this.local && item !== undefined) {
+      return [item.note, item.receipt.message].filter((text: string): boolean => text.length > 0).join('；');
     }
     if (this.local) {
       return '';
@@ -282,19 +280,6 @@ struct Viewer {
       && DownloadStore.exists(item.stillPath) && DownloadStore.exists(item.motionPath);
   }
 
-  /** 存相册 / 兜底操作要用的源文件：实况照片用解出来的静图。 */
-  private saveSource(item: DownloadItem): string {
-    return item.kind === 'livephoto' && item.stillPath.length > 0 ? item.stillPath : item.path;
-  }
-
-  /** 源文件对应的文件名：扩展名要跟着实际文件走（静图可能是 heic / jpg）。 */
-  private saveName(item: DownloadItem): string {
-    if (item.kind === 'livephoto' && item.stillPath.length > 0) {
-      return Naming.withExtension(item.name, MediaFormat.extensionOf(item.stillPath));
-    }
-    return item.name;
-  }
-
   /** 文件操作的返回值本身就是给用户看的话，直接 say 出去（空串表示不用吭声）。 */
   private report(outcome: ActionOutcome): void {
     if (outcome.message.length > 0) {
@@ -353,19 +338,23 @@ struct Viewer {
             if (item === undefined) {
               return;
             }
-            // 实况照片：静图与视频各存一份（免权限的相册确认框不支持实况照片类型，
-            // 见 FileActions.saveLivePhotoToGallery 的说明）。
-            if (this.livePair(item)) {
-              saveLivePhotoToGallery(this.context(), item.stillPath, item.motionPath, item.name)
-                .then((outcome: ActionOutcome): void => {
-                  this.report(outcome);
-                });
+            if (item.receipt.target === 'gallery' && item.receipt.status === 'saved') {
+              this.getUIContext().showAlertDialog({ title: '再保存一份',
+                message: '这张图片此前已存入系统相册，是否再保存一份？',
+                primaryButton: { value: '取消', action: (): void => {} },
+                secondaryButton: { value: '再保存', action: (): void => { DownloadStore.saveToGallery(item, true); } }
+              });
               return;
             }
-            saveImageToGallery(this.context(), this.saveSource(item), this.saveName(item))
-              .then((outcome: ActionOutcome): void => {
-                this.report(outcome);
+            if (item.receipt.status === 'interrupted') {
+              this.getUIContext().showAlertDialog({ title: '再次另存',
+                message: '上次保存结果未确认。请先检查目标位置，避免产生重复副本。',
+                primaryButton: { value: '取消', action: (): void => {} },
+                secondaryButton: { value: '仍要另存', action: (): void => { DownloadStore.saveToGallery(item); } }
               });
+              return;
+            }
+            DownloadStore.saveToGallery(item);
           },
           onShare: (): void => {
             const item: DownloadItem | undefined = this.item();

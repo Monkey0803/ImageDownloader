@@ -8,8 +8,11 @@ import { Clipboard } from '../service/Clipboard';
 import { MediaFormat } from '../service/MediaFormat';
 import { PictureFactory, ScanImage } from '../service/PictureFactory';
 import { PictureFilters } from '../service/PictureFilters';
-import { PageScanner, ScanData, ScanEvents } from '../service/PageScanner';
+import { PageScanner, ScanData, ScanEvents, ScanProtocol, ScanStrategies } from '../service/PageScanner';
+import { PageExpansion, ExpansionStep } from '../service/PageExpansion';
+import { ScanUpgrader } from '../service/ScanUpgrader';
 import { SizeArbiter } from '../service/SizeArbiter';
+import { AuthenticatedPreview, PreviewResult } from '../service/AuthenticatedPreview';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
 import { formatBytes } from '../theme/Tokens';
@@ -39,6 +42,13 @@ export class DiscoverViewModel {
   private directLinkActive: boolean = false;
   private scroller: Scroller = new Scroller();
   private scanner: PageScanner = new PageScanner();
+  private preview: AuthenticatedPreview = new AuthenticatedPreview();
+  private inspectionGeneration: number = 0;
+  private expansion: PageExpansion = new PageExpansion();
+  private expansionGeneration: number = 0;
+  @Trace expanding: boolean = false;
+  @Trace expansionAdded: number = 0;
+  @Trace expansionMessage: string = '';
 
   @Trace address: string = '';
   @Trace pageUrl: string = '';
@@ -58,6 +68,9 @@ export class DiscoverViewModel {
   @Trace inspectedUid: string = '';
   @Trace inspectionBytes: number = 0;
   @Trace inspectionLoading: boolean = false;
+  @Trace previewUri: string = '';
+  @Trace previewMessage: string = '';
+  @Trace previewLoading: boolean = false;
   @Computed
   get batchReport(): BatchLinkReport { return BatchLinks.parse(this.batchText); }
   @Computed
@@ -113,6 +126,7 @@ export class DiscoverViewModel {
 
   attach(ui: UiPort): void {
     this.ui = ui;
+    AuthenticatedPreview.clearStale(ui.context().cacheDir);
     const saved: BrowserData = BrowserCollection.load(ui.context());
     this.history = saved.history;
     this.bookmarks = saved.bookmarks;
@@ -281,17 +295,44 @@ export class DiscoverViewModel {
   inspect(uid: string): void {
     const picture: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean => item.uid === uid);
     if (picture === undefined) { return; }
+    this.closeInspection();
+    const generation: number = this.inspectionGeneration;
     this.inspectedUid = uid;
     this.inspectionBytes = 0;
     this.inspectionLoading = true;
     const url: string = picture.url;
+    if (picture.kind === 'image') {
+      this.previewLoading = true;
+      this.previewMessage = '正在加载预览…';
+      this.preview.load(url, this.pageUrl, this.ui.context().cacheDir).then((result: PreviewResult): void => {
+        if (generation !== this.inspectionGeneration) { return; }
+        this.previewUri = result.uri;
+        this.previewMessage = result.message;
+        this.previewLoading = false;
+      }).catch((): void => {
+        if (generation !== this.inspectionGeneration) { return; }
+        this.previewLoading = false;
+        this.previewMessage = '预览不可用，可查看来源页或下载原文件';
+      });
+    } else {
+      this.previewMessage = '实况照片包下载后可预览';
+    }
     SizeArbiter.measure(url, this.pageUrl).then((bytes: number): void => {
-      if (this.inspectedUid !== uid || this.inspectedPicture?.url !== url) { return; }
+      if (generation !== this.inspectionGeneration || this.inspectedPicture?.url !== url) { return; }
       this.inspectionBytes = bytes;
       this.inspectionLoading = false;
     }).catch((): void => {
-      if (this.inspectedUid === uid) { this.inspectionLoading = false; }
+      if (generation === this.inspectionGeneration) { this.inspectionLoading = false; }
     });
+  }
+
+  closeInspection(): void {
+    this.inspectionGeneration++;
+    this.inspectedUid = '';
+    this.previewUri = '';
+    this.previewMessage = '';
+    this.previewLoading = false;
+    this.preview.cancel();
   }
 
   inspectionSizeLabel(): string {
@@ -312,6 +353,8 @@ export class DiscoverViewModel {
     if (input.length === 0) {
       return;
     }
+    this.stopExpansion(false);
+    this.expansionMessage = '';
     // 打开新链接要立刻作废排队中的重扫与在飞结果，否则上一页的结果会落到新页面上。
     this.scanner.invalidate();
     if (!input.startsWith('http://') && !input.startsWith('https://')) {
@@ -321,7 +364,7 @@ export class DiscoverViewModel {
     this.batchOpen = false;
     this.pageUrl = input;
     this.pictures = [];
-    this.inspectedUid = '';
+    this.closeInspection();
     this.pendingBrowserUrl = '';
     const kind: string = MediaFormat.mediaKindOf(input);
     if (kind === 'livephoto') {
@@ -382,17 +425,20 @@ export class DiscoverViewModel {
 
   navigationStarted(): void {
     if (this.directLinkActive) { return; }
+    this.stopExpansion(false);
+    this.expansionMessage = '';
     this.scanner.invalidate();
     this.scanning = true;
     this.browserProblem = '';
     this.pageUrl = '';
     this.pageTitle = '';
     this.pictures = [];
-    this.inspectedUid = '';
+    this.closeInspection();
   }
 
   navigationFailed(message: string): void {
     if (this.directLinkActive) { return; }
+    this.stopExpansion(false);
     this.scanner.invalidate();
     this.scanning = false;
     this.browserProblem = message.length > 0 ? message : '网页加载失败，请检查链接或网络后重试';
@@ -405,10 +451,11 @@ export class DiscoverViewModel {
    * 扫描器只认档位 id，不认「谁存的档位」。
    */
   scan(quality: string): void {
+    this.stopExpansion(false);
     this.scanning = true;
     const events: ScanEvents = {
       onProgress: (data: ScanData): void => {
-        if (data.url !== this.pageUrl) { this.pictures = []; this.inspectedUid = ''; }
+        if (data.url !== this.pageUrl) { this.pictures = []; this.closeInspection(); }
         this.pageUrl = data.url;
         this.address = data.url;
         this.pageTitle = data.title;
@@ -437,7 +484,73 @@ export class DiscoverViewModel {
 
   /** 页面销毁 / 换页时停掉排队中的重扫（页面没了还继续注入脚本是白跑）。 */
   cancelScan(): void {
-    this.scanner.cancel();
+    this.scanner.invalidate();
+    this.scanning = false;
+    this.closeInspection();
+    this.stopExpansion();
+  }
+
+  canExpand(): boolean {
+    return !this.directLinkActive && this.pageUrl.startsWith('http')
+      && !this.scanning && this.browserProblem.length === 0;
+  }
+
+  stopExpansion(announce: boolean = true): void {
+    const wasRunning: boolean = this.expanding;
+    this.expansion.stop();
+    this.expansionGeneration++;
+    this.expanding = false;
+    if (wasRunning && announce) {
+      this.expansionMessage = '已停止，本次新增 ' + this.expansionAdded.toString() + ' 张';
+    }
+  }
+
+  loadMore(quality: string): void {
+    if (this.expanding || !this.canExpand()) { return; }
+    this.scanner.invalidate();
+    this.closeInspection();
+    this.stopExpansion(false);
+    const generation: number = this.expansionGeneration;
+    const url: string = this.pageUrl;
+    this.expanding = true;
+    this.expansionAdded = 0;
+    this.expansionMessage = '正在加载，本次新增 0 张';
+    this.ui.showBrowser();
+    this.expansion.run(url, this.pictures.map((item: PictureItem): string => item.url),
+      async (): Promise<ExpansionStep> => {
+        const order: string[] = ScanStrategies.of(quality).order();
+        const upgrade: boolean = ScanStrategies.of(quality).arbitrate();
+        // 先采集上次滚动触发的图片，再滚动一屏；不点击链接、不切换网页。
+        const raw: webview.JsMessageExt = await this.browser.runJavaScriptExt(ScanProtocol.script(order, upgrade));
+        if (generation !== this.expansionGeneration) { throw new Error('cancelled'); }
+        const data: ScanData = ScanProtocol.parse(raw.getString());
+        if (data.url !== url) { throw new Error('page changed'); }
+        if (upgrade) {
+          await ScanUpgrader.apply(data.images, data.url, (): boolean => generation === this.expansionGeneration);
+        }
+        if (generation !== this.expansionGeneration) { throw new Error('cancelled'); }
+        const scroll: webview.JsMessageExt = await this.browser.runJavaScriptExt(
+          '(() => { if (location.href !== ' + JSON.stringify(url) + ') return false;'
+          + ' const root = document.scrollingElement || document.documentElement;'
+          + ' window.scrollBy(0, Math.max(200, window.innerHeight * 0.8));'
+          + ' return root.scrollTop + window.innerHeight >= root.scrollHeight - 2; })()');
+        return { data: data, bottom: scroll.getBoolean() };
+      },
+      (data: ScanData, added: number): void => {
+        this.pictures = PictureFactory.merge(this.pictures, data.images);
+        this.expansionAdded = added;
+        this.expansionMessage = '正在加载，本次新增 ' + added.toString() + ' 张';
+      },
+      (added: number, limited: boolean): void => {
+        this.expanding = false;
+        this.expansionMessage = '本次新增 ' + added.toString() + ' 张'
+          + (limited ? '，可再次加载更多' : '，当前页暂未发现更多图片');
+        this.ui.say(this.expansionMessage);
+      },
+      (): void => {
+        this.expanding = false;
+        this.expansionMessage = '加载已停止，已找到的图片仍保留，可重试或手动浏览';
+      });
   }
 
   // ------------------------------------------------------------------ 选择

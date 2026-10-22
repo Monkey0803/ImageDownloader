@@ -114,6 +114,7 @@ struct Index {
 
   onPageHide(): void {
     this.pageVisible = false;
+    this.discover.cancelScan();
   }
 
   onBackPress(): boolean {
@@ -176,6 +177,7 @@ struct Index {
     };
     port.context = (): common.UIAbilityContext => this.hostContext();
     port.switchTab = (index: number): void => {
+      if (index !== TAB_DISCOVER) { this.discover.cancelScan(); }
       this.currentTab = index;
     };
     port.showBrowser = (): void => {
@@ -384,6 +386,7 @@ struct Index {
           active: this.currentTab,
           badge: this.tasks.running,
           onSelect: (index: number): void => {
+            if (index !== TAB_DISCOVER) { this.discover.cancelScan(); }
             this.currentTab = index;
           }
         })

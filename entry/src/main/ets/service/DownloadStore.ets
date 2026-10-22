@@ -64,6 +64,12 @@ export class DownloadStore {
   static progressSamples: Map<string, ProgressSample> = new Map<string, ProgressSample>();
   /** 用户的 pause() 尚未返回时，区分其 PAUSED 回调与系统自动暂停。 */
   private static pauseRequests: Set<string> = new Set<string>();
+  private static resumeRequests: Set<string> = new Set<string>();
+  private static foreground: boolean = true;
+  private static initialized: boolean = false;
+  private static refreshTimer: number = -1;
+  private static refreshing: boolean = false;
+  private static recovering: boolean = false;
   /** 取消任务的系统清理尚未结束时，不允许同一记录立即重试。 */
   private static cancelRequests: Set<string> = new Set<string>();
   /** 在场页面的刷新回调；Index 常驻，图库预览页挂上来又摘下去。 */
@@ -132,7 +138,12 @@ export class DownloadStore {
       }
       DownloadStore.adopt(parsed ?? new SavedState());
     }
-    DownloadStore.recover();
+    DownloadStore.initialized = true;
+    DownloadStore.recovering = true;
+    DownloadStore.recover().finally((): void => {
+      DownloadStore.recovering = false;
+      DownloadStore.setForeground(DownloadStore.foreground);
+    });
     DownloadStore.publishWidget();
     // 状态文件里记着开关：启动时把订阅恢复成和开关一致，否则重启后主操作不再跟随握持手。
     GripSensor.setEnabled(DownloadStore.gripEnabled);
@@ -153,6 +164,7 @@ export class DownloadStore {
    */
   private static wireDelivery(): void {
     const delivery: Delivery = DownloadStore.delivery;
+    delivery.changed = (): void => { DownloadStore.notify(); };
     delivery.context = (): common.UIAbilityContext => DownloadStore.context;
     delivery.target = (): DeliveryTarget => {
       const target: DeliveryTarget = new DeliveryTarget();
@@ -783,6 +795,11 @@ export class DownloadStore {
     task.on('response', (response: request.agent.HttpResponse): void => {
       if (!DownloadStore.acceptsAgentEvent(item, task.tid)) { return; }
       if (response.statusCode >= 400) { item.error = 'HTTP ' + response.statusCode.toString(); }
+      if (item.recoveryMessage === '正在确认继续位置') {
+        item.recoveryMessage = response.statusCode === 206 ? '服务器已接受分段请求'
+          : response.statusCode === 200 ? '本次从头重新下载' : '继续位置尚未确认';
+        DownloadStore.notify();
+      }
       const contentTypes: string[] | undefined = response.headers.get('content-type') ?? response.headers.get('Content-Type');
       // 实况照片包不是图片：服务器一般回 application/octet-stream 或 application/zip，
       // 这里不能按「不是 image/ 就判失败」来卡，也不能按图片 Content-Type 改扩展名
@@ -937,6 +954,8 @@ export class DownloadStore {
    * 进度路径的写盘是合并的（见 notifyProgress），最多还差不到 1 秒，这里补齐。
    */
   static shutdown(): void {
+    DownloadStore.initialized = false;
+    DownloadStore.setForeground(false);
     // 排队中的相册投递由投递层自己收掉（否则它会在别的应用上面弹系统确认框）。
     DownloadStore.delivery.stop();
     if (DownloadStore.saveTimer >= 0) {
@@ -950,13 +969,13 @@ export class DownloadStore {
   /**
    * 记一次投递结果。
    *
-   * 成功不吭声（用户自己选的目录，能看到文件就是最好的反馈）；用户在系统确认框上取消也不算失败
-   * （`outcome.cancelled`），否则设置页会留下一条永远清不掉的假故障。只有真失败才同时留两个落点：
+   * 成功不吭声（用户自己选的目录，能看到文件就是最好的反馈）；首次确认就取消不算失败。
+   * 后续批次取消时要如实展示已存/未存数量。部分完成或真失败都留两个落点：
    * 设置页那行的常驻说明，和一次 Toast —— 此刻用户多半还在任务页看进度，
    * 不弹一次的话他只会以为「下载成功了但目录里没有」。
    */
   static noteDelivery(outcome: ActionOutcome, where: string): void {
-    if (outcome.ok || outcome.cancelled === true) {
+    if (outcome.ok || (outcome.cancelled === true && (outcome.savedCount ?? 0) === 0)) {
       // 清掉上一次的失败说明时得 notify 一次，否则设置页那行会一直挂着旧文案。
       if (DownloadStore.destinationProblem.length > 0) {
         DownloadStore.destinationProblem = '';
@@ -964,9 +983,16 @@ export class DownloadStore {
       }
       return;
     }
-    console.error('deliver to ' + where + ' failed: ' + outcome.message);
-    DownloadStore.destinationProblem = '上次存入' + where + '失败，已保留应用内文件';
-    DownloadStore.pendingNotice = '存入' + where + '失败，已保留应用内文件';
+    if (where === '系统相册' && outcome.remainingCount !== undefined) {
+      // 后续批次取消或部分失败也必须显示已存/未存数量，不能被普通的成功/取消分支吞掉。
+      const detail: string = outcome.message + '；应用内文件已保留';
+      DownloadStore.destinationProblem = detail;
+      DownloadStore.pendingNotice = detail;
+    } else {
+      console.error('deliver to ' + where + ' failed: ' + outcome.message);
+      DownloadStore.destinationProblem = '上次存入' + where + '失败，已保留应用内文件';
+      DownloadStore.pendingNotice = '存入' + where + '失败，已保留应用内文件';
+    }
     DownloadStore.notify();
   }
 
@@ -1051,21 +1077,27 @@ export class DownloadStore {
   }
 
   static async resume(item: DownloadItem): Promise<boolean> {
-    if (item.status !== 'paused') { return false; }
+    if (item.status !== 'paused' || DownloadStore.resumeRequests.has(item.id)) { return false; }
     const task: request.agent.Task | undefined = DownloadStore.active.get(item.id);
     if (task === undefined) { return false; }
+    DownloadStore.resumeRequests.add(item.id);
+    item.recoveryMessage = '正在确认继续位置';
+    DownloadStore.notify();
     try {
       // @SuppressWarnings syscap
       await task.resume();
-      if (item.status !== 'paused') { return false; }
-      item.status = 'running';
+      if (!DownloadStore.acceptsAgentEvent(item, task.tid)) { return ['completed'].includes(item.status); }
+      if (item.status === 'paused') { item.status = 'running'; }
       item.speedBps = 0;
       item.etaSeconds = 0;
       DownloadStore.progressSamples.delete(item.id);
       DownloadStore.notify();
       return true;
     } catch (error) {
+      if (item.status === 'paused') { item.recoveryMessage = '继续失败，已保留暂停状态'; DownloadStore.notify(); }
       return false;
+    } finally {
+      DownloadStore.resumeRequests.delete(item.id);
     }
   }
 
@@ -1073,6 +1105,7 @@ export class DownloadStore {
   static prepareRetry(item: DownloadItem): boolean {
     if (item.status !== 'failed' && item.status !== 'cancelled') { return false; }
     item.status = 'queued'; item.error = ''; item.processed = 0; item.total = 0; item.taskId = '';
+    item.recoveryMessage = '';
     item.speedBps = 0; item.etaSeconds = 0;
     return true;
   }
@@ -1175,6 +1208,8 @@ export class DownloadStore {
           // @SuppressWarnings syscap
           const task: request.agent.Task = await request.agent.getTask(DownloadStore.context, item.taskId);
           DownloadStore.attach(item, task);
+          item.processed = info.progress.processed;
+          item.total = info.progress.sizes.length > 0 ? info.progress.sizes[0] : 0;
           // @SuppressWarnings syscap
           if (info.progress.state === request.agent.State.WAITING
             || info.progress.state === request.agent.State.PAUSED) {
@@ -1195,6 +1230,89 @@ export class DownloadStore {
     await DownloadStore.restoreContent();
     DownloadStore.notify();
     DownloadStore.pump();
+  }
+
+  /** 系统 WAITING 可能没有字节进度回调；前台定时核对状态，后台仍由系统下载服务负责。 */
+  static setForeground(value: boolean): void {
+    DownloadStore.foreground = value;
+    DownloadStore.delivery.setForeground(value);
+    if (DownloadStore.refreshTimer >= 0) { clearInterval(DownloadStore.refreshTimer); }
+    DownloadStore.refreshTimer = -1;
+    if (!value || !DownloadStore.initialized) { return; }
+    DownloadStore.refreshAgentStates();
+    DownloadStore.refreshTimer = setInterval((): void => { DownloadStore.refreshAgentStates(); }, 3000);
+  }
+
+  static async refreshAgentStates(): Promise<void> {
+    if (DownloadStore.refreshing || DownloadStore.recovering || !DownloadStore.initialized) { return; }
+    DownloadStore.refreshing = true;
+    try {
+      for (const item of DownloadStore.downloads) {
+        if (!DownloadStore.foreground || !DownloadStore.initialized) { break; }
+        const taskId: string = item.taskId;
+        if (!DownloadStore.acceptsAgentEvent(item, taskId)
+          || DownloadStore.pauseRequests.has(item.id) || DownloadStore.resumeRequests.has(item.id)) { continue; }
+        try {
+          // @SuppressWarnings syscap
+          const info: request.agent.TaskInfo = await request.agent.show(taskId);
+          if (!DownloadStore.acceptsAgentEvent(item, taskId)
+            || DownloadStore.pauseRequests.has(item.id) || DownloadStore.resumeRequests.has(item.id)) { continue; }
+          if (info.progress.state === request.agent.State.COMPLETED) {
+            await DownloadStore.complete(item);
+          } else if (info.progress.state === request.agent.State.FAILED
+            || info.progress.state === request.agent.State.STOPPED) {
+            DownloadStore.fail(item, '任务中断，请重试');
+          } else {
+            const status: string = DownloadStore.agentStatus(item.status, info.progress.state, false);
+            if (status !== item.status) {
+              item.status = status;
+              item.processed = info.progress.processed;
+              item.total = info.progress.sizes.length > 0 ? info.progress.sizes[0] : 0;
+              item.speedBps = 0;
+              item.etaSeconds = 0;
+              DownloadStore.progressSamples.delete(item.id);
+              DownloadStore.notify();
+            }
+          }
+        } catch (error) {
+          // 查询失败不代表下载失败；保留已有任务，下一次查询继续核对。
+        }
+      }
+    } finally {
+      DownloadStore.refreshing = false;
+    }
+  }
+
+  static retryDelivery(item: DownloadItem): void {
+    if (item.status !== 'completed' || item.receipt.status === 'pending'
+      || item.receipt.status === 'saved' || !DownloadStore.exists(item.path)) { return; }
+    if (item.receipt.target !== 'gallery' && item.receipt.target !== 'custom') { return; }
+    // 用户在设置里重选目录后，重试使用新授权；未重选时仍尝试原来的位置。
+    if (item.receipt.target === 'custom' && DownloadStore.downloadLocation === 'custom') {
+      item.receipt.folderUri = DownloadStore.customDirUri;
+    }
+    DownloadStore.delivery.deliver(item, true);
+  }
+
+  static saveToGallery(item: DownloadItem, anotherCopy: boolean = false): void {
+    if (item.status !== 'completed' || !DownloadStore.exists(item.path)) { return; }
+    if (item.receipt.status === 'pending') { return; }
+    if (!anotherCopy && item.receipt.target === 'gallery' && item.receipt.status === 'saved') {
+      DownloadStore.pendingNotice = '这张图片已另存到系统相册';
+      DownloadStore.notify();
+      return;
+    }
+    if (anotherCopy || item.receipt.target !== 'gallery') { item.receipt.parts = []; }
+    item.receipt.target = 'gallery';
+    item.receipt.folderUri = '';
+    DownloadStore.delivery.deliver(item, true);
+  }
+
+  static retryArchiveDelivery(item: ZipItem): void {
+    if (item.receipt.status === 'pending' || item.receipt.status === 'saved'
+      || item.receipt.target !== 'custom' || !DownloadStore.exists(item.path)) { return; }
+    if (DownloadStore.downloadLocation === 'custom') { item.receipt.folderUri = DownloadStore.customDirUri; }
+    DownloadStore.delivery.deliverArchive(item, true);
   }
 
   /**

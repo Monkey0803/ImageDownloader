@@ -6,6 +6,8 @@ import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { MediaFormat } from './MediaFormat';
 import { Naming } from './Naming';
+import { GALLERY_BATCH_LIMIT, GalleryBatchOutcome, GalleryCopyResult, GallerySaveOutcome,
+  copyGalleryTargets, saveGalleryBatches } from './GalleryBatching';
 
 /*
  * FileActions.ets — 对单个已落盘文件的系统级操作（导出 / 存相册 / 分享 / 拷进目录）。
@@ -19,6 +21,9 @@ import { Naming } from './Naming';
 export interface ActionOutcome {
   ok: boolean;
   message: string;
+  /** 存相册时用于区分首次取消与部分完成；其它文件操作不填写。 */
+  savedCount?: number;
+  remainingCount?: number;
   /**
    * 用户在系统弹窗上主动取消（目前只有「保存到相册」的确认框会走到这里）。
    *
@@ -40,9 +45,6 @@ export interface ExportEntry {
   path: string;
   name: string;
 }
-
-/** `showAssetsCreationDialog` 单次最多接受 100 个源文件，超过就截断，不让整批失败。 */
-const GALLERY_BATCH_LIMIT: number = 100;
 
 /** URI 的末段（目录名），去掉百分号编码，拿不到时退回整串。 */
 function leafOfUri(uri: string): string {
@@ -237,38 +239,63 @@ async function firstFrameJpeg(context: common.UIAbilityContext, path: string,
 }
 
 /**
- * 存进系统相册（可一次多张，只弹一次系统确认框）。
+ * 存进系统相册；超过 100 个实际文件时顺序弹出多个系统确认框。
  *
  * **为什么不用 `createAsset`**：它需要 `ohos.permission.WRITE_IMAGEVIDEO`
  * （user_grant + `availableLevel: system_basic`，声明后还得让调试证书的 allowed-acls 带上它，
  * 否则 `hdc install` 报 9568289）。本应用没有这个权限，真机上 `createAsset` 直接
  * `Permission denied / js errcode:201`（日志在 MediaLibraryNapi）。
  * 官方给免权限应用留的替代就是 `showAssetsCreationDialog`：把要保存的源文件 URI 与目标配置
- * 交给系统弹一次确认，用户同意后返回可写的相册 URI。多张一起传，因此一次下载批次只要点一次
- * （该接口单次上限 100 张）。
+ * 交给系统确认，用户同意后返回可写的相册 URI。单次最多传 100 个文件。
  *
- * 这一层负责「相册不收这个格式时怎么办」：先原样试一次（`requestGallery`），失败且名单里有
- * GIF / WebP 动图时，把它们换成静态首帧再试一次。**第二条路会再弹一次确认框**，这是有意的：
- * 用户要的是「这张图进相册了」。极少数「部分写入失败」的情况下重试可能多出几张重复资产，
- * 这比整批丢数据要好。
+ * 某一批失败且未保存的文件含 GIF / WebP 动图时，只重试这批尚未保存的文件；
+ * 动图改用静态首帧。已成功保存的文件不再重试，避免重复资产。
  */
 export async function saveImagesToGallery(context: common.UIAbilityContext, paths: string[],
-  names: string[]): Promise<ActionOutcome> {
-  const first: ActionOutcome = await requestGallery(context, paths, names);
-  if (first.ok || first.cancelled === true) {
-    return first;
+  names: string[], shouldContinue: () => boolean = (): boolean => true,
+  onSaved: (paths: string[], downgraded: boolean) => void = (): void => {}): Promise<ActionOutcome> {
+  const outcome: GallerySaveOutcome = await saveGalleryBatches(paths, names,
+    async (batchPaths: string[], batchNames: string[]): Promise<GalleryBatchOutcome> => {
+      const batch: GalleryBatchOutcome = await saveGalleryChunk(context, batchPaths, batchNames);
+      onSaved((batch.savedIndices ?? []).map((index: number): string => batchPaths[index]), batch.downgraded);
+      return batch;
+    }, shouldContinue);
+  return { ok: outcome.ok, cancelled: outcome.cancelled, message: outcome.message,
+    savedCount: outcome.savedCount, remainingCount: outcome.remainingCount };
+}
+
+interface GalleryRequestResult {
+  savedIndices: number[];
+  cancelled: boolean;
+  error: string;
+}
+
+/** 一批最多 100 个文件；动图兜底只处理初次未保存的项。 */
+async function saveGalleryChunk(context: common.UIAbilityContext, paths: string[],
+  names: string[]): Promise<GalleryBatchOutcome> {
+  const first: GalleryRequestResult = await requestGallery(context, paths, names);
+  if (first.cancelled || first.savedIndices.length === paths.length) {
+    return { savedIndices: first.savedIndices, savedCount: first.savedIndices.length, cancelled: first.cancelled,
+      message: first.error, downgraded: false };
   }
-  const count: number = Math.min(paths.length, names.length);
+  const saved: Set<number> = new Set<number>(first.savedIndices);
   const drafts: GalleryJpeg[] = [];
   const retryPaths: string[] = [];
   const retryNames: string[] = [];
-  for (let i: number = 0; i < count; i++) {
+  const retryIndices: number[] = [];
+  let hasAnimated: boolean = false;
+  for (let i: number = 0; i < paths.length; i++) {
+    if (saved.has(i)) {
+      continue;
+    }
+    retryIndices.push(i);
     const name: string = names[i];
     if (!MediaFormat.isAnimatedExt(MediaFormat.extensionOf(name))) {
       retryPaths.push(paths[i]);
       retryNames.push(name);
       continue;
     }
+    hasAnimated = true;
     const draft: GalleryJpeg = await firstFrameJpeg(context, paths[i], name);
     if (draft.path.length === 0) {
       retryPaths.push(paths[i]);
@@ -279,35 +306,39 @@ export async function saveImagesToGallery(context: common.UIAbilityContext, path
     retryPaths.push(draft.path);
     retryNames.push(draft.name);
   }
-  if (drafts.length === 0) {
-    return first;
+  if (!hasAnimated || drafts.length === 0) {
+    return { savedIndices: Array.from(saved), savedCount: saved.size, cancelled: false, message: first.error, downgraded: false };
   }
-  const second: ActionOutcome = await requestGallery(context, retryPaths, retryNames);
-  for (const draft of drafts) {
-    try {
-      fs.unlinkSync(draft.path);
-    } catch (error) {
+  let second: GalleryRequestResult;
+  try {
+    second = await requestGallery(context, retryPaths, retryNames);
+  } finally {
+    for (const draft of drafts) {
+      try {
+        fs.unlinkSync(draft.path);
+      } catch (error) {
+      }
     }
   }
-  if (second.ok) {
-    return { ok: true, message: '已按静态图存入系统相册（相册不接受 GIF / WEBP 动图，动画没有保留）' };
+  let downgraded: boolean = false;
+  for (const index of second.savedIndices) {
+    saved.add(retryIndices[index]);
+    if (retryPaths[index] !== paths[retryIndices[index]]) {
+      downgraded = true;
+    }
   }
-  return first;
+  return { savedIndices: Array.from(saved), savedCount: saved.size, cancelled: second.cancelled,
+    message: second.error || first.error, downgraded: downgraded };
 }
 
 /**
- * 直接把源文件交给系统相册确认框；不做任何格式兜底。
- *
- * 超过单次上限的部分**不再静默丢掉**：返回值里会带上「另有 N 张超出单次上限未保存」，
- * 调用方把它当提示弹一次 —— 静默少存几张是用户无从发现的丢数据。
+ * 直接把至多 100 个源文件交给系统相册确认框；逐个记录真正复制成功的下标。
  */
 async function requestGallery(context: common.UIAbilityContext, paths: string[],
-  names: string[]): Promise<ActionOutcome> {
-  const requested: number = Math.min(paths.length, names.length);
-  const count: number = Math.min(requested, GALLERY_BATCH_LIMIT);
-  const skipped: number = requested - count;
+  names: string[]): Promise<GalleryRequestResult> {
+  const count: number = Math.min(paths.length, names.length, GALLERY_BATCH_LIMIT);
   if (count === 0) {
-    return { ok: true, message: '' };
+    return { savedIndices: [], cancelled: false, error: '' };
   }
   try {
     const helper: photoAccessHelper.PhotoAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
@@ -330,27 +361,13 @@ async function requestGallery(context: common.UIAbilityContext, paths: string[],
     const targets: string[] = await helper.showAssetsCreationDialog(sources, configs);
     if (targets.length === 0) {
       // 用户点了「禁止」：不算失败，交给调用方决定要不要说一句。
-      return { ok: false, cancelled: true, message: '已取消保存到系统相册' };
+      return { savedIndices: [], cancelled: true, error: '' };
     }
-    let failed: number = 0;
-    let lastError: string = '';
-    for (let i: number = 0; i < count && i < targets.length; i++) {
-      const copied: ActionOutcome = await copyInto(paths[i], targets[i]);
-      if (!copied.ok) {
-        failed += 1;
-        lastError = copied.message;
-      }
-    }
-    if (failed === 0) {
-      const saved: string = count > 1 ? '已保存 ' + count.toString() + ' 张到系统相册' : '已保存到系统相册';
-      return {
-        ok: true,
-        message: skipped > 0 ? saved + '；另有 ' + skipped.toString() + ' 张超出单次上限未保存' : saved
-      };
-    }
-    return { ok: false, message: '保存相册失败：' + lastError };
+    const copied: GalleryCopyResult = await copyGalleryTargets(count, targets,
+      (index: number, target: string): Promise<ActionOutcome> => copyInto(paths[index], target));
+    return { savedIndices: copied.savedIndices, cancelled: false, error: copied.error };
   } catch (error) {
-    return { ok: false, message: '保存相册失败：' + String(error) };
+    return { savedIndices: [], cancelled: false, error: String(error) };
   }
 }
 

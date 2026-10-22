@@ -311,6 +311,15 @@ export class LibraryViewModel {
     });
   }
 
+  retryArchiveDelivery(item: ZipItem): void {
+    if (item.receipt.status === 'interrupted') {
+      this.ui.confirm('再次另存', '上次保存结果未确认。请先检查目标位置，避免产生重复副本。', '仍要另存',
+        (): void => { DownloadStore.retryArchiveDelivery(item); });
+      return;
+    }
+    DownloadStore.retryArchiveDelivery(item);
+  }
+
   shareZip(item: ZipItem): void {
     shareFile(this.ui.context(), item.path, item.name, true).then((outcome: ActionOutcome): void => {
       this.report(outcome);

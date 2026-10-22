@@ -27,6 +27,7 @@ export struct TasksScreen {
       onPause: (item: DownloadItem): void => { this.tasks.pause(item); },
       onResume: (item: DownloadItem): void => { this.tasks.resume(item); },
       onRetry: (item: DownloadItem): void => { this.tasks.retry(item); },
+      onRetryDelivery: (item: DownloadItem): void => { this.tasks.retryDelivery(item); },
       onLocate: (item: DownloadItem): void => { this.tasks.locate(item); },
       onOpen: (item: DownloadItem): void => { this.tasks.openTask(item); }
     })

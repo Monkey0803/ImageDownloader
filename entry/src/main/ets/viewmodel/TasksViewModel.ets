@@ -107,7 +107,16 @@ export class TasksViewModel {
   }
 
   async resume(task: DownloadItem): Promise<void> {
-    this.ui.say(await DownloadStore.resume(task) ? '已继续 ' + task.name : '继续失败，请重试');
+    this.ui.say(await DownloadStore.resume(task) ? '已请求继续，服务器可能从头发送文件' : '继续失败，请重试');
+  }
+
+  retryDelivery(task: DownloadItem): void {
+    if (task.receipt.status === 'interrupted') {
+      this.ui.confirm('再次另存', '上次保存结果未确认。请先检查目标位置，避免产生重复副本。', '仍要另存',
+        (): void => { DownloadStore.retryDelivery(task); });
+      return;
+    }
+    DownloadStore.retryDelivery(task);
   }
 
   retry(task: DownloadItem): void {

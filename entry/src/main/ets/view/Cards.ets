@@ -336,6 +336,7 @@ export struct ShotTile {
 @ComponentV2
 export struct TaskCard {
   @Require @Param task: DownloadItem;
+  @Event onRetryDelivery: (task: DownloadItem) => void = () => {};
   @Event onPause: (task: DownloadItem) => void = () => {
   };
   @Event onResume: (task: DownloadItem) => void = () => {
@@ -390,7 +391,7 @@ export struct TaskCard {
       return '已暂停 · ' + formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total);
     }
     if (this.task.status === 'completed') {
-      return '已保存 · ' + formatBytes(this.task.size);
+      return '已下载到应用内 · ' + formatBytes(this.task.size);
     }
     if (this.task.status === 'cancelled') {
       return '已取消';
@@ -439,6 +440,18 @@ export struct TaskCard {
 
           if (this.isActive() && this.task.total > 0) {
             ProgressBar({ value: percentOf(this.task.processed, this.task.total) })
+          }
+
+          if (this.task.recoveryMessage.length > 0 && this.isActive()) {
+            Text(this.task.recoveryMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          }
+          if (this.task.status === 'completed' && this.task.receipt.message.length > 0) {
+            Text(this.task.receipt.message).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            if (this.task.receipt.status === 'failed' || this.task.receipt.status === 'cancelled'
+              || this.task.receipt.status === 'interrupted') {
+              PillButton({ label: '重试另存', variant: 'ghost', small: true,
+                onAction: (): void => { this.onRetryDelivery(this.task); } })
+            }
           }
 
           if (this.meta().length > 0 || this.task.error.length > 0) {
@@ -553,6 +566,9 @@ export struct BatchCard {
     }
     if (this.view.status === 'packing') {
       return '正在压缩为 ZIP…';
+    }
+    if (this.view.status === 'waiting') {
+      return '等待网络或系统资源 · ' + this.view.done.toString() + '/' + this.view.total.toString() + ' 张';
     }
     return '正在下载 · ' + this.view.done.toString() + '/' + this.view.total.toString() + ' 张';
   }
@@ -705,6 +721,7 @@ export struct ArchiveStack {
 @ComponentV2
 export struct ArchiveCard {
   @Require @Param zip: ZipItem;
+  @Event onRetryDelivery: (zip: ZipItem) => void = () => {};
   @Param selecting: boolean = false;
   @Param selected: boolean = false;
   @Event onSelect: (zip: ZipItem) => void = () => {
@@ -741,6 +758,13 @@ export struct ArchiveCard {
             .fontSize(Font.aux)
             .lineHeight(Font.auxLine)
             .fontColor(Palette.fontSecondary)
+          if (this.zip.receipt.message.length > 0) {
+            Text(this.zip.receipt.message).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          }
+          if (!this.selecting && (this.zip.receipt.status === 'failed' || this.zip.receipt.status === 'interrupted')) {
+            PillButton({ label: '重试另存', variant: 'ghost', small: true,
+              onAction: (): void => { this.onRetryDelivery(this.zip); } })
+          }
           Row({ space: Space.s4 }) {
             Text(formatMoment(this.zip.createdAt, Date.now()))
               .fontSize(Font.aux)

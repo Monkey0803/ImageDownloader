@@ -1,5 +1,6 @@
 import { BatchItem, DownloadItem, orBoolean, orNumber, orString, SavedState, ZipItem } from '../model/Models';
 import { normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
+import { ReceiptWire } from '../model/SaveReceipt';
 
 /**
  * 落盘状态的编解码（**持久化层**）。
@@ -36,6 +37,8 @@ import { normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
  * service 层，分层规则是 `pages → view → viewmodel → service`，不能反向依赖界面。
  */
 class DownloadWire {
+  receipt: ReceiptWire = new ReceiptWire();
+  recoveryMessage: string = '';
   id: string = '';
   url: string = '';
   name: string = '';
@@ -60,6 +63,7 @@ class DownloadWire {
 }
 
 class ZipWire {
+  receipt: ReceiptWire = new ReceiptWire();
   id: string = '';
   name: string = '';
   path: string = '';
@@ -108,6 +112,8 @@ export class StoreState {
     const wire: StateWire = new StateWire();
     wire.downloads = state.downloads.map((item: DownloadItem): DownloadWire => {
       const out: DownloadWire = new DownloadWire();
+      out.receipt = ReceiptWire.from(item.receipt);
+      out.recoveryMessage = item.recoveryMessage;
       out.id = item.id;
       out.url = item.url;
       out.name = item.name;
@@ -133,6 +139,7 @@ export class StoreState {
     });
     wire.zips = state.zips.map((zip: ZipItem): ZipWire => {
       const out: ZipWire = new ZipWire();
+      out.receipt = ReceiptWire.from(zip.receipt);
       out.id = zip.id;
       out.name = zip.name;
       out.path = zip.path;
@@ -190,6 +197,8 @@ export class StoreState {
     // 否则图库会显示成 1970 年。
     safe.downloads = (state.downloads ?? []).map((entry: DownloadItem): DownloadItem => {
       const item: DownloadItem = new DownloadItem();
+      item.receipt = ReceiptWire.restore(entry.receipt);
+      item.recoveryMessage = orString(entry.recoveryMessage, '');
       item.id = orString(entry.id, '');
       item.url = orString(entry.url, '');
       item.name = orString(entry.name, '');
@@ -216,6 +225,7 @@ export class StoreState {
 
     safe.zips = (state.zips ?? []).map((entry: ZipItem): ZipItem => {
       const zip: ZipItem = new ZipItem();
+      zip.receipt = ReceiptWire.restore(entry.receipt);
       zip.id = orString(entry.id, '');
       zip.name = orString(entry.name, '');
       zip.path = orString(entry.path, '');

@@ -257,6 +257,7 @@ export struct LibraryScreen {
         ForEach(this.library.archives, (zip: ZipItem) => {
           ArchiveCard({
             zip: zip,
+            onRetryDelivery: (item: ZipItem): void => { this.library.retryArchiveDelivery(item); },
             selecting: this.library.selecting,
             selected: this.library.isSelected(zip.id),
             onSelect: (item: ZipItem): void => { this.library.toggleSelection(item.id); },

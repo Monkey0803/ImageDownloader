@@ -28,12 +28,14 @@ export class ScanUpgrader {
    * 用 `void` 而不是返回新数组：`url` 是 `PictureItem` 的身份键（`PictureFactory.merge`
    * 按 url 去重），原地替换才能让「重扫」合并到同一项上，而不是每轮多出一批新图。
    */
-  static async apply(images: ScanImage[], referer: string): Promise<void> {
+  static async apply(images: ScanImage[], referer: string,
+    shouldContinue: () => boolean = (): boolean => true): Promise<void> {
     if (images.length === 0) {
       return;
     }
     SizeArbiter.beginRound();
     for (const image of images) {
+      if (!shouldContinue()) { return; }
       const raw: ImageCandidate[] | undefined = image.candidates;
       if (raw === undefined || raw.length === 0) {
         continue;

@@ -1,3 +1,5 @@
+import { SaveReceipt } from './SaveReceipt';
+
 /** One image found by scanning a page, before it becomes a download. */
 @ObservedV2
 export class PictureItem {
@@ -43,6 +45,8 @@ export class PictureItem {
 /** One image download, from the queue through to the finished file. */
 @ObservedV2
 export class DownloadItem {
+  @Trace receipt: SaveReceipt = new SaveReceipt();
+  @Trace recoveryMessage: string = '';
   @Trace id: string = '';
   @Trace url: string = '';
   @Trace name: string = '';
@@ -86,6 +90,7 @@ export class DownloadItem {
 /** A ZIP archive produced by packing a batch. */
 @ObservedV2
 export class ZipItem {
+  @Trace receipt: SaveReceipt = new SaveReceipt();
   @Trace id: string = '';
   @Trace name: string = '';
   @Trace path: string = '';

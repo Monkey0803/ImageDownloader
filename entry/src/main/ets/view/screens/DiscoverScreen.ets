@@ -140,7 +140,8 @@ export struct DiscoverScreen {
           accessibilityLabel: '关闭图片详情',
           onAction: (): void => { this.closeInspection(); } })
       }.width('100%')
-      Thumb({ src: item.url, label: 'IMG', fallbackText: '预览不可用' })
+      Thumb({ src: this.discover.previewUri, label: 'IMG', fit: ImageFit.Contain,
+        fallbackText: this.discover.previewLoading ? '正在加载预览…' : '预览不可用' })
         .width('100%').height(180).borderRadius(Radius.r4)
       Text('来源地址：' + item.url).fontSize(Font.caption).fontColor(Palette.fontSecondary)
         .copyOption(CopyOptions.InApp).width('100%')
@@ -149,8 +150,12 @@ export struct DiscoverScreen {
         .fontSize(Font.caption).fontColor(Palette.fontSecondary)
       Text('文件大小：' + this.discover.inspectionSizeLabel())
         .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-      Text('需要登录的图片可能无法在列表预览；下载仍会使用当前网页的登录信息。')
+      Text(this.discover.previewMessage)
         .fontSize(Font.caption).fontColor(Palette.fontTertiary)
+      if (!this.discover.previewLoading && this.discover.previewUri.length === 0 && item.kind === 'image') {
+        PillButton({ label: '重试预览', variant: 'ghost', small: true,
+          onAction: (): void => { this.discover.inspect(item.uid); } })
+      }
       Row({ space: Space.s8 }) {
         IconButton({ glyph: item.selected ? 'xCircle' : 'checkCircle', glyphSize: 20,
           accessibilityLabel: item.selected ? '取消选择此图' : '选择此图',
@@ -215,7 +220,7 @@ export struct DiscoverScreen {
       backgroundColor: Palette.card,
       systemMaterial: this.sheetMaterial(),
       onWillDismiss: (action: DismissDialogAction): void => {
-        this.discover.inspectedUid = '';
+        this.discover.closeInspection();
         this.inspectionDialogId = undefined;
         action.dismiss();
       }
@@ -223,10 +228,27 @@ export struct DiscoverScreen {
   }
 
   private closeInspection(): void {
-    this.discover.inspectedUid = '';
+    this.discover.closeInspection();
     if (this.inspectionDialogId !== undefined) {
       this.getUIContext().getPromptAction().closeCustomDialog(this.inspectionDialogId);
       this.inspectionDialogId = undefined;
+    }
+  }
+
+  @Builder
+  private expansionControls() {
+    if (this.discover.canExpand() || this.discover.expanding) {
+      Column({ space: Space.s4 }) {
+        PillButton({ label: this.discover.expanding ? '停止加载' : '加载更多图片',
+          variant: this.discover.expanding ? 'tonal' : 'ghost', small: true,
+          onAction: (): void => {
+            if (this.discover.expanding) { this.discover.stopExpansion(); }
+            else { this.discover.loadMore(this.settings.pictureQuality); }
+          } })
+        if (this.discover.expansionMessage.length > 0) {
+          Text(this.discover.expansionMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        }
+      }.width('100%').alignItems(HorizontalAlign.Start)
     }
   }
 
@@ -251,6 +273,8 @@ export struct DiscoverScreen {
         })
       }
       .width('100%')
+
+      this.expansionControls()
 
       Stack({ alignContent: Alignment.Bottom }) {
         Web({ src: 'about:blank', controller: this.discover.browserController() })
@@ -315,7 +339,8 @@ export struct DiscoverScreen {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
         Column({ space: Space.s4 }) {
-          Text(this.discover.pageTitle.length > 0 ? this.discover.pageTitle : '尚未打开网页')
+          Text(this.discover.pageTitle.length > 0 ? this.discover.pageTitle
+            : (this.discover.pageUrl.length > 0 ? '当前网页' : '尚未打开网页'))
             .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
             .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.discover.pageUrl.length > 0 ? this.discover.pageUrl : '打开网页后自动扫描图片')
@@ -552,6 +577,7 @@ export struct DiscoverScreen {
             }
             .width('100%')
 
+            this.expansionControls()
             this.quickFilters()
             if (this.filtersOpen) {
               this.filterPanel()
@@ -564,7 +590,7 @@ export struct DiscoverScreen {
 
           HintRow({
             glyph: 'sparkle',
-            text: '动态网页加载更多图片后，可在浏览视图中重新扫描。'
+            text: '加载更多只滚动当前网页，可随时停止；新图片不会自动选中或下载。'
           })
         }
         .width('100%')
