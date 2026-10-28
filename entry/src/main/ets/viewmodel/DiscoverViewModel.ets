@@ -189,6 +189,10 @@ export class DiscoverViewModel {
       PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl, this.quickFilter));
   }
 
+  recordDimensions(uid: string, url: string, width: number, height: number): void {
+    PictureFactory.recordDimensions(this.pictures, uid, url, width, height);
+  }
+
   clearFilters(): void {
     this.filterFormat = '';
     this.filterWidth = '';

@@ -40,11 +40,12 @@ const fixtureLoad = loader({
     expect: (value) => ({
       assertEqual: (expected) => assert.equal(value, expected),
       assertTrue: () => assert.equal(value, true),
-      assertFalse: () => assert.equal(value, false)
+      assertFalse: () => assert.equal(value, false),
+      assertUndefined: () => assert.equal(value, undefined)
     })
   }
 });
-for (const name of ['PageExpansion', 'SaveReceipt', 'GalleryBatching', 'BatchView']) {
+for (const name of ['PageExpansion', 'SaveReceipt', 'GalleryBatching', 'BatchView', 'PictureFilters']) {
   fixtureLoad(path.join(root, 'entry/src/ohosTest/ets/test/' + name + '.test.ets')).default();
 }
 
@@ -1242,12 +1243,22 @@ function thumbnailHarness(config = {}) {
 
 test('long thumbnail crops at native geometry before scaling and never distorts an unknown local file', async () => {
   const h = thumbnailHarness();
-  const uri = await h.ThumbnailImages.load('file:///long.png', '/cache', 1, false, new h.ThumbnailRequest());
-  assert.ok(uri.endsWith('.png'));
+  const result = await h.ThumbnailImages.load('file:///long.png', '/cache', 1, false, new h.ThumbnailRequest());
+  assert.ok(result.uri.endsWith('.png'));
+  assert.deepEqual({ width: result.width, height: result.height }, { width: 1000, height: 50000 });
   assert.deepEqual(h.calls[0].desiredRegion, { x: 0, y: 24500, size: { width: 1000, height: 1000 } });
   assert.deepEqual(h.calls[0].desiredSize, { width: 512, height: 512 });
   assert.equal(h.calls[0].cropAndScaleStrategy, 1);
   assert.equal(h.files.get('/long.png'), 100, 'original remains untouched');
+});
+
+test('thumbnail cache returns original dimensions without decoding again', async () => {
+  const h = thumbnailHarness({ size: { width: 3000, height: 2000 } });
+  const first = await h.ThumbnailImages.load('file:///long.png', '/cache', 1, false, new h.ThumbnailRequest());
+  const cached = await h.ThumbnailImages.load('file:///long.png', '/cache', 1, false, new h.ThumbnailRequest());
+  assert.deepEqual(cached, first);
+  assert.deepEqual({ width: cached.width, height: cached.height }, { width: 3000, height: 2000 });
+  assert.equal(h.calls.length, 1);
 });
 
 test('thumbnail crop follows rectangular cells while contain preserves the original aspect', async () => {
@@ -1268,8 +1279,10 @@ test('shared thumbnail work survives one consumer leaving and discards output if
   const second = h.ThumbnailImages.load('https://image/a', '/cache', 1, false, b);
   while (!finish) await Promise.resolve();
   a.cancel(); finish();
-  assert.equal(await first, '');
-  assert.ok((await second).endsWith('.png'));
+  assert.deepEqual(await first, new h.ThumbnailResult());
+  const completed = await second;
+  assert.ok(completed.uri.endsWith('.png'));
+  assert.deepEqual({ width: completed.width, height: completed.height }, { width: 1000, height: 50000 });
   assert.equal(h.calls.filter(x => x.url).length, 1);
   assert.deepEqual(h.calls[0], {url: 'https://image/a', referer: '', cookie: '', redirectLimit: 5});
   assert.ok(![...h.files.keys()].some(p => p.endsWith('.source')));
@@ -1278,6 +1291,6 @@ test('shared thumbnail work survives one consumer leaving and discards output if
   const third = h.ThumbnailImages.load('https://image/b', '/cache', 1, false, c);
   while (!finish) await Promise.resolve();
   c.cancel(); finish();
-  assert.equal(await third, '');
+  assert.deepEqual(await third, new h.ThumbnailResult());
   assert.equal(h.files.size, 2, 'only original and earlier completed thumbnail remain');
 });

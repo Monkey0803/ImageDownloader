@@ -27,7 +27,7 @@ export class PictureItem {
   @Trace description: string = '';
   @Trace selected: boolean = false;
   @Trace userNamed: boolean = false;
-  /** 仅当下载地址就是浏览器已解码的 currentSrc 时，尺寸才可信；0 表示未知。 */
+  /** 当前下载地址对应的原文件尺寸；可来自浏览器或缩略图解码，0 表示未知。 */
   @Trace width: number = 0;
   @Trace height: number = 0;
   /** 网页元数据指向的候选主图；仅用于提示，不自动选中。 */

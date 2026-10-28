@@ -99,4 +99,15 @@ export class PictureFactory {
     }
     return Array.from(found.values());
   }
+
+  /** 只给当前列表中身份和地址都匹配的图片回填实际解码尺寸。 */
+  static recordDimensions(items: PictureItem[], uid: string, url: string, width: number, height: number): boolean {
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) { return false; }
+    const current: PictureItem | undefined = items.find((item: PictureItem): boolean => item.uid === uid && item.url === url);
+    if (current === undefined) { return false; }
+    if (current.width === width && current.height === height) { return true; }
+    current.width = width;
+    current.height = height;
+    return true;
+  }
 }

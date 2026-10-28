@@ -1,6 +1,6 @@
 import { image } from '@kit.ImageKit';
 import { StillFrames } from '../service/StillFrames';
-import { ThumbnailImages, ThumbnailRequest } from '../service/ThumbnailImages';
+import { ThumbnailImages, ThumbnailRequest, ThumbnailResult } from '../service/ThumbnailImages';
 import { Palette, Radius, Space } from '../theme/Tokens';
 
 /** Image with a type-badge fallback, mirroring the prototype's <Img>. */
@@ -29,6 +29,8 @@ export struct Thumb {
   /** 图库将类型角标放在左上角，其他缩略图保持原位置。 */
   @Param badgeTopLeft: boolean = false;
   @Param fit: ImageFit = ImageFit.Cover;
+  @Event onDimensions: (src: string, width: number, height: number) => void =
+    (src: string, width: number, height: number): void => {};
   @Local private thumbnail: string = '';
   private generation: number = 0;
   private alive: boolean = false;
@@ -60,10 +62,15 @@ export struct Thumb {
     this.thumbnail = '';
     if (this.firstFramePath.length > 0) { return; }
     const cacheDir: string = this.getUIContext().getHostContext()?.cacheDir ?? '';
-    const uri: string = await ThumbnailImages.load(this.src, cacheDir, this.aspect, this.fit === ImageFit.Contain, request);
+    const src: string = this.src;
+    const result: ThumbnailResult = await ThumbnailImages.load(src, cacheDir, this.aspect,
+      this.fit === ImageFit.Contain, request);
     if (!this.alive || token !== this.generation) { return; }
-    this.thumbnail = uri;
-    this.failed = uri.length === 0;
+    this.thumbnail = result.uri;
+    this.failed = result.uri.length === 0;
+    if (result.uri.length > 0 && result.width > 0 && result.height > 0) {
+      this.onDimensions(src, result.width, result.height);
+    }
   }
 
   @Monitor('firstFramePath')

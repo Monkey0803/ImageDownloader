@@ -39,6 +39,8 @@ export struct SelectTile {
   /** 图片点击进入预览；角上的选择按钮由父组件处理。 */
   @Event onOpen: (uid: string) => void = () => {
   };
+  @Event onDimensions: (url: string, width: number, height: number) => void =
+    (url: string, width: number, height: number): void => {};
 
   /**
    * 发现页的角标：实况照片包写「实况」，GIF / WebP 写格式名。
@@ -59,8 +61,11 @@ export struct SelectTile {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Thumb({ src: this.picture.url,   label: kindOf(this.picture.name), badge: this.badge(),
-        fallbackText: '预览不可用' })
+      Thumb({ src: this.picture.url, label: kindOf(this.picture.name), badge: this.badge(),
+        fallbackText: '预览不可用',
+        onDimensions: (url: string, width: number, height: number): void => {
+          this.onDimensions(url, width, height);
+        } })
 
       // 图片网格不在系统材质生效区域，选择反馈使用普通静态蒙层。
       if (this.picture.selected) {

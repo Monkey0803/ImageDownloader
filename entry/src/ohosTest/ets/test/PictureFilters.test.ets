@@ -40,6 +40,28 @@ export default function pictureFiltersTest() {
       expect(merged[0].width).assertEqual(1200);
     });
 
+    it('records_decoded_size_only_for_the_current_picture_and_url', 0, () => {
+      const first: PictureItem[] = PictureFactory.merge([], [
+        { url: 'https://example.com/original.jpg', description: 'original' }
+      ]);
+      const uid: string = first[0].uid;
+      expect(PictureFactory.recordDimensions(first, uid, first[0].url, 2400, 1600)).assertTrue();
+      expect(first[0].width).assertEqual(2400);
+      expect(PictureFactory.recordDimensions(first, uid, 'https://example.com/preview.jpg', 320, 200)).assertFalse();
+      expect(PictureFactory.recordDimensions(first, uid, first[0].url, 0, 200)).assertFalse();
+      expect(first[0].width).assertEqual(2400);
+
+      const rescanned: PictureItem[] = PictureFactory.merge(first, [
+        { url: first[0].url, description: 'original', width: 0, height: 0 }
+      ]);
+      expect(PictureFactory.recordDimensions(rescanned, uid, first[0].url, 2400, 1600)).assertTrue();
+      const nextPage: PictureItem[] = PictureFactory.merge([], [
+        { url: first[0].url, description: 'next page' }
+      ]);
+      expect(PictureFactory.recordDimensions(nextPage, uid, first[0].url, 2400, 1600)).assertFalse();
+      expect(nextPage[0].width).assertEqual(0);
+    });
+
     it('filters_large_and_orientation_without_hiding_unknown_sizes', 0, () => {
       const wide: PictureItem = picture('https://example.com/wide.jpg', 1600, 900);
       const tall: PictureItem = picture('https://example.com/tall.jpg', 900, 1600);

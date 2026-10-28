@@ -13,10 +13,16 @@ export class ThumbnailRequest {
 class ThumbnailJob {
   waiters: Set<ThumbnailRequest> = new Set<ThumbnailRequest>();
   transfer: PreviewTransfer | undefined = undefined;
-  promise: Promise<string> = Promise.resolve('');
+  promise: Promise<ThumbnailResult> = Promise.resolve(new ThumbnailResult());
 }
 
-interface ThumbnailEntry { path: string; bytes: number; }
+export class ThumbnailResult {
+  uri: string = '';
+  width: number = 0;
+  height: number = 0;
+}
+
+interface ThumbnailEntry { path: string; bytes: number; width: number; height: number; }
 
 /** Grid-only, unauthenticated thumbnails. Crop before scaling so long-image details stay legible. */
 export class ThumbnailImages {
@@ -27,8 +33,9 @@ export class ThumbnailImages {
   private static sequence: number = 0;
   private static directory: string = '';
 
-  static async load(uri: string, cacheDir: string, aspect: number, contain: boolean, request: ThumbnailRequest): Promise<string> {
-    if (request.cancelled || uri.length === 0 || cacheDir.length === 0) { return ''; }
+  static async load(uri: string, cacheDir: string, aspect: number, contain: boolean,
+    request: ThumbnailRequest): Promise<ThumbnailResult> {
+    if (request.cancelled || uri.length === 0 || cacheDir.length === 0) { return new ThumbnailResult(); }
     let path: string = uri;
     let revision: string = '';
     const remote: boolean = /^https?:\/\//i.test(uri);
@@ -43,7 +50,11 @@ export class ThumbnailImages {
       const cached: ThumbnailEntry | undefined = ThumbnailImages.cache.get(key);
       if (cached !== undefined) {
         ThumbnailImages.cache.delete(key); ThumbnailImages.cache.set(key, cached);
-        return fileUri.getUriFromPath(cached.path);
+        const result: ThumbnailResult = new ThumbnailResult();
+        result.uri = fileUri.getUriFromPath(cached.path);
+        result.width = cached.width;
+        result.height = cached.height;
+        return result;
       }
       let job: ThumbnailJob | undefined = ThumbnailImages.pending.get(key);
       if (job === undefined) {
@@ -61,14 +72,14 @@ export class ThumbnailImages {
         }
       };
       try {
-        const result: string = await current.promise;
-        return request.cancelled ? '' : result;
+        const result: ThumbnailResult = await current.promise;
+        return request.cancelled ? new ThumbnailResult() : result;
       } finally {
         request.onCancel = (): void => {};
         current.waiters.delete(request);
         if (ThumbnailImages.pending.get(key) === current) { ThumbnailImages.pending.delete(key); }
       }
-    } catch (error) { return ''; }
+    } catch (error) { return new ThumbnailResult(); }
   }
 
   private static async slot(): Promise<void> {
@@ -95,7 +106,7 @@ export class ThumbnailImages {
   }
 
   private static async make(input: string, remote: boolean, cacheDir: string, aspect: number,
-    contain: boolean, key: string, job: ThumbnailJob): Promise<string> {
+    contain: boolean, key: string, job: ThumbnailJob): Promise<ThumbnailResult> {
     await ThumbnailImages.slot();
     let raw: string = '';
     let output: string = '';
@@ -105,7 +116,7 @@ export class ThumbnailImages {
     let packer: image.ImagePacker | undefined = undefined;
     let file: fs.File | undefined = undefined;
     try {
-      if (job.waiters.size === 0) { return ''; }
+      if (job.waiters.size === 0) { return new ThumbnailResult(); }
       const base: string = ThumbnailImages.folder(cacheDir) + '/thumb-' + (++ThumbnailImages.sequence).toString();
       output = base + '.png';
       let path: string = input;
@@ -114,15 +125,15 @@ export class ThumbnailImages {
         const transfer: PreviewTransfer = new PreviewTransfer();
         job.transfer = transfer;
         const result = await transfer.run(input, '', '', raw, (value: PreviewLoadProgress): void => {}, 5);
-        if (result.failure.length > 0 || result.code !== 200 || result.bytes === 0) { return ''; }
+        if (result.failure.length > 0 || result.code !== 200 || result.bytes === 0) { return new ThumbnailResult(); }
         path = raw;
       }
-      if (job.waiters.size === 0) { return ''; }
+      if (job.waiters.size === 0) { return new ThumbnailResult(); }
       source = image.createImageSource(path);
       const info: image.ImageInfo = await source.getImageInfo();
       const width: number = info.size.width;
       const height: number = info.size.height;
-      if (width <= 0 || height <= 0) { return ''; }
+      if (width <= 0 || height <= 0) { return new ThumbnailResult(); }
       const cropWidth: number = contain ? width : Math.max(1, Math.min(width, Math.floor(height * aspect)));
       const cropHeight: number = contain ? height : Math.max(1, Math.min(height, Math.floor(width / aspect)));
       const size: PreviewSize = PreviewGeometry.decodeSize({ width: cropWidth, height: cropHeight },
@@ -131,18 +142,22 @@ export class ThumbnailImages {
         desiredRegion: { x: Math.floor((width - cropWidth) / 2), y: Math.floor((height - cropHeight) / 2),
           size: { width: cropWidth, height: cropHeight } },
         desiredSize: { width: size.width, height: size.height }, cropAndScaleStrategy: image.CropAndScaleStrategy.CROP_FIRST });
-      if (job.waiters.size === 0) { return ''; }
+      if (job.waiters.size === 0) { return new ThumbnailResult(); }
       packer = image.createImagePacker();
       file = fs.openSync(output, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
       await packer.packToFile(frame, file.fd, { format: 'image/png', quality: 100 });
       fs.closeSync(file); file = undefined;
-      if (job.waiters.size === 0) { return ''; }
+      if (job.waiters.size === 0) { return new ThumbnailResult(); }
       const bytes: number = fs.statSync(output).size;
-      ThumbnailImages.cache.set(key, { path: output, bytes: bytes });
+      ThumbnailImages.cache.set(key, { path: output, bytes: bytes, width: width, height: height });
       kept = true;
       ThumbnailImages.trim();
-      return fileUri.getUriFromPath(output);
-    } catch (error) { return ''; }
+      const result: ThumbnailResult = new ThumbnailResult();
+      result.uri = fileUri.getUriFromPath(output);
+      result.width = width;
+      result.height = height;
+      return result;
+    } catch (error) { return new ThumbnailResult(); }
     finally {
       if (file !== undefined) { try { fs.closeSync(file); } catch (error) {} }
       if (packer !== undefined) { try { await packer.release(); } catch (error) {} }

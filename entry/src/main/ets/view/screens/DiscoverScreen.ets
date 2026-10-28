@@ -380,7 +380,10 @@ export struct DiscoverScreen {
                 SelectTile({
                   picture: cell,
                   index: rowIndex * 3 + colIndex,
-                  onOpen: (uid: string): void => { this.onOpenPreview(uid); }
+                  onOpen: (uid: string): void => { this.onOpenPreview(uid); },
+                  onDimensions: (url: string, width: number, height: number): void => {
+                    this.discover.recordDimensions(cell.uid, url, width, height);
+                  }
                 })
                 PictureSelectionButton({ selected: cell.selected, diameter: 36,
                   onAction: (): void => { this.discover.togglePicture(cell.uid); } })
