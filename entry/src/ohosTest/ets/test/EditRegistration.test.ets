@@ -115,6 +115,34 @@ export default function editRegistrationTest() {
       } finally { cleanupOwnedFolder(root); }
     });
 
+    it('uses_the_real_container_in_paths_and_recovers_a_legacy_png_journal', 0, async () => {
+      const root: string = folder('extensions');
+      try {
+        const jpg: EditTicket = await EditJournal.prepare(root, 'jpg-copy', 'source', 'jpg');
+        expect(jpg.extension).assertEqual('jpg');
+        expect(jpg.pendingPath.endsWith('.pending.jpg')).assertTrue();
+        expect(jpg.finalPath.endsWith('.jpg')).assertTrue();
+        write(jpg.pendingPath, 'JPEG-probe-bytes');
+        const jpgResult: EditResult = resultFor(jpg);
+        await EditJournal.finalize(jpg, jpgResult);
+        expect(fs.readTextSync(jpg.finalPath)).assertEqual('JPEG-probe-bytes');
+        await EditJournal.finish(jpg);
+
+        // 旧版本日志没有 extension 字段，输出恒为 PNG：恢复时必须仍按 .png 重建路径。
+        const legacyJournal: string = root + '/edits/edit-legacy.json';
+        const legacyPending: string = root + '/edits/edit-legacy.pending.png';
+        const legacyFinal: string = root + '/edits/edit-legacy.png';
+        write(legacyPending, 'legacy-pending');
+        write(legacyFinal, 'legacy-final');
+        write(legacyJournal, '{"id":"legacy","originalId":"source","pendingPath":"' + legacyPending
+          + '","finalPath":"' + legacyFinal + '","journalPath":"' + legacyJournal + '"}');
+        await EditJournal.recover(root, []);
+        expect(fs.accessSync(legacyPending)).assertFalse();
+        expect(fs.accessSync(legacyFinal)).assertFalse();
+        expect(fs.accessSync(legacyJournal)).assertFalse();
+      } finally { cleanupOwnedFolder(root); }
+    });
+
     it('excludes_edited_copies_from_task_lists_and_running_counts', 0, () => {
       const downloads: DownloadItem[] = DownloadStore.downloads;
       const batches = DownloadStore.batches;

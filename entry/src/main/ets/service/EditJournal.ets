@@ -6,16 +6,31 @@ import { EditResult, EditTicket } from '../model/ImageEditDocument';
 /** Only paths recorded in a valid edit journal may be removed during recovery. */
 export class EditJournal {
   private static readonly ID: RegExp = new RegExp('^[A-Za-z0-9_-]{1,80}$');
+  private static readonly EXTENSIONS: string[] = ['png', 'jpg'];
 
-  private static ticket(filesDir: string, id: string, originalId: string): EditTicket {
+  /** 旧版本日志没有 extension 字段：那时输出恒为 PNG，按 png 重建路径即可正常恢复。 */
+  private static extensionOf(value: string | undefined): string {
+    return value === 'jpg' ? 'jpg' : 'png';
+  }
+
+  private static checkedExtension(value: string): string {
+    if (!EditJournal.EXTENSIONS.includes(value)) {
+      throw new Error('编辑输出格式无效');
+    }
+    return value;
+  }
+
+  private static ticket(filesDir: string, id: string, originalId: string,
+    extension: string): EditTicket {
     if (!EditJournal.ID.test(id) || originalId.length === 0 || filesDir.length === 0) {
       throw new Error('编辑记录编号无效');
     }
+    const ext: string = EditJournal.checkedExtension(extension);
     const ticket: EditTicket = new EditTicket();
-    ticket.id = id; ticket.originalId = originalId;
+    ticket.id = id; ticket.originalId = originalId; ticket.extension = ext;
     const base: string = filesDir + '/edits/edit-' + id;
-    ticket.pendingPath = base + '.pending.png';
-    ticket.finalPath = base + '.png';
+    ticket.pendingPath = base + '.pending.' + ext;
+    ticket.finalPath = base + '.' + ext;
     ticket.journalPath = base + '.json';
     return ticket;
   }
@@ -24,7 +39,8 @@ export class EditJournal {
     const suffix: string = '/edits/edit-' + ticket.id + '.json';
     if (!ticket.journalPath.endsWith(suffix)) { throw new Error('编辑日志路径无效'); }
     const root: string = ticket.journalPath.substring(0, ticket.journalPath.length - suffix.length);
-    const expected: EditTicket = EditJournal.ticket(root, ticket.id, ticket.originalId);
+    const expected: EditTicket = EditJournal.ticket(root, ticket.id, ticket.originalId,
+      EditJournal.extensionOf(ticket.extension));
     if (ticket.pendingPath !== expected.pendingPath || ticket.finalPath !== expected.finalPath) {
       throw new Error('编辑输出路径无效');
     }
@@ -54,8 +70,9 @@ export class EditJournal {
     try { if (fs.accessSync(path)) { fs.unlinkSync(path); } } catch (error) {}
   }
 
-  static async prepare(filesDir: string, id: string, originalId: string): Promise<EditTicket> {
-    const ticket: EditTicket = EditJournal.ticket(filesDir, id, originalId);
+  static async prepare(filesDir: string, id: string, originalId: string,
+    extension: string = 'png'): Promise<EditTicket> {
+    const ticket: EditTicket = EditJournal.ticket(filesDir, id, originalId, extension);
     const dir: string = filesDir + '/edits';
     if (!fs.accessSync(dir)) { fs.mkdirSync(dir, true); }
     if (fs.accessSync(ticket.pendingPath) || fs.accessSync(ticket.finalPath) ||

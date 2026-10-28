@@ -83,10 +83,12 @@ struct ImageEditor {
       stamp.modified !== loaded.modified || stamp.changed !== loaded.changed || token.cancelled) {
       throw new Error('原图已变化，请重新打开编辑');
     }
+    const setting: string = DownloadStore.editQuality;
+    const extension: string = await EditExport.extensionFor(stamp, setting);
     const ticket: EditTicket = await EditJournal.prepare(DownloadStore.context.filesDir,
-      DownloadStore.nextId(), id);
+      DownloadStore.nextId(), id, extension);
     try {
-      const result: EditResult = await EditExport.render(stamp, doc, ticket.pendingPath, token);
+      const result: EditResult = await EditExport.render(stamp, doc, ticket.pendingPath, token, setting);
       if (token.cancelled) { throw new Error('编辑已取消'); }
       await EditJournal.finalize(ticket, result);
       if (token.cancelled) { throw new Error('编辑已取消'); }

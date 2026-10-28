@@ -3,7 +3,7 @@ import { request } from '@kit.BasicServicesKit';
 import { DownloadStore } from '../../../main/ets/service/DownloadStore';
 import { Naming } from '../../../main/ets/service/Naming';
 import { StoreState } from '../../../main/ets/service/StoreState';
-import { normalizeLocation, normalizeQuality } from '../../../main/ets/model/SettingsOptions';
+import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../../../main/ets/model/SettingsOptions';
 import { DownloadItem, SavedState } from '../../../main/ets/model/Models';
 
 // 纯函数单测：不依赖 UIAbilityContext，也不访问真实文件系统。
@@ -176,9 +176,25 @@ export default function downloadStoreTest() {
     });
   });
 
+  describe('Naming.editedName', () => {
+    it('keeps_the_stem_and_follows_the_real_container', 0, () => {
+      expect(Naming.editedName('photo.webp', '编辑', 'jpg')).assertEqual('photo-编辑.jpg');
+      expect(Naming.editedName('photo.png', '编辑', 'png')).assertEqual('photo-编辑.png');
+      expect(Naming.editedName('a.b.c', '超分', 'jpg')).assertEqual('a.b-超分.jpg');
+    });
+
+    it('appends_when_the_source_has_no_extension', 0, () => {
+      expect(Naming.editedName('noext', '编辑', 'jpg')).assertEqual('noext-编辑.jpg');
+      expect(Naming.editedName('', '编辑', 'png')).assertEqual('图片-编辑.png');
+    });
+
+    it('sanitizes_before_appending', 0, () => {
+      expect(Naming.editedName('a/b', '编辑', 'jpg')).assertEqual('a_b-编辑.jpg');
+    });
+  });
+
   describe('Naming.imageExtension', () => {
-    it('maps_common_image_types', 0, () => {
-      expect(Naming.imageExtension('image/png')).assertEqual('png');
+    it('maps_common_image_types', 0, () => {      expect(Naming.imageExtension('image/png')).assertEqual('png');
       expect(Naming.imageExtension('image/jpeg')).assertEqual('jpg');
       expect(Naming.imageExtension('image/jpg')).assertEqual('jpg');
       expect(Naming.imageExtension('image/webp')).assertEqual('webp');
@@ -346,6 +362,42 @@ export default function downloadStoreTest() {
     });
   });
 
+  describe('SettingsOptions.normalizeEditQuality', () => {
+    it('keeps_the_three_explicit_modes', 0, () => {
+      expect(normalizeEditQuality('high')).assertEqual('high');
+      expect(normalizeEditQuality('compact')).assertEqual('compact');
+      expect(normalizeEditQuality('lossless')).assertEqual('lossless');
+    });
+
+    it('falls_back_to_the_default_for_unknown_values', 0, () => {
+      expect(normalizeEditQuality('')).assertEqual('high');
+      expect(normalizeEditQuality('png')).assertEqual('high');
+      expect(normalizeEditQuality('HIGH')).assertEqual('high');
+    });
+  });
+
+  describe('DownloadStore.editQuality', () => {
+    it('defaults_to_the_table_default_when_the_state_file_predates_it', 0, () => {
+      DownloadStore.adopt(new SavedState());
+      expect(DownloadStore.editQuality).assertEqual('high');
+    });
+
+    it('keeps_a_persisted_mode', 0, () => {
+      // 与 pictureQuality 同一个理由：故意存非默认档，才能证明字段真的被读进来。
+      const state: SavedState = new SavedState();
+      state.editQuality = 'compact';
+      DownloadStore.adopt(state);
+      expect(DownloadStore.editQuality).assertEqual('compact');
+    });
+
+    it('falls_back_to_the_default_for_a_dirty_value', 0, () => {
+      const state: SavedState = new SavedState();
+      state.editQuality = 'png';
+      DownloadStore.adopt(state);
+      expect(DownloadStore.editQuality).assertEqual('high');
+    });
+  });
+
   // 这一段是这次拆出持久化层**新拿到的覆盖**：解码规则原来埋在 adopt() 里，而走到它必须
   // 先有一个 UIAbilityContext（initialize）—— 也就是「读到老版本 / 被改坏的状态文件会怎样」
   // 根本没法测。现在 parse / normalized 都是纯函数，直接喂字符串即可。
@@ -388,6 +440,7 @@ export default function downloadStoreTest() {
       state.downloads = [item];
       state.wifiOnly = true;
       state.hdrEnabled = false;
+      state.editQuality = 'compact';
 
       const raw: string = StoreState.serialize(state);
       // 线格式里出现代理痕迹，即代表有人又直接 stringify 了模型实例。
@@ -408,6 +461,7 @@ export default function downloadStoreTest() {
       expect(back.downloads[0].note).assertEqual('解包成功');
       expect(back.wifiOnly).assertTrue();
       expect(back.hdrEnabled).assertFalse();
+      expect(back.editQuality).assertEqual('compact');
     });
 
     it('normalized_fills_missing_fields_of_an_old_file', 0, () => {
@@ -423,6 +477,7 @@ export default function downloadStoreTest() {
       expect(safe.lightEffect).assertTrue();
       expect(safe.hdrEnabled).assertTrue();
       expect(safe.pictureQuality).assertEqual('original');
+      expect(safe.editQuality).assertEqual('high');
       expect(safe.downloadLocation).assertEqual('app');
     });
 
@@ -447,9 +502,11 @@ export default function downloadStoreTest() {
 
     it('normalized_clamps_concurrency_and_dirty_modes', 0, () => {
       const safe: SavedState = StoreState.normalized(
-        StoreState.parse('{"concurrency":99,"pictureQuality":"thumbnail","downloadLocation":"downloads"}') as SavedState);
+        StoreState.parse('{"concurrency":99,"pictureQuality":"thumbnail",'
+          + '"editQuality":"png","downloadLocation":"downloads"}') as SavedState);
       expect(safe.concurrency).assertEqual(10);
       expect(safe.pictureQuality).assertEqual('original');
+      expect(safe.editQuality).assertEqual('high');
       expect(safe.downloadLocation).assertEqual('app');
     });
 

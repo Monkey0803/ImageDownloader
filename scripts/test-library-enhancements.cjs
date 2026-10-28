@@ -1659,6 +1659,7 @@ function editExportHarness(config = {}) {
   const events = [];
   const files = new Map([['/original.png', 123]]);
   if (config.existing) files.set('/pending.png', 77);
+  let opened = '';
   const { AssetStamp, AnalysisToken } = load(ets('model/LibraryAsset'));
   const { ImageEditGeometry } = load(ets('util/ImageEditGeometry'));
   const stamp = new AssetStamp(); stamp.id = 'a'; stamp.path = '/original.png';
@@ -1678,22 +1679,38 @@ function editExportHarness(config = {}) {
   const fs = {
     OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 },
     accessSync: name => files.has(name),
-    openSync: name => { files.set(name, 0); events.push(['open', name]); return { fd: 1 }; },
+    openSync: name => { opened = name; files.set(name, 0); events.push(['open', name]); return { fd: 1 }; },
     closeSync: () => events.push('close'),
     statSync: name => ({ size: files.get(name) ?? 0 }),
     unlinkSync: name => { events.push(['unlink', name]); files.delete(name); }
   };
   const image = {
-    PixelMapFormat: { RGBA_8888: 3 }, AlphaType: { PREMUL: 2, UNPREMUL: 3 },
+    PixelMapFormat: { RGBA_8888: 3 },
+    AlphaType: { UNKNOWN: 0, OPAQUE: 1, PREMUL: 2, UNPREMUL: 3 },
+    CropAndScaleStrategy: { CROP_FIRST: 0 },
     createImagePacker: () => ({
-      packToFile: async (_frame, fd, options) => { events.push(['pack', options.format]);
+      packToFile: async (_frame, fd, options) => {
+        events.push(['pack', options.format, options.quality]);
         if (config.failPack) throw new Error('pack failed');
-        files.set('/pending.png', 99);
+        files.set(opened, 99);
       },
       release: async () => events.push('packer.release')
     }),
-    createImageSource: name => ({ getImageInfo: async () => ({ size: { width: 9, height: 9 }, mimeType: 'image/png' }),
-      release: async () => events.push('verify.release') })
+    createImageSource: name => ({
+      getImageInfo: async () => ({ size: { width: 9, height: 9 },
+        mimeType: config.sourceMime ?? 'image/png', alphaType: config.sourceAlpha ?? 2 }),
+      createPixelMap: async () => {
+        const data = new Uint8Array(9 * 9 * 4);
+        for (let i = 3; i < data.length; i += 4) { data[i] = config.sourceTransparent ? 0 : 255; }
+        return {
+          getPixelBytesNumber: () => data.length,
+          getBytesNumberPerRow: () => 36,
+          readPixelsToBuffer: async buffer => { new Uint8Array(buffer).set(data); },
+          release: async () => events.push('probe.release')
+        };
+      },
+      release: async () => events.push('verify.release')
+    })
   };
   const reader = { info: async () => ({ width: 9, height: 9 }),
     decode: async () => frame };
@@ -1736,6 +1753,62 @@ caseTest('edit export removes only its own pending file on failure or cancellati
   cancelled.doc.strokes = [stroke];
   await assert.rejects(cancelled.Export.render(cancelled.stamp, cancelled.doc, '/pending.png', cancelled.token));
   assert.equal(cancelled.files.has('/pending.png'), false);
+});
+
+caseTest('edit export picks jpeg by quality tier and falls back to png for alpha sources', async () => {
+  const high = editExportHarness({ sourceAlpha: 1 });
+  const jpegResult = await high.Export.render(high.stamp, high.doc, '/pending.jpg', high.token, 'high');
+  assert.deepEqual([jpegResult.path, jpegResult.width, jpegResult.height, jpegResult.bytes],
+    ['/pending.jpg', 9, 9, 99]);
+  assert.deepEqual(high.events.filter(x => Array.isArray(x) && x[0] === 'pack'),
+    [['pack', 'image/jpeg', 90]]);
+
+  const compact = editExportHarness({ sourceAlpha: 1 });
+  await compact.Export.render(compact.stamp, compact.doc, '/pending.jpg', compact.token, 'compact');
+  assert.deepEqual(compact.events.filter(x => Array.isArray(x) && x[0] === 'pack'),
+    [['pack', 'image/jpeg', 80]]);
+
+  const lossless = editExportHarness({ sourceAlpha: 1 });
+  await lossless.Export.render(lossless.stamp, lossless.doc, '/pending.png', lossless.token, 'lossless');
+  assert.deepEqual(lossless.events.filter(x => Array.isArray(x) && x[0] === 'pack'),
+    [['pack', 'image/png', 100]]);
+
+  const alpha = editExportHarness({ sourceAlpha: 2 });
+  await assert.rejects(alpha.Export.render(alpha.stamp, alpha.doc, '/pending.jpg', alpha.token, 'high'));
+  assert.equal(alpha.files.has('/pending.jpg'), false);
+});
+
+caseTest('edit export format policy keeps alpha and unknown sources lossless', async () => {
+  const { Export } = editExportHarness();
+  assert.equal(Export.extensionOf('high', 1, false), 'jpg');
+  assert.equal(Export.extensionOf('compact', 1, false), 'jpg');
+  assert.equal(Export.extensionOf('lossless', 1, false), 'png');
+  assert.equal(Export.extensionOf('high', 2, false), 'png');
+  assert.equal(Export.extensionOf('high', 3, false), 'png');
+  assert.equal(Export.extensionOf('high', 0, true), 'png');
+  assert.equal(Export.extensionOf('high', 0, false), 'jpg');
+  assert.equal(Export.qualityOf('high'), 90);
+  assert.equal(Export.qualityOf('compact'), 80);
+
+  const jpeg = editExportHarness({ sourceMime: 'image/jpeg', sourceAlpha: 2, sourceTransparent: true });
+  assert.equal(await jpeg.Export.extensionFor(jpeg.stamp, 'high'), 'jpg');
+
+  const unknownOpaque = editExportHarness({ sourceAlpha: 0, sourceTransparent: false });
+  assert.equal(await unknownOpaque.Export.extensionFor(unknownOpaque.stamp, 'high'), 'jpg');
+
+  const unknownAlpha = editExportHarness({ sourceAlpha: 0, sourceTransparent: true });
+  assert.equal(await unknownAlpha.Export.extensionFor(unknownAlpha.stamp, 'high'), 'png');
+});
+
+caseTest('edited copy display name follows the real container', async () => {
+  const h = await registrationHarness();
+  const ticket = await h.EditJournal.prepare('/files', 'jpg-copy', h.original.id, 'jpg');
+  h.memory.files.set(ticket.pendingPath, { data: Buffer.from('jpeg'), mtime: 1, ctime: 1 });
+  const result = { path: ticket.pendingPath, bytes: 4, width: 2, height: 2 };
+  await h.EditJournal.finalize(ticket, result);
+  const item = await h.DownloadStore.registerEdited(h.original.id, ticket, result);
+  assert.equal(item.name, 'original-编辑.jpg');
+  assert.ok(item.path.endsWith('.jpg'));
 });
 
 caseTest('search view model preserves filters while toggling real image favorite', async () => {

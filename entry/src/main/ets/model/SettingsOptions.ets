@@ -178,6 +178,39 @@ const PICTURE_QUALITY_ITEMS: ChoiceOption[] = [
 export const PICTURE_QUALITIES: ChoiceSet = new ChoiceSet(PICTURE_QUALITY_ITEMS, 'original');
 
 /**
+ * 「编辑副本科质」三档，与 `DownloadStore.editQuality` 的语义 id 一一对应。
+ *
+ * 编辑导出原先无条件写无损 PNG：PNG 的 quality 参数不生效，一张 227 KB 的有损原图
+ * 重新编码后会膨胀到 1.6 MB。这里把「格式 + JPEG 质量」收成用户可选的档位：
+ * - `high` 不透明源按 JPEG 质量 90 编码（默认，体积约为无损 PNG 的 1/5）；
+ * - `compact` 不透明源按 JPEG 质量 80 编码（体积最小）；
+ * - `lossless` 保持旧行为，始终 PNG。
+ *
+ * 带透明通道的源在任何档位下都强制 PNG —— JPEG 不支持 alpha，强行编码会把透明区域
+ * 变成黑色；透明度未知时 EditExport 会先做一次有界像素扫描再决定。
+ * 判据与编码策略见 service/EditExport.ets。
+ */
+const EDIT_QUALITY_ITEMS: ChoiceOption[] = [
+  { id: 'high', label: '高质量 JPEG' },
+  { id: 'compact', label: '体积优先 JPEG' },
+  { id: 'lossless', label: '无损 PNG' }
+];
+export const EDIT_QUALITIES: ChoiceSet = new ChoiceSet(EDIT_QUALITY_ITEMS, 'high');
+
+/** 「编辑副本科质」那一行的说明文字；透明回退是硬规则，所以每档都写一句。 */
+export class EditQualityHints {
+  static text(id: string): string {
+    if (id === 'lossless') {
+      return '保留全部像素与透明通道，文件最大';
+    }
+    if (id === 'compact') {
+      return 'JPEG 质量 80，文件最小；细看可能有损失。含透明通道的图片始终存为 PNG';
+    }
+    return 'JPEG 质量 90，照片观感接近原图，体积约为无损 PNG 的 1/5。含透明通道的图片始终存为 PNG';
+  }
+}
+
+/**
  * 「下载图片质量」那一行的说明文字。
  *
  * 三档各是一句用户看得懂的话；没有失败态要顶掉说明，所以只按档位给一句（**策略**：
@@ -227,6 +260,11 @@ export class LocationHints {
  */
 export function normalizeQuality(value: string): string {
   return PICTURE_QUALITIES.normalize(value);
+}
+
+/** 与 `normalizeQuality` 同一条规则：认不出的值退回表里的默认档（高质量 JPEG）。 */
+export function normalizeEditQuality(value: string): string {
+  return EDIT_QUALITIES.normalize(value);
 }
 
 /**

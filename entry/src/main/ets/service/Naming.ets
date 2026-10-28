@@ -64,6 +64,17 @@ export class Naming {
     return base + '.' + extension;
   }
 
+  /**
+   * 编辑副本的显示名：保留原名词干，追加 `-编辑`，扩展名跟随真实容器（png / jpg）。
+   * 超分副本传自己的 label（如 `超分`），避免两条编辑链路各写一份拼接。
+   */
+  static editedName(sourceName: string, label: string, extension: string): string {
+    const suffix: string = '.' + extension;
+    const renamed: string = Naming.withExtension(sourceName, extension);
+    const stem: string = renamed.substring(0, renamed.length - suffix.length);
+    return Naming.clean(stem + '-' + label + suffix, '图片-' + label + suffix);
+  }
+
   /** Content-Type → 扩展名；不是认识的图片类型就返回空串（调用方据此决定要不要改名）。 */
   static imageExtension(contentType: string): string {
     const mime: string = contentType.toLowerCase().split(';')[0].trim();

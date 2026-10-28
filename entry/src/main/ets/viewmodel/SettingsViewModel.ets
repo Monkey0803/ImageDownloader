@@ -5,15 +5,15 @@ import { ThemeController } from '../service/ThemeController';
 import { UiPort } from '../service/UiPort';
 import { formatBytes } from '../theme/Tokens';
 import {
-  ChoiceOption, DOWNLOAD_LOCATIONS, LocationHints, MATERIAL_LEVELS, MATERIAL_TYPES,
-  PICTURE_QUALITIES, QualityHints, THEME_CHOICES
+  ChoiceOption, DOWNLOAD_LOCATIONS, EDIT_QUALITIES, EditQualityHints, LocationHints,
+  MATERIAL_LEVELS, MATERIAL_TYPES, PICTURE_QUALITIES, QualityHints, THEME_CHOICES
 } from '../model/SettingsOptions';
 
 /**
  * 设置页的 ViewModel。
  *
- * 九行设置里有六行是「语义档位」：主题、材质类型、材质等级、下载图片质量、下载位置、
- * 沉浸光感开关。它们在 Index 里各配了一组 getter（下标 / 当前名 / 说明文字）加一个 pick 方法，
+ * 设置页里的几行「语义档位」：主题、材质类型、材质等级、下载图片质量、编辑副本科质、
+ * 下载位置、沉浸光感开关。它们在 Index 里各配了一组 getter（下标 / 当前名 / 说明文字）加一个 pick 方法，
  * 一共三十来个成员。这里把它们归成一个 ViewModel，并把「档位表」交给 model/SettingsOptions
  * 的 `ChoiceSet` —— 组件只问「现在显示哪一项、这一行该写什么」。
  *
@@ -37,6 +37,8 @@ export class SettingsViewModel {
   @Trace downloadLocation: string = 'app';
   /** 扫描取图策略（「下载图片质量」那一行）；与 DownloadStore.pictureQuality 同步。 */
   @Trace pictureQuality: string = 'original';
+  /** 编辑副本科质（「编辑副本科质」那一行）；与 DownloadStore.editQuality 同步。 */
+  @Trace editQuality: string = 'high';
   /** 自定义目录的显示名，写在下拉行下面的说明里。 */
   @Trace customDirName: string = '';
   /** 上次投递到相册 / 自定义目录失败的原因；非空时顶掉下载位置那行的说明文字。 */
@@ -63,6 +65,7 @@ export class SettingsViewModel {
     this.wifiOnly = DownloadStore.wifiOnly;
     this.downloadLocation = DownloadStore.downloadLocation;
     this.pictureQuality = DownloadStore.pictureQuality;
+    this.editQuality = DownloadStore.editQuality;
     this.customDirName = DownloadStore.customDirName;
     this.destinationProblem = DownloadStore.destinationProblem;
     this.saveProblem = DownloadStore.saveProblem;
@@ -197,6 +200,31 @@ export class SettingsViewModel {
     DownloadStore.setPictureQuality(quality.id);
     this.sync();
     this.ui.say('图片质量已改为「' + quality.label + '」，重新打开网页后生效');
+  }
+
+  // ------------------------------------------------------------------ 编辑副本科质
+
+  editQualityIndex(): number {
+    return EDIT_QUALITIES.index(this.editQuality);
+  }
+
+  editQualityLabel(): string {
+    return EDIT_QUALITIES.label(this.editQuality);
+  }
+
+  editQualityHint(): string {
+    return EditQualityHints.text(this.editQuality);
+  }
+
+  /** 只影响之后保存的编辑副本；已保存的副本不会重编码。 */
+  pickEditQuality(index: number): void {
+    if (index < 0 || index >= EDIT_QUALITIES.size()) {
+      return;
+    }
+    const quality: ChoiceOption = EDIT_QUALITIES.at(index);
+    DownloadStore.setEditQuality(quality.id);
+    this.sync();
+    this.ui.say('编辑副本科质已改为「' + quality.label + '」，之后保存的副本生效');
   }
 
   // ------------------------------------------------------------------ 下载位置

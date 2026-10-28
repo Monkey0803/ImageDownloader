@@ -145,6 +145,8 @@ export class SavedState {
   antiPeepEnabled: boolean = false;
   /** 扫描取图策略：'original' 原图优先（默认）| 'display' 网页显示图 | 'all' 每个候选地址各收一张。 */
   pictureQuality: string = 'original';
+  /** 编辑副本科质：'high' 高质量 JPEG（默认）| 'compact' 体积优先 JPEG | 'lossless' 无损 PNG。 */
+  editQuality: string = 'high';
   /** 下载位置：'app' 应用文件 | 'gallery' 系统相册 | 'custom' 自定义目录。 */
   downloadLocation: string = 'app';
   /** 自定义目录的 URI 与显示名；只有 downloadLocation 为 'custom' 时有效。 */

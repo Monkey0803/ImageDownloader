@@ -7,7 +7,7 @@ import { image } from '@kit.ImageKit';
 import {
   BatchItem, DownloadItem, orNumber, PictureItem, SavedState, ZipItem
 } from '../model/Models';
-import { normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
+import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
 import { StoreState } from './StoreState';
 import { GripSensor } from './GripSensor';
 import { AntiPeep } from './AntiPeep';
@@ -56,6 +56,12 @@ export class DownloadStore {
    * 只在发现页扫描的那一刻被读取，下载 / 打包 / 投递都不看这个字段。
    */
   static pictureQuality: string = 'original';
+  /**
+   * 编辑副本科质：'high' 高质量 JPEG（默认）| 'compact' 体积优先 JPEG | 'lossless' 无损 PNG。
+   *
+   * 只在保存编辑副本时被读；带透明通道的源仍由 EditExport 强制走 PNG。
+   */
+  static editQuality: string = 'high';
   /** 下载位置：'app' 应用文件（默认）| 'gallery' 系统相册 | 'custom' 自定义目录。 */
   static downloadLocation: string = 'app';
   /** 用户选的目录；只有 downloadLocation 为 'custom' 时非空。 */
@@ -263,6 +269,7 @@ export class DownloadStore {
     DownloadStore.gripEnabled = safe.gripEnabled;
     DownloadStore.antiPeepEnabled = safe.antiPeepEnabled;
     DownloadStore.pictureQuality = safe.pictureQuality;
+    DownloadStore.editQuality = safe.editQuality;
     DownloadStore.downloadLocation = safe.downloadLocation;
     DownloadStore.customDirUri = safe.customDirUri;
     DownloadStore.customDirName = safe.customDirName;
@@ -350,6 +357,7 @@ export class DownloadStore {
     state.gripEnabled = DownloadStore.gripEnabled;
     state.antiPeepEnabled = DownloadStore.antiPeepEnabled;
     state.pictureQuality = DownloadStore.pictureQuality;
+    state.editQuality = DownloadStore.editQuality;
     state.downloadLocation = DownloadStore.downloadLocation;
     state.customDirUri = DownloadStore.customDirUri;
     state.customDirName = DownloadStore.customDirName;
@@ -449,10 +457,10 @@ export class DownloadStore {
     }
     const sourcePath: string = source.path;
     const sourceStat: fs.Stat = fs.statSync(sourcePath);
+    const extension: string = ticket.extension === 'jpg' ? 'jpg' : 'png';
     const item: DownloadItem = new DownloadItem();
     item.id = ticket.id; item.origin = 'edited'; item.originalId = sourceId;
-    item.name = DownloadStore.uniqueName(Naming.clean(Naming.withExtension(source.name, 'png')
-      .replace(new RegExp('\\.png$', 'i'), '') + '-' + label + '.png', '图片-' + label + '.png'),
+    item.name = DownloadStore.uniqueName(Naming.editedName(source.name, label, extension),
       DownloadStore.context.filesDir + '/edits');
     item.path = ticket.finalPath; item.sourcePage = source.sourcePage;
     item.url = ''; item.kind = 'image'; item.animated = false;
@@ -695,6 +703,16 @@ export class DownloadStore {
    */
   static setPictureQuality(value: string): void {
     DownloadStore.pictureQuality = normalizeQuality(value);
+    DownloadStore.notify();
+  }
+
+  /**
+   * 编辑副本科质：'high' | 'compact' | 'lossless'。
+   *
+   * 只影响之后保存的编辑副本；已保存的副本不重编码。
+   */
+  static setEditQuality(value: string): void {
+    DownloadStore.editQuality = normalizeEditQuality(value);
     DownloadStore.notify();
   }
 

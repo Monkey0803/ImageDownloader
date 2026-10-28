@@ -2,7 +2,7 @@ import { TasksViewModel } from '../../viewmodel/TasksViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import {
-  DOWNLOAD_LOCATIONS, MATERIAL_LEVELS, MATERIAL_TYPES, PICTURE_QUALITIES, THEME_CHOICES
+  DOWNLOAD_LOCATIONS, EDIT_QUALITIES, MATERIAL_LEVELS, MATERIAL_TYPES, PICTURE_QUALITIES, THEME_CHOICES
 } from '../../model/SettingsOptions';
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
@@ -10,7 +10,7 @@ import { Card, ListRow, SectionHead, SettingSelect, StackedRow, TitleBar } from 
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
- * 「设置」页：外观 / 系统特性 / 下载 / 数据四节。
+ * 「设置」页：外观 / 系统特性 / 下载 / 编辑 / 数据五节。
  *
  * 从 Index 的 `settingsScreen()` / `sliderRow()` 搬过来。这一页是「一堆行 + 一行一个控件」，
  * 所以每一行的**档位表、当前下标、当前名字、说明文字**全部来自 ViewModel，
@@ -282,6 +282,29 @@ export struct SettingsScreen {
                 }
               }
               .width('100%')
+            }
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+
+          Column({ space: Space.s10 }) {
+            SectionHead({ heading: '编辑' })
+            Card({ pad: 0 }) {
+              ListRow({
+                glyph: 'brush',
+                heading: '编辑副本科质',
+                // 说明文字跟着档位走；透明源回退 PNG 的规则写在每一档里。
+                aux: this.settings.editQualityHint()
+              }) {
+                SettingSelect({
+                  options: EDIT_QUALITIES.selectOptions(),
+                  selectedIndex: this.settings.editQualityIndex(),
+                  label: this.settings.editQualityLabel(),
+                  onPick: (index: number): void => {
+                    this.settings.pickEditQuality(index);
+                  }
+                })
+              }
             }
           }
           .width('100%')

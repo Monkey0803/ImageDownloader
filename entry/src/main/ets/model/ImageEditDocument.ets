@@ -38,6 +38,8 @@ export class EditResult {
 export class EditTicket {
   id: string = '';
   originalId: string = '';
+  /** 'png' | 'jpg' — 输出容器的真实扩展名；日志、恢复与显示名都以此为准。 */
+  extension: string = 'png';
   pendingPath: string = '';
   finalPath: string = '';
   journalPath: string = '';

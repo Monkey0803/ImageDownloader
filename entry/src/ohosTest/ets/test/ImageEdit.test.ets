@@ -57,6 +57,23 @@ function equalPixel(bytes: Uint8Array, width: number, x: number, y: number, rgba
   }
 }
 
+/** JPEG 有损：只要求每个通道落在容差内，不要求逐字节相等。 */
+function equalPixelNear(bytes: Uint8Array, width: number, x: number, y: number,
+  rgba: number[], tolerance: number): void {
+  const offset: number = (y * width + x) * 4;
+  for (let channel: number = 0; channel < 4; channel++) {
+    expect(Math.abs(bytes[offset + channel] - rgba[channel]) <= tolerance).assertTrue();
+  }
+}
+
+async function mimeOf(path: string): Promise<string> {
+  const source: image.ImageSource = image.createImageSource(path);
+  try {
+    const info: image.ImageInfo = await source.getImageInfo();
+    return (info.mimeType ?? '').toLowerCase();
+  } finally { await source.release(); }
+}
+
 export default function imageEditTest() {
   describe('ImageEditGeometryNative', () => {
     it('maps_every_cropped_pixel_against_independent_rotated_label_grids', 0, () => {
@@ -240,9 +257,11 @@ export default function imageEditTest() {
         const outline: EditStroke = new EditStroke();
         outline.kind = 'rect'; outline.color = '#000000'; outline.width = 1;
         outline.points = [point(6, 6), point(18, 12)]; doc.strokes = [pen, outline];
-        const result = await EditExport.render(stamp, doc, pending, new AnalysisToken());
+        const result = await EditExport.render(stamp, doc, pending, new AnalysisToken(), 'high');
         expect(result.width).assertEqual(24); expect(result.height).assertEqual(16);
         expect(result.bytes > 0).assertTrue(); expect(result.bytes).assertEqual(fs.statSync(pending).size);
+        // 源图带透明通道：高质量 JPEG 档也必须回退 PNG，透明像素不能被压成黑色。
+        expect(await mimeOf(pending)).assertEqual('image/png');
         const pixels: Uint8Array = await outputPixels(pending);
         equalPixel(pixels,24,0,0,[255,0,0,255]); equalPixel(pixels,24,23,0,[0,255,0,255]);
         equalPixel(pixels,24,0,15,[0,0,255,255]); equalPixel(pixels,24,23,15,[255,255,0,255]);
@@ -258,7 +277,7 @@ export default function imageEditTest() {
         const cropPen: EditStroke = new EditStroke();
         cropPen.color = '#0000FF'; cropPen.width = 1; cropPen.points = [point(4, 3), point(10, 3)];
         cropped.strokes = [cropPen];
-        const cropResult = await EditExport.render(stamp, cropped, rotated, new AnalysisToken());
+        const cropResult = await EditExport.render(stamp, cropped, rotated, new AnalysisToken(), 'high');
         expect(cropResult.width).assertEqual(12); expect(cropResult.height).assertEqual(20);
         const cropPixels: Uint8Array = await outputPixels(rotated);
         equalPixel(cropPixels,12,10,5,[0,0,255,255]); // Source(7,3) -> crop(5,1) -> CW(10,5).
@@ -311,6 +330,58 @@ export default function imageEditTest() {
           }
           fs.rmdirSync(folder);
         }
+      }
+    });
+
+    it('exports_opaque_sources_as_jpeg_or_png_by_quality_and_rejects_a_mismatched_path', 0, async () => {
+      const root: string = abilityDelegatorRegistry.getAbilityDelegator().getAppContext().filesDir;
+      const folder: string = root + '/library-test-edit-quality-' + Date.now().toString();
+      fs.mkdirSync(folder, true);
+      const sourcePath: string = folder + '/opaque.jpg';
+      const jpegPath: string = folder + '/copy.jpg';
+      const pngPath: string = folder + '/copy.png';
+      try {
+        // 8×4 JPEG：左半红、右半绿；JPEG 格式本身没有 alpha，必然允许走 JPEG。
+        writeFixture(sourcePath,
+          '/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAABAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgABAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A4P8AZ5/5j/8A26/+1a+lK+a/2ef+Y/8A9uv/ALVr6Ur/ADY41/5GdX/t3/0lH8e/tLP+T2Z9/wBy3/qJQP/Z');
+        const item: DownloadItem = new DownloadItem();
+        item.id = 'edit-quality'; item.path = sourcePath; item.kind = 'image'; item.status = 'completed';
+        const stamp: AssetStamp = await LibraryImageReader.stamp(item);
+        const doc: EditDocument = ImageEditGeometry.create(8, 4);
+        expect(await EditExport.extensionFor(stamp, 'high')).assertEqual('jpg');
+        expect(await EditExport.extensionFor(stamp, 'compact')).assertEqual('jpg');
+        expect(await EditExport.extensionFor(stamp, 'lossless')).assertEqual('png');
+        expect(EditExport.qualityOf('high')).assertEqual(90);
+        expect(EditExport.qualityOf('compact')).assertEqual(80);
+        expect(EditExport.extensionOf('high', image.AlphaType.PREMUL, false)).assertEqual('png');
+        expect(EditExport.extensionOf('high', image.AlphaType.UNKNOWN, true)).assertEqual('png');
+        expect(EditExport.extensionOf('high', image.AlphaType.UNKNOWN, false)).assertEqual('jpg');
+
+        const jpegResult = await EditExport.render(stamp, doc, jpegPath, new AnalysisToken(), 'high');
+        expect(jpegResult.width).assertEqual(8); expect(jpegResult.height).assertEqual(4);
+        expect(await mimeOf(jpegPath)).assertEqual('image/jpeg');
+        const jpegPixels: Uint8Array = await outputPixels(jpegPath);
+        equalPixelNear(jpegPixels, 8, 1, 1, [255, 0, 0, 255], 20);
+        equalPixelNear(jpegPixels, 8, 6, 1, [0, 255, 0, 255], 20);
+        expect(fs.accessSync(pngPath)).assertFalse();
+
+        const pngResult = await EditExport.render(stamp, doc, pngPath, new AnalysisToken(), 'lossless');
+        expect(pngResult.width).assertEqual(8); expect(pngResult.height).assertEqual(4);
+        expect(await mimeOf(pngPath)).assertEqual('image/png');
+        const pngPixels: Uint8Array = await outputPixels(pngPath);
+        equalPixelNear(pngPixels, 8, 1, 1, [255, 0, 0, 255], 20);
+        equalPixelNear(pngPixels, 8, 6, 1, [0, 255, 0, 255], 20);
+
+        let rejected: boolean = false;
+        try { await EditExport.render(stamp, doc, folder + '/wrong.png', new AnalysisToken(), 'high'); }
+        catch (error) { rejected = true; }
+        expect(rejected).assertTrue();
+        expect(fs.accessSync(folder + '/wrong.png')).assertFalse();
+      } finally {
+        for (const path of [sourcePath, jpegPath, pngPath, folder + '/wrong.png']) {
+          try { if (fs.accessSync(path)) { fs.unlinkSync(path); } } catch (error) { }
+        }
+        fs.rmdirSync(folder);
       }
     });
 

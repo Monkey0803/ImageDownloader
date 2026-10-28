@@ -1,5 +1,5 @@
 import { BatchItem, DownloadItem, orBoolean, orNumber, orString, SavedState, ZipItem } from '../model/Models';
-import { normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
+import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
 import { ReceiptWire } from '../model/SaveReceipt';
 
 /**
@@ -101,6 +101,7 @@ class StateWire {
   gripEnabled: boolean = false;
   antiPeepEnabled: boolean = false;
   pictureQuality: string = 'original';
+  editQuality: string = 'high';
   downloadLocation: string = 'app';
   customDirUri: string = '';
   customDirName: string = '';
@@ -179,6 +180,7 @@ export class StoreState {
     wire.gripEnabled = state.gripEnabled;
     wire.antiPeepEnabled = state.antiPeepEnabled;
     wire.pictureQuality = state.pictureQuality;
+    wire.editQuality = state.editQuality;
     wire.downloadLocation = state.downloadLocation;
     wire.customDirUri = state.customDirUri;
     wire.customDirName = state.customDirName;
@@ -275,6 +277,7 @@ export class StoreState {
     safe.customDirUri = orString(state.customDirUri, '');
     safe.customDirName = orString(state.customDirName, '');
     safe.pictureQuality = normalizeQuality(orString(state.pictureQuality, ''));
+    safe.editQuality = normalizeEditQuality(orString(state.editQuality, ''));
     // 下载位置的归一依赖 customDirUri，所以放在它之后。
     safe.downloadLocation =
       normalizeLocation(orString(state.downloadLocation, 'app'), safe.customDirUri);
