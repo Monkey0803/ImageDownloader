@@ -86,7 +86,7 @@ export struct LocalPreviewImage {
       const size: PreviewSize = PreviewGeometry.decodeSize({ width: info.size.width, height: info.size.height }, base, 3000000);
       const options: image.DecodingOptions = { index: 0, desiredSize: { width: size.width, height: size.height } };
       // HDR is requested only when the source carries it; unsupported devices fall back to SDR below.
-      if (info.isHdr === true) { options.desiredDynamicRange = image.DecodingDynamicRange.HDR; }
+      if (info.isHdr === true && DownloadStore.hdrEnabled) { options.desiredDynamicRange = image.DecodingDynamicRange.HDR; }
       try {
         decoded = await source.createPixelMap(options);
       } catch (error) {

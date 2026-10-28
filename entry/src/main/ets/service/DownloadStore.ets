@@ -3,6 +3,7 @@ import { request, zlib } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
+import { image } from '@kit.ImageKit';
 import {
   BatchItem, DownloadItem, orNumber, PictureItem, SavedState, ZipItem
 } from '../model/Models';
@@ -43,6 +44,8 @@ export class DownloadStore {
   static materialLevel: string = 'adaptive';
   /** Whether the immersive material lights up under touch. */
   static lightEffect: boolean = true;
+  /** 预览时是否按 HDR 解码/显示；关闭后统一走 SDR。 */
+  static hdrEnabled: boolean = true;
   /** 智感握姿：主操作是否跟随握持手；开启时同时订阅系统的握持手感知。 */
   static gripEnabled: boolean = false;
   /** 防窥保护：开启时订阅系统窥视状态，检测到窥视就遮罩内容。 */
@@ -256,6 +259,7 @@ export class DownloadStore {
     DownloadStore.materialType = safe.materialType;
     DownloadStore.materialLevel = safe.materialLevel;
     DownloadStore.lightEffect = safe.lightEffect;
+    DownloadStore.hdrEnabled = safe.hdrEnabled;
     DownloadStore.gripEnabled = safe.gripEnabled;
     DownloadStore.antiPeepEnabled = safe.antiPeepEnabled;
     DownloadStore.pictureQuality = safe.pictureQuality;
@@ -342,6 +346,7 @@ export class DownloadStore {
     state.materialType = DownloadStore.materialType;
     state.materialLevel = DownloadStore.materialLevel;
     state.lightEffect = DownloadStore.lightEffect;
+    state.hdrEnabled = DownloadStore.hdrEnabled;
     state.gripEnabled = DownloadStore.gripEnabled;
     state.antiPeepEnabled = DownloadStore.antiPeepEnabled;
     state.pictureQuality = DownloadStore.pictureQuality;
@@ -636,6 +641,12 @@ export class DownloadStore {
 
   static setLightEffect(value: boolean): void {
     DownloadStore.lightEffect = value;
+    DownloadStore.notify();
+  }
+
+  /** HDR 只影响之后的预览解码；已打开的预览在重新进入时生效。 */
+  static setHdrEnabled(value: boolean): void {
+    DownloadStore.hdrEnabled = value;
     DownloadStore.notify();
   }
 
@@ -1091,17 +1102,35 @@ export class DownloadStore {
         item.stillPath = content.stillPath;
         item.motionPath = content.motionPath;
         item.auxSize = content.auxSize;
+        item.hdr = await DownloadStore.hdrOf(content.stillPath);
         item.note = '';
         return;
       }
       item.stillPath = '';
       item.motionPath = '';
       item.auxSize = 0;
+      item.hdr = false;
       item.note = content.message;
       DownloadStore.pendingNotice = content.message;
       return;
     }
     item.animated = StillFrames.isAnimatedFile(item.path);
+    item.hdr = await DownloadStore.hdrOf(item.path);
+  }
+
+  /** 只读一次 ImageInfo，判断源文件是否带 HDR；失败按 SDR 处理，不影响下载结果。 */
+  private static async hdrOf(path: string): Promise<boolean> {
+    if (path.length === 0) { return false; }
+    let source: image.ImageSource | undefined = undefined;
+    try {
+      source = image.createImageSource(path);
+      const info: image.ImageInfo = await source.getImageInfo();
+      return info.isHdr === true;
+    } catch (error) {
+      return false;
+    } finally {
+      if (source !== undefined) { try { await source.release(); } catch (error) {} }
+    }
   }
 
   /**

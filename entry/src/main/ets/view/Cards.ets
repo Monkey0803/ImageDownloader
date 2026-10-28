@@ -181,7 +181,8 @@ export struct ShotTile {
     if (MediaFormat.isLivepicStill(this.image.url)) {
       return '实况静图';
     }
-    return this.image.animated ? '动图' : '';
+    if (this.image.animated) { return '动图'; }
+    return this.image.hdr ? 'HDR' : '';
   }
 
   build() {

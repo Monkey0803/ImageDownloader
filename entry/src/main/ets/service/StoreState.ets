@@ -58,6 +58,7 @@ class DownloadWire {
   finishedAt: number = 0;
   kind: string = 'image';
   animated: boolean = false;
+  hdr: boolean = false;
   stillPath: string = '';
   motionPath: string = '';
   auxSize: number = 0;
@@ -96,6 +97,7 @@ class StateWire {
   materialType: string = 'adaptive';
   materialLevel: string = 'adaptive';
   lightEffect: boolean = true;
+  hdrEnabled: boolean = true;
   gripEnabled: boolean = false;
   antiPeepEnabled: boolean = false;
   pictureQuality: string = 'original';
@@ -136,6 +138,7 @@ export class StoreState {
       out.finishedAt = item.finishedAt;
       out.kind = item.kind;
       out.animated = item.animated;
+      out.hdr = item.hdr;
       out.stillPath = item.stillPath;
       out.motionPath = item.motionPath;
       out.auxSize = item.auxSize;
@@ -172,6 +175,7 @@ export class StoreState {
     wire.materialType = state.materialType;
     wire.materialLevel = state.materialLevel;
     wire.lightEffect = state.lightEffect;
+    wire.hdrEnabled = state.hdrEnabled;
     wire.gripEnabled = state.gripEnabled;
     wire.antiPeepEnabled = state.antiPeepEnabled;
     wire.pictureQuality = state.pictureQuality;
@@ -224,6 +228,7 @@ export class StoreState {
       item.finishedAt = orNumber(entry.finishedAt, item.createdAt);
       item.kind = orString(entry.kind, 'image');
       item.animated = orBoolean(entry.animated, false);
+      item.hdr = orBoolean(entry.hdr, false);
       item.stillPath = orString(entry.stillPath, '');
       item.motionPath = orString(entry.motionPath, '');
       item.auxSize = orNumber(entry.auxSize, 0);
@@ -264,6 +269,7 @@ export class StoreState {
     safe.materialType = orString(state.materialType, 'adaptive');
     safe.materialLevel = orString(state.materialLevel, 'adaptive');
     safe.lightEffect = orBoolean(state.lightEffect, true);
+    safe.hdrEnabled = orBoolean(state.hdrEnabled, true);
     safe.gripEnabled = orBoolean(state.gripEnabled, false);
     safe.antiPeepEnabled = orBoolean(state.antiPeepEnabled, false);
     safe.customDirUri = orString(state.customDirUri, '');

@@ -80,6 +80,8 @@ export class DownloadItem {
   @Trace kind: string = 'image';
   /** 动图（GIF / WebP 且文件头带多帧标记）；图库网格据此改画静止首帧。 */
   @Trace animated: boolean = false;
+  /** 源文件是 HDR（HEIF / 带 gain map 的 JPEG）；图库角标用。旧记录统一按 SDR 处理。 */
+  @Trace hdr: boolean = false;
   /** 实况照片解出来的静图（封面、相册里的图片资源）。 */
   @Trace stillPath: string = '';
   /** 实况照片解出来的视频（MovingPhotoView 的动态部分、相册里的视频资源）。 */
@@ -135,6 +137,8 @@ export class SavedState {
   materialLevel: string = 'adaptive';
   /** Whether the immersive material lights up under touch. */
   lightEffect: boolean = true;
+  /** 预览时是否按 HDR 解码/显示；关闭后统一走 SDR。 */
+  hdrEnabled: boolean = true;
   /** 智感握姿：主操作是否跟随握持手。 */
   gripEnabled: boolean = false;
   /** 防窥保护：检测到他人窥视时是否遮罩内容。 */

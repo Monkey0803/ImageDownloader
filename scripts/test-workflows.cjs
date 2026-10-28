@@ -751,6 +751,7 @@ function recoveryHarness(show) {
     '@kit.CoreFileKit': { fileIo: {} },
     '@kit.ArkWeb': { webview: {} },
     '@kit.ArkTS': { util: {} },
+    '@kit.ImageKit': { image: {} },
     [path.join(source, 'service/EditJournal.ets')]: { EditJournal: { recover: async () => {} } },
     [path.join(source, 'service/LibraryCatalog.ets')]: { LIBRARY_CATALOG: {} },
     [path.join(source, 'service/Delivery.ets')]: { Delivery: class {} },

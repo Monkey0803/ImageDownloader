@@ -30,6 +30,8 @@ export class SettingsViewModel {
   /** 沉浸光感材质等级；与 DownloadStore.materialLevel 同步。 */
   @Trace materialLevel: string = 'adaptive';
   @Trace lightEffect: boolean = true;
+  /** 预览是否按 HDR 解码/显示；与 DownloadStore.hdrEnabled 同步。 */
+  @Trace hdrEnabled: boolean = true;
   @Trace wifiOnly: boolean = false;
   /** 下载位置；与 DownloadStore.downloadLocation 同步。 */
   @Trace downloadLocation: string = 'app';
@@ -57,6 +59,7 @@ export class SettingsViewModel {
     this.materialType = DownloadStore.materialType;
     this.materialLevel = DownloadStore.materialLevel;
     this.lightEffect = DownloadStore.lightEffect;
+    this.hdrEnabled = DownloadStore.hdrEnabled;
     this.wifiOnly = DownloadStore.wifiOnly;
     this.downloadLocation = DownloadStore.downloadLocation;
     this.pictureQuality = DownloadStore.pictureQuality;
@@ -107,6 +110,12 @@ export class SettingsViewModel {
 
   setLightEffect(value: boolean): void {
     DownloadStore.setLightEffect(value);
+    this.sync();
+  }
+
+  /** HDR 显示开关；只影响之后打开的预览，已打开的画面保持当前解码结果。 */
+  setHdrEnabled(value: boolean): void {
+    DownloadStore.setHdrEnabled(value);
     this.sync();
   }
 

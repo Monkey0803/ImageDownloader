@@ -381,11 +381,13 @@ export default function downloadStoreTest() {
       item.size = 10138;
       item.kind = 'livephoto';
       item.animated = true;
+      item.hdr = true;
       item.stillPath = '/data/files/images/p1.jpg';
       item.auxSize = 4096;
       item.note = '解包成功';
       state.downloads = [item];
       state.wifiOnly = true;
+      state.hdrEnabled = false;
 
       const raw: string = StoreState.serialize(state);
       // 线格式里出现代理痕迹，即代表有人又直接 stringify 了模型实例。
@@ -400,10 +402,12 @@ export default function downloadStoreTest() {
       expect(back.downloads[0].size).assertEqual(10138);
       expect(back.downloads[0].kind).assertEqual('livephoto');
       expect(back.downloads[0].animated).assertTrue();
+      expect(back.downloads[0].hdr).assertTrue();
       expect(back.downloads[0].auxSize).assertEqual(4096);
       expect(back.downloads[0].stillPath).assertEqual('/data/files/images/p1.jpg');
       expect(back.downloads[0].note).assertEqual('解包成功');
       expect(back.wifiOnly).assertTrue();
+      expect(back.hdrEnabled).assertFalse();
     });
 
     it('normalized_fills_missing_fields_of_an_old_file', 0, () => {
@@ -417,6 +421,7 @@ export default function downloadStoreTest() {
       expect(safe.materialType).assertEqual('adaptive');
       expect(safe.materialLevel).assertEqual('adaptive');
       expect(safe.lightEffect).assertTrue();
+      expect(safe.hdrEnabled).assertTrue();
       expect(safe.pictureQuality).assertEqual('original');
       expect(safe.downloadLocation).assertEqual('app');
     });

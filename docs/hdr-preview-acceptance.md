@@ -25,14 +25,14 @@
 - `node scripts/test-library-enhancements.cjs`：87/87。
 - `node scripts/test-batch-links.cjs`：6/6。
 - 主包 `assembleHap` 与 `ohosTest` 包构建成功。
-  最终主包 SHA-256 `4e33979bfa2bf192f2587ebe39e7fa45a85a391497b8a9571c9e1ba182f910ec`，
-  最终测试包 SHA-256 `8fdde4a2da76dab667cc4f9716d077d5e6c978db01d0014c931ab8c220410946`
+  最终主包 SHA-256 `2df4a5701aef6f8ff81106db25d652016da5175afdddbe4fdc3f9779011ef054`，
+  最终测试包 SHA-256 `0b99a15c1c0e6050ee27d72c3338dcb4fd0944b29a6a82282a8fb49ecf73f296`
   （两包在酷安 UA/原图升级修复后重新构建，HDR 代码未再改动）。
 - 真机 PLR-AL00（HarmonyOS 7.0.0.111，API 26，USB `3ZF0225604005962`）跑完整原生套件：
   **155/155 通过，0 失败、0 错误**（新增 HDR 探针 1 项）。这次运行安装的是主包
   `8aa872f32982b3bc5eed468409e96d582994c55bbd68abde440a993c237cdc12` 与测试包
   `6287ab708e1d1c12a4ac9b70dfded1162618bef72349ff2795648cee027da00f`。此后主包仅补了
-  HEIF/HDR 不透明判定；后续又加入酷安 UA 与原图升级，重装最终包后原生套件 **156/156** 通过。
+  HEIF/HDR 不透明判定；后续又加入酷安 UA 与原图升级，重装最终包后原生套件 **158/158** 通过。
 
 ## 真机 HDR 探测
 
@@ -57,3 +57,14 @@
 - 模拟器没有 HDR 显示能力，未用它宣称 HDR 观感；不支持 HDR 的设备按上述回落路径解码为 SDR。
 - 尚未下载完成的远程预览仍使用现有的会话缩略图/远端图片路径，不在本次 HDR 范围内；
   下载、导出、分享与 ZIP 条目继续按原始文件字节处理，HDR 不被转码。
+
+## 网格 HDR 角标与显示开关（2026-10-28 补验）
+
+- 下载完成时 `DownloadStore.finishContent()` 读取一次 `ImageSource.getImageInfo()`，
+  把 `isHdr` 写入 `DownloadItem.hdr` 并持久化；旧记录默认 SDR。
+- 用 64×64 的 HDR HEIC 夹具下载：状态文件 `hdr=true`，图库缩略图出现「HDR」角标；
+  截图 `.screenshots/hdr-badge-20261028.png`。
+- 设置页「系统特性 → HDR 显示」默认开启；关闭后状态 `hdrEnabled=false`，再开启恢复 true，
+  重启后仍保持。该开关只影响之后打开的预览，已打开画面保持当前解码结果；
+  详情中的「动态范围」仍按源文件显示。
+- 原生 `StoreState` 往返测试覆盖 `DownloadItem.hdr` 与 `hdrEnabled` 的默认值/持久化。

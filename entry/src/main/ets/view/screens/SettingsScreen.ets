@@ -117,6 +117,20 @@ export struct SettingsScreen {
                 Divider().color(Palette.divider).margin({ left: 60 })
 
                 ListRow({
+                  glyph: 'image',
+                  heading: 'HDR 显示',
+                  aux: 'HDR 照片按高动态范围显示；关闭后回落 SDR'
+                }) {
+                  Toggle({ type: ToggleType.Switch, isOn: this.settings.hdrEnabled })
+                    .selectedColor(Palette.brand)
+                    .onChange((value: boolean): void => {
+                      this.settings.setHdrEnabled(value);
+                    })
+                }
+
+                Divider().color(Palette.divider).margin({ left: 60 })
+
+                ListRow({
                   glyph: 'layers',
                   heading: '材质类型'
                 }) {

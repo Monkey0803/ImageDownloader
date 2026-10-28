@@ -508,6 +508,7 @@ async function registrationHarness() {
     '@kit.BasicServicesKit': { request: { agent: {} }, zlib: {} },
     '@kit.CoreFileKit': { fileIo: memory.fs },
     '@kit.ArkWeb': { webview: {} },
+    '@kit.ImageKit': { image: {} },
     '@kit.ArkTS': { util: { TextEncoder: class {
       encodeInto(value) { return Uint8Array.from(Buffer.from(value, 'utf8')); }
     } } },
