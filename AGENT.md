@@ -253,6 +253,19 @@ hdc -t 127.0.0.1:5555 shell "aa test -b com.example.imagedownloader -m entry_tes
 **动 `Naming` / `StoreState` / `SettingsOptions` 的归一逻辑后一定要跑一遍** —— 这些是纯函数，
 搬动位置最容易悄悄改掉边界行为（`test/` 里的 describe 名就写着被测对象）。
 
+**设备测试跑完后要卸载测试模块**：`entry_test` 的 `TestAbility` 会在 `testability/pages/Index.ets`
+加载测试页（模板文案是 `Hello World`）；如果测试 HAP 一直装着，残留的测试任务可能被冷启动带到前台，
+看起来像应用自己的页面。验收结束后执行：
+
+```bash
+hdc -t <target> shell "bm uninstall -n com.example.imagedownloader -m entry_test -k"
+hdc -t <target> shell "aa force-stop com.example.imagedownloader"
+hdc -t <target> shell "aa start -b com.example.imagedownloader -a EntryAbility"
+```
+
+确认 `bm dump -n com.example.imagedownloader` 里只剩生产 `entry`，冷启动显示发现页而不是 Hello World。
+下次要跑 `ohosTest` 前再安装测试包即可。
+
 ### 真机验证基线（HUAWEI Mate 70 Pro / PLR-AL00 / API 26 / 1316×2832）
 
 走 `DEVICE_TARGET=<设备>:<端口> ./scripts/device.sh <cmd>`；不设 `DEVICE_TARGET` 就落到模拟器

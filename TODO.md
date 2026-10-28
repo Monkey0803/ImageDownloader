@@ -1,5 +1,11 @@
 # 图片下载管理 TODO
 
+## 2026-10-28：冷启动 HelloWorld
+
+- [x] 定位为 `ohosTest` 的 `TestAbility` 测试页，不是生产页面；设备上仍有 `entry_test` 测试模块。
+- [x] 卸载 `entry_test`（保留生产 `entry`），连续两次强停冷启动均显示发现页，无 Hello World；用户数据 10/4/20/9 未变。
+- [x] `AGENT.md` 增加“验收后卸载测试模块”的清理步骤；证据见 [冷启动 HelloWorld 排查](docs/cold-start-helloworld-acceptance.md)。
+
 ## 2026-10-28：长任务切网、WAITING 与系统副本
 
 - [x] 10,485,760 B 单任务在仅 Wi-Fi 下关闭 Wi-Fi：任务卡显示等待中，强停重启仍等待，Wi-Fi 恢复后完成，应用内文件 SHA 与源一致。
