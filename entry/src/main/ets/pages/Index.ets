@@ -142,6 +142,10 @@ struct Index {
   }
 
   onBackPress(): boolean {
+    if (this.discover.batchHandling) {
+      this.discover.finishBatchHandling();
+      return true;
+    }
     if (this.previewOpen) {
       if (this.previewPanels.dismissTop()) { return true; }
       this.closeDiscoverPreview();
@@ -169,6 +173,7 @@ struct Index {
    * 商店回调不摘的话，之后每次数据变化都会打到已经销毁的组件上。
    */
   aboutToDisappear(): void {
+    this.discover.stopBatchPages();
     this.library.cancelAnalysis();
     this.library.cancelSimilar();
     this.closeDiscoverPreview();

@@ -52,16 +52,17 @@ caseTest('batch links report every row without dropping pending links', () => {
   assert.equal(rowOf(report, 3).status, BatchLinkStatus.DUPLICATE);
   assert.equal(rowOf(report, 3).duplicateOf, 1);
   assert.equal(rowOf(report, 4).status, BatchLinkStatus.INVALID);
-  assert.equal(rowOf(report, 5).reason, '不支持 .html 类型');
+  assert.equal(rowOf(report, 5).status, 'page');
   assert.equal(rowOf(report, 6).status, BatchLinkStatus.PENDING);
   assert.equal(rowOf(report, 7).status, BatchLinkStatus.PENDING);
   assert.equal(report.valid, 3);
   assert.equal(report.pending, 2);
-  assert.equal(report.invalid, 2);
+  assert.equal(report.invalid, 1);
   assert.equal(report.duplicates, 1);
   assert.deepEqual(report.urls, [
     'https://a.example/a.jpg',
     'https://a.example/b.webp?token=1',
+    'https://a.example/page.html',
     'https://a.example/noext',
     'https://a.example/pic.php?sign=1',
     'https://a.example/photo.png'
@@ -80,7 +81,7 @@ caseTest('signed extensionless links stay distinct and pending', () => {
   assert.equal(report.urls.length, 3);
 });
 
-caseTest('merge promotes images and excludes only confirmed pages', () => {
+caseTest('merge routes HTML to page parsing without losing signed links', () => {
   const parsed = BatchLinks.parse('https://a.example/noext\n'
     + 'https://a.example/page\nhttps://a.example/unknown\nhttps://a.example/a.jpg\n');
   const merged = BatchLinks.merge(parsed, [
@@ -91,17 +92,19 @@ caseTest('merge promotes images and excludes only confirmed pages', () => {
   ]);
   assert.equal(rowOf(merged, 1).status, BatchLinkStatus.VALID);
   assert.equal(rowOf(merged, 1).probed, true);
-  assert.equal(rowOf(merged, 2).status, BatchLinkStatus.INVALID);
+  assert.equal(rowOf(merged, 2).status, 'page');
   assert.equal(rowOf(merged, 3).status, BatchLinkStatus.PENDING);
   assert.equal(rowOf(merged, 4).status, BatchLinkStatus.VALID);
   assert.deepEqual(merged.urls, [
     'https://a.example/noext',
+    'https://a.example/page',
     'https://a.example/unknown',
     'https://a.example/a.jpg'
   ]);
   assert.equal(merged.valid, 2);
   assert.equal(merged.pending, 1);
-  assert.equal(merged.invalid, 1);
+  assert.equal(merged.pages, 1);
+  assert.equal(merged.invalid, 0);
 });
 
 caseTest('stale checks are ignored and inputs are not mutated', () => {

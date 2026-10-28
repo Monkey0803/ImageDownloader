@@ -14,6 +14,7 @@ export struct Thumb {
    * 大图永远停在那个「IMG」文字块上。
    */
   @Param src: string = '';
+  @Param referer: string = '';
   @Param label: string = 'IMG';
   /** 远程缩略图被站点拒绝时显示明确状态，原文件仍可下载。 */
   @Param fallbackText: string = '';
@@ -49,7 +50,7 @@ export struct Thumb {
 
   aboutToDisappear(): void { this.alive = false; this.generation++; this.request?.cancel(); }
 
-  @Monitor('src', 'fit')
+  @Monitor('src', 'fit', 'referer')
   private onSourceChanged(monitor: IMonitor): void { this.loadThumbnail(); }
 
   private async loadThumbnail(): Promise<void> {
@@ -64,7 +65,7 @@ export struct Thumb {
     const cacheDir: string = this.getUIContext().getHostContext()?.cacheDir ?? '';
     const src: string = this.src;
     const result: ThumbnailResult = await ThumbnailImages.load(src, cacheDir, this.aspect,
-      this.fit === ImageFit.Contain, request);
+      this.fit === ImageFit.Contain, request, this.referer);
     if (!this.alive || token !== this.generation) { return; }
     this.thumbnail = result.uri;
     this.failed = result.uri.length === 0;

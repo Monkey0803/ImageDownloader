@@ -1221,6 +1221,7 @@ function thumbnailHarness(config = {}) {
   const calls = [];
   let fd = 0;
   const load = loader({
+    '@kit.ArkWeb': { webview: { WebCookieManager: { fetchCookieSync: () => config.cookie || '' } } },
     '@kit.CoreFileKit': { fileUri: { getUriFromPath: p => 'file://' + p,
       FileUri: class { constructor(uri) { this.path = uri.slice(7); } } },
       fileIo: { OpenMode: { CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
@@ -1250,6 +1251,14 @@ test('long thumbnail crops at native geometry before scaling and never distorts 
   assert.deepEqual(h.calls[0].desiredSize, { width: 512, height: 512 });
   assert.equal(h.calls[0].cropAndScaleStrategy, 1);
   assert.equal(h.files.get('/long.png'), 100, 'original remains untouched');
+});
+
+test('batch thumbnails use their source and image-domain cookies without forwarding credentials through redirects', async () => {
+  const h = thumbnailHarness({ cookie: 'image_session=fixture' });
+  await h.ThumbnailImages.load('https://cdn.test/a.jpg', '/cache', 1, false,
+    new h.ThumbnailRequest(), 'https://page.test/post');
+  assert.deepEqual(h.calls[0], { url: 'https://cdn.test/a.jpg', referer: 'https://page.test/post',
+    cookie: 'image_session=fixture', redirectLimit: 0 });
 });
 
 test('thumbnail cache returns original dimensions without decoding again', async () => {

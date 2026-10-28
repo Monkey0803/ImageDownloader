@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { resourceManager } from '@kit.LocalizationKit';
 import { util } from '@kit.ArkTS';
+import { Hypium } from '@ohos/hypium';
 
 let abilityDelegator: abilityDelegatorRegistry.AbilityDelegator;
 let abilityDelegatorArguments: abilityDelegatorRegistry.AbilityDelegatorArgs;
@@ -31,6 +32,13 @@ export default class OpenHarmonyTestRunner implements TestRunner {
     hilog.info(0x0000, tag, '%{public}s', 'OpenHarmonyTestRunner onRun run');
     abilityDelegatorArguments = abilityDelegatorRegistry.getArguments()
     abilityDelegator = abilityDelegatorRegistry.getAbilityDelegator()
+    // UI acceptance opens EntryAbility itself; keeping TestAbility in the same task would
+    // destroy that host and prematurely call finishTest from its onDestroy hook.
+    if (abilityDelegatorArguments.parameters['-s batchPagesUi'] === 'true') {
+      const uiSuite = await import('../test/List.test');
+      Hypium.hypiumTest(abilityDelegator, abilityDelegatorArguments, uiSuite.default);
+      return;
+    }
     let moduleName = abilityDelegatorArguments.parameters['-m'];
     let context = abilityDelegator.getAppContext().getApplicationContext().createModuleContext(moduleName);
     let mResourceManager = context.resourceManager;

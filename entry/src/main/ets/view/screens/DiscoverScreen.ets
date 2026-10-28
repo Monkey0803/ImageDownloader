@@ -1,4 +1,5 @@
 import { PictureSelectionButton } from '../Widgets';
+import { BatchPagePanel, BatchBrowserHost } from '../BatchPagePanel';
 import { PictureItem } from '../../model/Models';
 import { TransparentGlass } from '../../theme/TransparentGlass';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
@@ -10,7 +11,7 @@ import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { SelectTile } from '../Cards';
-import { IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
+import { IconButton, PillButton, SectionHead, SettingSelect, Segmented, MODE_OPTIONS } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
@@ -124,7 +125,7 @@ export struct DiscoverScreen {
       }.width('100%')
       if (this.discover.batchOpen) {
         if (this.discover.batchStage === 'review') {
-          this.batchReviewPanel()
+          BatchPagePanel({ discover: this.discover })
         } else {
           this.batchEditor()
         }
@@ -136,13 +137,15 @@ export struct DiscoverScreen {
   @Builder
   private batchEditor() {
     Column({ space: Space.s8 }) {
-      TextArea({ placeholder: '每行一条图片直链', text: this.discover.batchText })
+      TextArea({ placeholder: '每行一条图片直链或网页 URL', text: this.discover.batchText })
         .fontSize(Font.body).fontColor(Palette.fontPrimary)
         .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4)
         .height(96).width('100%')
         .onChange((value: string): void => { this.discover.setBatchText(value); })
       Text(this.discover.batchSummary)
         .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+      Segmented({ options: MODE_OPTIONS, selected: this.discover.mode,
+        onSelect: (value: string): void => { this.discover.mode = value; } })
       if (this.discover.batchReport.rows.length > 0) {
         List({ space: Space.s4 }) {
           ForEach(this.discover.batchReport.rows, (row: BatchLinkRow) => {
@@ -153,7 +156,7 @@ export struct DiscoverScreen {
             + row.reason + '|' + row.url)
         }
         .width('100%')
-        .constraintSize({ maxHeight: 168 })
+        .constraintSize({ maxHeight: 120 })
         .scrollBar(BarState.Auto)
       }
       if (this.discover.batchProbeLabel.length > 0) {
@@ -167,7 +170,7 @@ export struct DiscoverScreen {
             variant: 'ghost', small: true, active: !this.discover.batchProbing,
             onAction: (): void => { this.discover.startBatchCheck(); } })
         }
-        PillButton({ label: this.discover.batchProbing ? '正在检查…' : '确认导入',
+        PillButton({ label: this.discover.batchProbing ? '正在检查…' : '解析并预览',
           variant: 'primary', small: true,
           active: this.discover.batchReport.urls.length > 0 && !this.discover.batchProbing,
           onAction: (): void => { this.discover.reviewBatch(); } })
@@ -179,54 +182,6 @@ export struct DiscoverScreen {
       .width('100%')
     }
     .width('100%')
-  }
-
-  @Builder
-  private batchReview() {
-    Column({ space: Space.s8 }) {
-      Text(this.discover.batchReviewSummary)
-        .fontSize(Font.caption)
-        .fontColor(Palette.fontPrimary)
-        .width('100%')
-      if (this.discover.batchReviewExcluded.length > 0) {
-        Text(this.discover.batchReviewExcluded)
-          .fontSize(Font.caption)
-          .fontColor(Palette.fontTertiary)
-          .width('100%')
-      }
-    }
-    .width('100%')
-  }
-
-  @Builder
-  private batchReviewPanel() {
-    Column({ space: Space.s10 }) {
-      this.batchReview()
-      List({ space: Space.s4 }) {
-        ForEach(this.discover.batchReviewRows, (row: BatchLinkRow) => {
-          ListItem() {
-            this.batchRow(row)
-          }
-        }, (row: BatchLinkRow): string => row.line.toString() + '|' + row.status + '|'
-          + row.reason + '|' + row.url)
-      }
-      .width('100%')
-      .constraintSize({ maxHeight: 180 })
-      .scrollBar(BarState.Auto)
-      Row({ space: Space.s8 }) {
-        PillButton({ label: '返回修改', variant: 'ghost', small: true,
-          onAction: (): void => { this.discover.cancelBatchReview(); } })
-        PillButton({ label: '加入任务 · ' + this.discover.batchReview.urls.length.toString() + ' 条',
-          variant: 'primary', small: true,
-          active: this.discover.batchReview.urls.length > 0,
-          onAction: (): void => { this.discover.confirmBatchReview(); } })
-      }
-      .width('100%')
-    }
-    .width('100%')
-    .padding(Space.s10)
-    .backgroundColor(Palette.cardSunken)
-    .borderRadius(Radius.r8)
   }
 
   @Builder
@@ -262,6 +217,7 @@ export struct DiscoverScreen {
   }
 
   private batchStatusLabel(status: string): string {
+    if (status === BatchLinkStatus.PAGE) { return '网页'; }
     if (status === BatchLinkStatus.VALID) { return '有效'; }
     if (status === BatchLinkStatus.PENDING) { return '待确认'; }
     if (status === BatchLinkStatus.DUPLICATE) { return '重复'; }
@@ -269,6 +225,7 @@ export struct DiscoverScreen {
   }
 
   private batchStatusColor(status: string): ResourceColor {
+    if (status === BatchLinkStatus.PAGE) { return Palette.brand; }
     if (status === BatchLinkStatus.VALID) { return Palette.confirm; }
     if (status === BatchLinkStatus.PENDING) { return Palette.warning; }
     if (status === BatchLinkStatus.DUPLICATE) { return Palette.fontTertiary; }
@@ -565,6 +522,8 @@ export struct DiscoverScreen {
       .height('100%')
       .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.Visible : Visibility.None)
+
+      BatchBrowserHost({ discover: this.discover })
 
     }
     .width('100%')

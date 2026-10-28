@@ -9,6 +9,9 @@ import browserCollectionTest from './BrowserCollection.test';
 import duplicateFinderTest from './DuplicateFinder.test';
 import tasksViewModelTest from './TasksViewModel.test';
 import batchLinksTest from './BatchLinks.test';
+import batchPagesTest from './BatchPages.test';
+import batchPagesUiTest from './BatchPagesUi.test';
+import { abilityDelegatorRegistry } from '@kit.TestKit';
 import widgetSnapshotTest from './WidgetSnapshot.test';
 import galleryBatchingTest from './GalleryBatching.test';
 import pageExpansionTest from './PageExpansion.test';
@@ -26,6 +29,10 @@ import livePhotoTest from './LivePhoto.test';
 import superResolutionTest from './SuperResolution.test';
 
 export default function testsuite() {
+  if (abilityDelegatorRegistry.getArguments().parameters['-s batchPagesUi'] === 'true') {
+    batchPagesUiTest();
+    return;
+  }
   downloadStoreTest();
   mediaFormatTest();
   imageCandidatesTest();
@@ -37,6 +44,7 @@ export default function testsuite() {
   duplicateFinderTest();
   tasksViewModelTest();
   batchLinksTest();
+  batchPagesTest();
   widgetSnapshotTest();
   galleryBatchingTest();
   pageExpansionTest();

@@ -6,6 +6,9 @@ import { DownloadStore } from '../service/DownloadStore';
 import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
 import { BatchCheckKind, BatchLinkCheck, BatchLinks, BatchLinkReport, BatchLinkRow, BatchLinkStatus, BatchProbeToken } from '../service/BatchLinks';
 import { BatchLinkProbe } from '../service/BatchLinkProbe';
+import { BatchPageGroup, BatchPageGroups, BatchPageDownload } from '../service/BatchPageGroups';
+import { BatchPageQueue } from '../service/BatchPageQueue';
+import { BatchPageResolver } from '../service/BatchPageResolver';
 import { Clipboard } from '../service/Clipboard';
 import { MediaFormat } from '../service/MediaFormat';
 import { PictureFactory, ScanImage } from '../service/PictureFactory';
@@ -80,6 +83,12 @@ export class DiscoverViewModel {
   @Trace batchReviewZip: boolean = false;
   private batchProbeGeneration: number = 0;
   private batchToken: BatchProbeToken | undefined = undefined;
+  private batchQueue: BatchPageQueue = new BatchPageQueue();
+  private batchResolver: BatchPageResolver = new BatchPageResolver();
+  private batchResolveGeneration: number = 0;
+  @Trace batchGroups: BatchPageGroup[] = [];
+  @Trace batchResolving: boolean = false;
+  @Trace batchHandling: boolean = false;
   @Trace inspectedUid: string = '';
   @Trace inspectionBytes: number = 0;
   @Trace inspectionLoading: boolean = false;
@@ -123,6 +132,7 @@ export class DiscoverViewModel {
   get batchSummary(): string {
     const report: BatchLinkReport = this.batchReport;
     let text: string = '可导入 ' + report.urls.length.toString() + ' 条';
+    if (report.pages > 0) { text += ' · 网页 ' + report.pages.toString() + ' 条'; }
     if (report.pending > 0) {
       text += '（含待确认 ' + report.pending.toString() + ' 条）';
     }
@@ -144,18 +154,74 @@ export class DiscoverViewModel {
   }
 
   @Computed
-  get batchReviewRows(): BatchLinkRow[] {
-    return this.batchReview.rows.filter((row: BatchLinkRow): boolean =>
-      row.status === BatchLinkStatus.VALID || row.status === BatchLinkStatus.PENDING);
+  get batchReviewSummary(): string {
+    const done: number = this.batchGroups.filter((group: BatchPageGroup): boolean =>
+      group.status === 'ready' || group.status === 'failed').length;
+    return (this.batchResolving ? '正在解析 ' + done.toString() + '/' + this.batchGroups.length.toString() + ' · ' : '')
+      + '已选 ' + this.batchSelectedCount.toString() + ' 张'
+      + (this.batchReviewZip ? ' · 每个网页一个 ZIP' : ' · 单图下载');
   }
 
   @Computed
-  get batchReviewSummary(): string {
-    let text: string = '将导入 ' + this.batchReview.urls.length.toString() + ' 条';
-    if (this.batchReview.pending > 0) {
-      text += '，其中 ' + this.batchReview.pending.toString() + ' 条类型待确认，仍会尝试下载';
+  get batchSelectedCount(): number { return BatchPageGroups.count(this.batchGroups); }
+
+  batchBrowser(): BatchPageResolver { return this.batchResolver; }
+
+  private cancelBatchPages(): void {
+    this.batchResolveGeneration++;
+    this.batchQueue.cancel();
+    if (this.batchResolving || this.batchHandling || this.batchGroups.length > 0) { this.batchResolver.clear(); }
+    this.batchResolving = false; this.batchHandling = false;
+    for (const group of this.batchGroups) {
+      if (group.status === 'loading') { group.status = 'waiting'; group.message = '解析已停止，可重试'; }
     }
-    return text;
+  }
+
+  stopBatchPages(): void { this.cancelBatchPages(); }
+
+  toggleBatchPicture(groupId: string, uid: string): void {
+    const group: BatchPageGroup | undefined = this.batchGroups.find((item: BatchPageGroup): boolean => item.id === groupId);
+    const picture: PictureItem | undefined = group?.pictures.find((item: PictureItem): boolean => item.uid === uid);
+    if (picture !== undefined) { picture.selected = !picture.selected; }
+  }
+
+  selectBatchGroup(group: BatchPageGroup): void {
+    const all: boolean = group.pictures.every((picture: PictureItem): boolean => picture.selected);
+    for (const picture of group.pictures) { picture.selected = !all; }
+  }
+
+  async retryBatchPage(group: BatchPageGroup): Promise<void> {
+    if (this.batchResolving) { return; }
+    this.batchHandling = false;
+    group.status = 'waiting';
+    await this.resolveBatchPages([group]);
+  }
+
+  openBatchPage(group: BatchPageGroup): void {
+    if (this.batchResolving || group.inputUrl.length === 0) { return; }
+    this.batchHandling = true;
+    // Keep this Web visible for human login/verification, without calling visit() or closing review.
+    this.batchResolver.openForHandling(group.inputUrl);
+  }
+
+  finishBatchHandling(): void { this.batchResolver.clear(); this.batchHandling = false; }
+
+  importPendingAsDirect(group: BatchPageGroup): void {
+    if (this.batchResolving || group.kind !== 'pending') { return; }
+    group.pictures = [PictureFactory.fromUrl(group.inputUrl)];
+    group.kind = 'direct'; group.status = 'ready'; group.message = '类型待确认，将尝试直链下载';
+  }
+
+  private async resolveBatchPages(groups: BatchPageGroup[]): Promise<void> {
+    const generation: number = ++this.batchResolveGeneration;
+    this.batchResolving = true;
+    const quality: string = DownloadStore.pictureQuality;
+    try {
+      await this.batchQueue.run(groups,
+        (group: BatchPageGroup) => this.batchResolver.resolve(group, quality), (): void => {});
+    } finally {
+      if (generation === this.batchResolveGeneration) { this.batchResolving = false; }
+    }
   }
 
   @Computed
@@ -395,6 +461,7 @@ export class DiscoverViewModel {
 
   /** 文本变化会作废在途探测；已经缓存的确定结论仍按 URL 复用。 */
   setBatchText(value: string): void {
+    this.cancelBatchPages(); this.batchGroups = [];
     this.batchText = value;
     this.batchStage = 'edit';
     this.batchReview = new BatchLinkReport();
@@ -405,6 +472,7 @@ export class DiscoverViewModel {
 
   setBatchPanel(open: boolean): void {
     if (!open) {
+      this.cancelBatchPages(); this.batchGroups = [];
       this.cancelBatchProbe();
       this.batchStage = 'edit';
       this.batchReview = new BatchLinkReport();
@@ -432,10 +500,11 @@ export class DiscoverViewModel {
    * 这里只准备 review 快照，不入队；真正的入队由用户再点一次完成。
    */
   async reviewBatch(): Promise<void> {
-    if (this.batchProbing) { return; }
+    if (this.batchProbing || this.batchResolving) { return; }
+    const zipMode: boolean = this.mode === 'zip';
     let report: BatchLinkReport = this.batchReport;
     if (report.urls.length === 0) {
-      this.ui.say('没有可导入的图片直链');
+      this.ui.say('没有可导入的图片或网页链接');
       return;
     }
     const pending: string[] = report.rows
@@ -451,8 +520,10 @@ export class DiscoverViewModel {
       return;
     }
     this.batchReview = BatchLinks.merge(BatchLinks.parse(this.batchText), this.batchChecks);
-    this.batchReviewZip = this.mode === 'zip';
+    this.batchReviewZip = zipMode;
+    this.batchGroups = BatchPageGroups.create(this.batchReview);
     this.batchStage = 'review';
+    await this.resolveBatchPages(this.batchGroups);
   }
 
   /** 用户不想等探测时保留未确认项直接进入 review；在途请求最多再等一个超时。 */
@@ -463,6 +534,7 @@ export class DiscoverViewModel {
   }
 
   cancelBatchReview(): void {
+    this.cancelBatchPages(); this.batchGroups = [];
     this.batchStage = 'edit';
     this.batchReview = new BatchLinkReport();
     this.batchReviewZip = false;
@@ -470,14 +542,15 @@ export class DiscoverViewModel {
 
   /** 二次确认后入队；使用 review 时的模式快照，避免确认期间切换模式造成不一致。 */
   confirmBatchReview(): void {
-    const urls: string[] = this.batchReview.urls;
-    const count: number = urls.length;
+    if (this.batchResolving || this.batchHandling || this.batchStage !== 'review') { return; }
+    const jobs: BatchPageDownload[] = BatchPageGroups.downloads(this.batchGroups);
+    const count: number = this.batchSelectedCount;
     if (count === 0) {
       this.ui.say('没有可导入的图片直链');
       return;
     }
-    const images: PictureItem[] = urls.map((url: string): PictureItem => PictureFactory.fromUrl(url));
-    DownloadStore.add(images, '', '批量链接', this.batchReviewZip);
+    for (const job of jobs) { DownloadStore.add(job.pictures, job.pageUrl, job.title, this.batchReviewZip); }
+    this.cancelBatchPages(); this.batchGroups = [];
     this.batchText = '';
     this.batchChecks = [];
     this.batchStage = 'edit';
@@ -545,7 +618,7 @@ export class DiscoverViewModel {
     let text: string = '已检查 ' + checks.length.toString() + ' 条';
     const details: string[] = [];
     if (image > 0) { details.push('确认图片 ' + image.toString()); }
-    if (page > 0) { details.push('排除网页 ' + page.toString()); }
+    if (page > 0) { details.push('待解析网页 ' + page.toString()); }
     if (unknown > 0) { details.push('仍待确认 ' + unknown.toString()); }
     if (details.length > 0) { text += '：' + details.join('，'); }
     const missed: number = requested - checks.length;
@@ -887,6 +960,7 @@ export class DiscoverViewModel {
 
   /** 页面销毁 / 换页时停掉排队中的重扫（页面没了还继续注入脚本是白跑）。 */
   cancelScan(preserveInspection: boolean = false): void {
+    if (this.batchResolving || this.batchHandling) { this.cancelBatchPages(); }
     this.scanner.invalidate();
     this.scanning = false;
     if (preserveInspection) { this.suspendInspection(); } else { this.closeInspection(); }

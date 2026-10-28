@@ -1,12 +1,13 @@
 import { MediaFormat } from './MediaFormat';
 
-/** 批量直链每一行的状态。 */
+/** 批量图片 / 网页链接每一行的状态。 */
 export class BatchLinkStatus {
+  static readonly PAGE: string = 'page';
   /** 扩展名已经能确定是图片 / 实况照片包，或 HEAD 已确认是图片。 */
   static readonly VALID: string = 'valid';
   /** HTTP(S) 已成立，但类型无法由地址确定，等待按需 HEAD 探测。 */
   static readonly PENDING: string = 'pending';
-  /** 不是 HTTP(S)、链接格式错误、明确不是图片，或 HEAD 确认是网页。 */
+  /** 不是 HTTP(S)、链接格式错误或明确不支持的文件类型。 */
   static readonly INVALID: string = 'invalid';
   /** 与前面某一行的完整 URL 完全相同。 */
   static readonly DUPLICATE: string = 'duplicate';
@@ -40,12 +41,13 @@ export class BatchLinkCheck {
   mime: string = '';
 }
 
-/** 解析与合并的完整结果；`urls` 是实际可导入的链接（valid + pending）。 */
+/** 解析与合并的完整结果；`urls` 是待处理链接（valid + pending + page），不是下载 URL 列表。 */
 export class BatchLinkReport {
   rows: BatchLinkRow[] = [];
   urls: string[] = [];
   valid: number = 0;
   pending: number = 0;
+  pages: number = 0;
   invalid: number = 0;
   duplicates: number = 0;
 }
@@ -110,7 +112,7 @@ export class BatchLinks {
   /**
    * 把一个 HEAD 响应分类成图片 / 网页 / 未知。
    *
-   * 只有 `text/html` 这种明确的网页类型才排除；403、405、3xx、5xx、超时、
+   * `text/html` 进入网页解析；403、405、3xx、5xx、超时、
    * 缺失或非图片的 Content-Type 一律保留为“未知，仍可导入”。
    */
   static checkOf(url: string, code: number, contentType: string, failed: boolean): BatchLinkCheck {
@@ -155,7 +157,7 @@ export class BatchLinks {
     }
     if (mime === 'text/html' || mime === 'application/xhtml+xml') {
       check.kind = BatchCheckKind.PAGE;
-      check.detail = '已确认网页，不导入';
+      check.detail = '网页，将解析其中的图片';
       return check;
     }
     check.kind = BatchCheckKind.UNKNOWN;
@@ -166,7 +168,7 @@ export class BatchLinks {
   /**
    * 把探测结果合并回解析结果。
    *
-   * 只作用于当前 `pending` 行：图片 → valid，网页 → invalid，未知 → 保持 pending。
+   * 只作用于当前 `pending` 行：图片 → valid，网页 → page，未知 → 保持 pending。
    * 输入对象不会被修改；已不在当前文本里的 URL 的旧 check 会被自然忽略。
    */
   static merge(report: BatchLinkReport, checks: BatchLinkCheck[]): BatchLinkReport {
@@ -186,7 +188,7 @@ export class BatchLinks {
           if (check.kind === BatchCheckKind.IMAGE) {
             row.status = BatchLinkStatus.VALID;
           } else if (check.kind === BatchCheckKind.PAGE) {
-            row.status = BatchLinkStatus.INVALID;
+            row.status = BatchLinkStatus.PAGE;
           } else {
             row.status = BatchLinkStatus.PENDING;
           }
@@ -198,6 +200,12 @@ export class BatchLinks {
   }
 
   private static classifyUrl(row: BatchLinkRow): void {
+    if (new RegExp('^https?://(?:(?:www|m)\\.)?weibo\\.(?:com|cn)/', 'i').test(row.url)
+      || new RegExp('\\.(?:html?|xhtml)(?:[?#]|$)', 'i').test(row.url)) {
+      row.status = BatchLinkStatus.PAGE;
+      row.reason = '网页，将解析其中的图片';
+      return;
+    }
     const kind: string = MediaFormat.mediaKindOf(row.url);
     if (kind === 'image') {
       row.status = BatchLinkStatus.VALID;
@@ -251,6 +259,7 @@ export class BatchLinks {
   private static recount(report: BatchLinkReport): BatchLinkReport {
     report.valid = 0;
     report.pending = 0;
+    report.pages = 0;
     report.invalid = 0;
     report.duplicates = 0;
     report.urls = [];
@@ -260,6 +269,9 @@ export class BatchLinks {
         report.urls.push(row.url);
       } else if (row.status === BatchLinkStatus.PENDING) {
         report.pending++;
+        report.urls.push(row.url);
+      } else if (row.status === BatchLinkStatus.PAGE) {
+        report.pages++;
         report.urls.push(row.url);
       } else if (row.status === BatchLinkStatus.DUPLICATE) {
         report.duplicates++;

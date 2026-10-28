@@ -20,7 +20,7 @@ function checkOf(url: string, kind: string): BatchLinkCheck {
     check.detail = '已确认图片 · image/png';
   } else if (kind === BatchCheckKind.PAGE) {
     check.mime = 'text/html';
-    check.detail = '已确认网页，不导入';
+    check.detail = '网页，将解析其中的图片';
   } else {
     check.detail = '类型未确认，仍可导入';
   }
@@ -44,8 +44,8 @@ export default function batchLinksTest() {
       expect(rowOf(report, 3).reason).assertEqual('与第 1 行重复');
       expect(rowOf(report, 4).status).assertEqual(BatchLinkStatus.INVALID);
       expect(rowOf(report, 4).reason).assertEqual('不是 HTTP(S) 链接');
-      expect(rowOf(report, 5).status).assertEqual(BatchLinkStatus.INVALID);
-      expect(rowOf(report, 5).reason).assertEqual('不支持 .html 类型');
+      expect(rowOf(report, 5).status).assertEqual(BatchLinkStatus.PAGE);
+      expect(rowOf(report, 5).reason).assertEqual('网页，将解析其中的图片');
       expect(rowOf(report, 6).status).assertEqual(BatchLinkStatus.PENDING);
       expect(rowOf(report, 6).reason).assertEqual('无扩展名，确认时检测类型');
       expect(rowOf(report, 7).status).assertEqual(BatchLinkStatus.PENDING);
@@ -53,10 +53,11 @@ export default function batchLinksTest() {
       expect(rowOf(report, 8).status).assertEqual(BatchLinkStatus.VALID);
       expect(report.valid).assertEqual(3);
       expect(report.pending).assertEqual(2);
-      expect(report.invalid).assertEqual(2);
+      expect(report.invalid).assertEqual(1);
+      expect(report.pages).assertEqual(1);
       expect(report.duplicates).assertEqual(1);
       expect(report.urls.join(',')).assertEqual('https://a.example/a.jpg,'
-        + 'https://a.example/b.webp?token=1,https://a.example/noext,'
+        + 'https://a.example/b.webp?token=1,https://a.example/page.html,https://a.example/noext,'
         + 'https://a.example/pic.php?sign=1,https://a.example/photo.png');
     });
 
@@ -82,7 +83,7 @@ export default function batchLinksTest() {
       expect(report.duplicates).assertEqual(0);
     });
 
-    it('merges_head_checks_and_excludes_only_confirmed_pages', 0, () => {
+    it('merges_head_checks_and_routes_confirmed_pages', 0, () => {
       const parsed: BatchLinkReport = BatchLinks.parse('https://a.example/noext\n'
         + 'https://a.example/page\nhttps://a.example/unknown\nhttps://a.example/a.jpg\n');
       const merged: BatchLinkReport = BatchLinks.merge(parsed, [
@@ -94,17 +95,18 @@ export default function batchLinksTest() {
       expect(rowOf(merged, 1).status).assertEqual(BatchLinkStatus.VALID);
       expect(rowOf(merged, 1).probed).assertEqual(true);
       expect(rowOf(merged, 1).reason).assertEqual('已确认图片 · image/png');
-      expect(rowOf(merged, 2).status).assertEqual(BatchLinkStatus.INVALID);
-      expect(rowOf(merged, 2).reason).assertEqual('已确认网页，不导入');
+      expect(rowOf(merged, 2).status).assertEqual(BatchLinkStatus.PAGE);
+      expect(rowOf(merged, 2).reason).assertEqual('网页，将解析其中的图片');
       expect(rowOf(merged, 3).status).assertEqual(BatchLinkStatus.PENDING);
       expect(rowOf(merged, 3).reason).assertEqual('类型未确认，仍可导入');
       // 扩展名已经确定的 valid 行不因一条误发的 PAGE check 被排除。
       expect(rowOf(merged, 4).status).assertEqual(BatchLinkStatus.VALID);
       expect(merged.urls.join(',')).assertEqual('https://a.example/noext,'
-        + 'https://a.example/unknown,https://a.example/a.jpg');
+        + 'https://a.example/page,https://a.example/unknown,https://a.example/a.jpg');
       expect(merged.valid).assertEqual(2);
       expect(merged.pending).assertEqual(1);
-      expect(merged.invalid).assertEqual(1);
+      expect(merged.invalid).assertEqual(0);
+      expect(merged.pages).assertEqual(1);
     });
 
     it('ignores_stale_checks_and_keeps_input_unchanged', 0, () => {

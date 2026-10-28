@@ -1,5 +1,6 @@
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
+import { webview } from '@kit.ArkWeb';
 import { PreviewTransfer } from './PreviewTransfer';
 import { PreviewLoadProgress } from '../model/PreviewLoadProgress';
 import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
@@ -34,7 +35,7 @@ export class ThumbnailImages {
   private static directory: string = '';
 
   static async load(uri: string, cacheDir: string, aspect: number, contain: boolean,
-    request: ThumbnailRequest): Promise<ThumbnailResult> {
+    request: ThumbnailRequest, referer: string = ''): Promise<ThumbnailResult> {
     if (request.cancelled || uri.length === 0 || cacheDir.length === 0) { return new ThumbnailResult(); }
     let path: string = uri;
     let revision: string = '';
@@ -46,7 +47,12 @@ export class ThumbnailImages {
         revision = ':' + stat.size.toString() + ':' + stat.mtime.toString();
       }
       const ratio: number = Number.isFinite(aspect) && aspect > 0 ? Math.round(aspect * 100) / 100 : 1;
-      const key: string = uri + revision + ':' + ratio.toString() + ':' + contain.toString();
+      let cookie: string = '';
+      if (remote && referer.length > 0) {
+        try { cookie = webview.WebCookieManager.fetchCookieSync(uri); } catch (error) {}
+      }
+      const key: string = uri + revision + ':' + ratio.toString() + ':' + contain.toString()
+        + ':' + referer + ':' + cookie;
       const cached: ThumbnailEntry | undefined = ThumbnailImages.cache.get(key);
       if (cached !== undefined) {
         ThumbnailImages.cache.delete(key); ThumbnailImages.cache.set(key, cached);
@@ -61,7 +67,7 @@ export class ThumbnailImages {
         job = new ThumbnailJob();
         job.waiters.add(request);
         ThumbnailImages.pending.set(key, job);
-        job.promise = ThumbnailImages.make(path, remote, cacheDir, ratio, contain, key, job);
+        job.promise = ThumbnailImages.make(path, remote, cacheDir, ratio, contain, key, job, referer, cookie);
       } else { job.waiters.add(request); }
       const current: ThumbnailJob = job;
       request.onCancel = (): void => {
@@ -106,7 +112,7 @@ export class ThumbnailImages {
   }
 
   private static async make(input: string, remote: boolean, cacheDir: string, aspect: number,
-    contain: boolean, key: string, job: ThumbnailJob): Promise<ThumbnailResult> {
+    contain: boolean, key: string, job: ThumbnailJob, referer: string, cookie: string): Promise<ThumbnailResult> {
     await ThumbnailImages.slot();
     let raw: string = '';
     let output: string = '';
@@ -124,7 +130,8 @@ export class ThumbnailImages {
         raw = base + '.source';
         const transfer: PreviewTransfer = new PreviewTransfer();
         job.transfer = transfer;
-        const result = await transfer.run(input, '', '', raw, (value: PreviewLoadProgress): void => {}, 5);
+        const result = await transfer.run(input, referer, cookie, raw, (value: PreviewLoadProgress): void => {},
+          referer.length > 0 ? 0 : 5);
         if (result.failure.length > 0 || result.code !== 200 || result.bytes === 0) { return new ThumbnailResult(); }
         path = raw;
       }
