@@ -1,17 +1,17 @@
+import { PictureSelectionButton } from '../Widgets';
 import { PictureItem } from '../../model/Models';
-import { HdsNavigation, HdsNavigationTitleMode } from '@kit.UIDesignKit';
-import { uiMaterial } from '@kit.ArkUI';
-import { BrowserEntry } from '../../service/BrowserCollection';
+import { BlurStrategy, hdsMaterial, HdsNavigation, HdsNavigationTitleMode, ScrollEffectOptions, ScrollEffectType, SystemMaterialParams, TitleBarStyleOptions } from '@kit.UIDesignKit';
 import { MaterialSupport } from '../../service/MaterialSupport';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
+import { BatchLinkRow, BatchLinkStatus } from '../../service/BatchLinks';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
-import { SelectTile, Thumb } from '../Cards';
-import { HintRow, IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
+import { SelectTile } from '../Cards';
+import { IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
@@ -21,7 +21,7 @@ const QUICK_IDS: string[] = ['', 'large', 'landscape', 'portrait'];
 const QUICK_LABELS: string[] = ['全部', '大图', '横图', '竖图'];
 
 /**
- * 「发现」页：结果为主视图；浏览器持续挂载，在全屏浏览视图中显示。
+ * 「发现」页：浏览扫描为首页；结果页按需进入，两者都持续挂载以保留网页与滚动位置。
  *
  * 从 Index 的 `discoverScreen()` / `browserCard()` 两个 @Builder 搬过来，只把状态来源从
  * 「页面自己的字段」换成三个 ViewModel：
@@ -41,9 +41,8 @@ export struct DiscoverScreen {
   @Param browserOpen: boolean = false;
   @Event onOpenBrowser: () => void = (): void => {};
   @Event onShowResults: () => void = (): void => {};
+  @Event onOpenPreview: (uid: string) => void = (uid: string): void => {};
   @Local private filtersOpen: boolean = false;
-  private inspectionMaterial: uiMaterial.Material | undefined = undefined;
-  private inspectionDialogId: number | undefined = undefined;
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -63,6 +62,11 @@ export struct DiscoverScreen {
         .layoutWeight(1)
         .onChange((value: string): void => { this.discover.address = value; })
         .onSubmit((): void => { this.discover.visit(); })
+      if (this.discover.address.length > 0) {
+        IconButton({ glyph: 'xCircle', glyphSize: 18, diameter: 32, plain: true,
+          tone: Palette.fontTertiary, accessibilityLabel: '清空输入链接',
+          onAction: (): void => { this.discover.address = ''; } })
+      }
       PillButton({
         icon: 'paste', variant: 'tonal', small: true,
         onAction: (): void => { this.discover.pasteAddress(); }
@@ -84,10 +88,6 @@ export struct DiscoverScreen {
   @Builder
   private addressTitleBar() {
     Row({ space: Space.s6 }) {
-      if (this.browserOpen) {
-        IconButton({ glyph: 'chevronRight', glyphSize: 18, diameter: 36, plain: true,
-          accessibilityLabel: '返回结果', onAction: this.onShowResults }).rotate({ angle: 180 })
-      }
       Column() {
         this.addressEntry()
       }.layoutWeight(1)
@@ -101,138 +101,230 @@ export struct DiscoverScreen {
   }
 
   @Builder
+  private resultsTitleBar() {
+    Row({ space: Space.s8 }) {
+      IconButton({ glyph: 'chevronRight', glyphSize: 18, diameter: 36, plain: true,
+        accessibilityLabel: '返回浏览扫描', onAction: this.onOpenBrowser }).rotate({ angle: 180 })
+      Text('查看图片').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+    }.width('100%').padding({ left: Layout.pagePad, right: Layout.pagePad })
+  }
+
+  @Builder
   private batchEntry() {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
         PillButton({ label: this.discover.batchOpen ? '收起批量链接' : '批量链接',
           variant: 'ghost', small: true,
-          onAction: (): void => { this.discover.batchOpen = !this.discover.batchOpen; } })
+          onAction: (): void => { this.discover.setBatchPanel(!this.discover.batchOpen); } })
         if (this.discover.batchOpen) {
           PillButton({ label: '粘贴多条', icon: 'paste', variant: 'tonal', small: true,
             onAction: (): void => { this.discover.pasteBatch(); } })
         }
       }.width('100%')
       if (this.discover.batchOpen) {
-        TextArea({ placeholder: '每行一条图片直链', text: this.discover.batchText })
-          .fontSize(Font.body).fontColor(Palette.fontPrimary)
-          .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4)
-          .height(112).width('100%')
-          .onChange((value: string): void => { this.discover.batchText = value; })
-        Text('可导入 ' + this.discover.batchReport.urls.length.toString() + ' 条 · 无效 '
-          + this.discover.batchReport.invalid.toString() + ' 条 · 重复 '
-          + this.discover.batchReport.duplicates.toString() + ' 条')
-          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        PillButton({ label: '确认加入任务', variant: 'primary', small: true,
-          active: this.discover.batchReport.urls.length > 0,
-          onAction: (): void => { this.discover.enqueueBatch(); } })
+        if (this.discover.batchStage === 'review') {
+          this.batchReviewPanel()
+        } else {
+          this.batchEditor()
+        }
       }
     }
     .width('100%')
   }
 
   @Builder
-  private inspectionPanel(item: PictureItem) {
+  private batchEditor() {
     Column({ space: Space.s8 }) {
-      Row({ space: Space.s8 }) {
-        Text('图片详情').fontSize(Font.body).fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary).layoutWeight(1)
-        IconButton({ glyph: 'close', glyphSize: 18, diameter: 36,
-          accessibilityLabel: '关闭图片详情',
-          onAction: (): void => { this.closeInspection(); } })
-      }.width('100%')
-      Thumb({ src: this.discover.previewUri, label: 'IMG', fit: ImageFit.Contain,
-        fallbackText: this.discover.previewLoading ? '正在加载预览…' : '预览不可用' })
-        .width('100%').height(180).borderRadius(Radius.r4)
-      Text('来源地址：' + item.url).fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        .copyOption(CopyOptions.InApp).width('100%')
-      Text('分辨率：' + (item.width > 0 && item.height > 0
-        ? item.width.toString() + '×' + item.height.toString() + '（已测得）' : '未知'))
+      TextArea({ placeholder: '每行一条图片直链', text: this.discover.batchText })
+        .fontSize(Font.body).fontColor(Palette.fontPrimary)
+        .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4)
+        .height(96).width('100%')
+        .onChange((value: string): void => { this.discover.setBatchText(value); })
+      Text(this.discover.batchSummary)
         .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-      Text('文件大小：' + this.discover.inspectionSizeLabel())
-        .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-      Text(this.discover.previewMessage)
-        .fontSize(Font.caption).fontColor(Palette.fontTertiary)
-      if (!this.discover.previewLoading && this.discover.previewUri.length === 0 && item.kind === 'image') {
-        PillButton({ label: '重试预览', variant: 'ghost', small: true,
-          onAction: (): void => { this.discover.inspect(item.uid); } })
+      if (this.discover.batchReport.rows.length > 0) {
+        List({ space: Space.s4 }) {
+          ForEach(this.discover.batchReport.rows, (row: BatchLinkRow) => {
+            ListItem() {
+              this.batchRow(row)
+            }
+          }, (row: BatchLinkRow): string => row.line.toString() + '|' + row.status + '|'
+            + row.reason + '|' + row.url)
+        }
+        .width('100%')
+        .constraintSize({ maxHeight: 168 })
+        .scrollBar(BarState.Auto)
+      }
+      if (this.discover.batchProbeLabel.length > 0) {
+        Text(this.discover.batchProbeLabel)
+          .fontSize(Font.caption)
+          .fontColor(this.discover.batchProbing ? Palette.brand : Palette.fontTertiary)
       }
       Row({ space: Space.s8 }) {
-        IconButton({ glyph: item.selected ? 'xCircle' : 'checkCircle', glyphSize: 20,
-          accessibilityLabel: item.selected ? '取消选择此图' : '选择此图',
-          onAction: (): void => { this.discover.togglePicture(item.uid); } })
-        if (this.discover.pageUrl !== item.url && this.discover.pageUrl.startsWith('http')) {
-          IconButton({ glyph: 'arrowRight', glyphSize: 20,
-            accessibilityLabel: '查看来源页',
-            onAction: (): void => {
-              this.closeInspection();
-              this.discover.resumeBrowser();
-            } })
+        if (this.discover.batchReport.pending > 0) {
+          PillButton({ label: '检查待确认 · ' + this.discover.batchReport.pending.toString(),
+            variant: 'ghost', small: true, active: !this.discover.batchProbing,
+            onAction: (): void => { this.discover.startBatchCheck(); } })
         }
-      }.width('100%')
+        PillButton({ label: this.discover.batchProbing ? '正在检查…' : '确认导入',
+          variant: 'primary', small: true,
+          active: this.discover.batchReport.urls.length > 0 && !this.discover.batchProbing,
+          onAction: (): void => { this.discover.reviewBatch(); } })
+        if (this.discover.batchProbing) {
+          PillButton({ label: '跳过检查', variant: 'ghost', small: true,
+            onAction: (): void => { this.discover.skipBatchProbe(); } })
+        }
+      }
+      .width('100%')
     }
-    .alignItems(HorizontalAlign.Start).width('100%')
-    .padding(Space.s12)
+    .width('100%')
   }
 
-  private sheetMaterial(): uiMaterial.Material | undefined {
+  @Builder
+  private batchReview() {
+    Column({ space: Space.s8 }) {
+      Text(this.discover.batchReviewSummary)
+        .fontSize(Font.caption)
+        .fontColor(Palette.fontPrimary)
+        .width('100%')
+      if (this.discover.batchReviewExcluded.length > 0) {
+        Text(this.discover.batchReviewExcluded)
+          .fontSize(Font.caption)
+          .fontColor(Palette.fontTertiary)
+          .width('100%')
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private batchReviewPanel() {
+    Column({ space: Space.s10 }) {
+      this.batchReview()
+      List({ space: Space.s4 }) {
+        ForEach(this.discover.batchReviewRows, (row: BatchLinkRow) => {
+          ListItem() {
+            this.batchRow(row)
+          }
+        }, (row: BatchLinkRow): string => row.line.toString() + '|' + row.status + '|'
+          + row.reason + '|' + row.url)
+      }
+      .width('100%')
+      .constraintSize({ maxHeight: 180 })
+      .scrollBar(BarState.Auto)
+      Row({ space: Space.s8 }) {
+        PillButton({ label: '返回修改', variant: 'ghost', small: true,
+          onAction: (): void => { this.discover.cancelBatchReview(); } })
+        PillButton({ label: '加入任务 · ' + this.discover.batchReview.urls.length.toString() + ' 条',
+          variant: 'primary', small: true,
+          active: this.discover.batchReview.urls.length > 0,
+          onAction: (): void => { this.discover.confirmBatchReview(); } })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding(Space.s10)
+    .backgroundColor(Palette.cardSunken)
+    .borderRadius(Radius.r8)
+  }
+
+  @Builder
+  private batchRow(row: BatchLinkRow) {
+    Row({ space: Space.s8 }) {
+      Text(this.batchStatusLabel(row.status))
+        .fontSize(Font.caption)
+        .fontColor(this.batchStatusColor(row.status))
+        .width(40)
+      Column({ space: Space.s2 }) {
+        Text(row.url)
+          .fontSize(Font.caption)
+          .fontColor(Palette.fontPrimary)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+        if (row.reason.length > 0) {
+          Text(row.reason)
+            .fontSize(Font.caption)
+            .fontColor(Palette.fontTertiary)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+        }
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%')
+    .padding({ left: Space.s8, right: Space.s8, top: Space.s6, bottom: Space.s6 })
+    .backgroundColor(Palette.card)
+    .borderRadius(Radius.r6)
+  }
+
+  private batchStatusLabel(status: string): string {
+    if (status === BatchLinkStatus.VALID) { return '有效'; }
+    if (status === BatchLinkStatus.PENDING) { return '待确认'; }
+    if (status === BatchLinkStatus.DUPLICATE) { return '重复'; }
+    return '无效';
+  }
+
+  private batchStatusColor(status: string): ResourceColor {
+    if (status === BatchLinkStatus.VALID) { return Palette.confirm; }
+    if (status === BatchLinkStatus.PENDING) { return Palette.warning; }
+    if (status === BatchLinkStatus.DUPLICATE) { return Palette.fontTertiary; }
+    return Palette.alert;
+  }
+
+  /**
+   * 首页标题栏的「沉浸光感」样式：标题栏材质跟着下方滚动的内容透出光感，并随滚动渐进模糊。
+   *
+   * 门控与图片选择材质一致 —— 设备不支持、关掉「沉浸光感」开关，
+   * 或「材质类型」选了「无材质效果」时返回 undefined，标题栏回退成系统默认（不强加模糊）。
+   * 材质类型与等级都读设置里用户已选的那一档，和图片详情用的是同一组开关。
+   */
+  private titleBarStyle(): TitleBarStyleOptions | undefined {
     if (!MaterialSupport.immersiveSupported()) {
       return undefined;
     }
     if (!this.settings.lightEffect || this.settings.materialType === 'none') {
-      return uiMaterial.Material.empty;
+      return undefined;
     }
-    if (this.inspectionMaterial === undefined) {
-      this.inspectionMaterial = new uiMaterial.ImmersiveMaterial({
-        style: uiMaterial.ImmersiveStyle.THICK,
-        materialColor: Palette.sheetTint,
-        interactive: true,
-        lightEffect: { color: Palette.brand }
-      });
-    }
-    return this.inspectionMaterial;
+    const scrollEffect: ScrollEffectOptions = {
+      enableScrollEffect: true,
+      scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR
+    };
+    const material: SystemMaterialParams = {
+      materialType: this.materialTypeEnum(),
+      materialLevel: this.materialLevelEnum()
+    };
+    const style: TitleBarStyleOptions = {
+      blurStrategy: BlurStrategy.ADAPTIVE,
+      scrollEffectOpts: scrollEffect,
+      systemMaterialEffect: material
+    };
+    return style;
   }
 
-  @Builder
-  private inspectionSheet() {
-    Scroll() {
-      Column() {
-        ForEach(this.discover.inspectedPicture === undefined ? [] : [this.discover.inspectedPicture!],
-          (item: PictureItem) => {
-            this.inspectionPanel(item)
-          }, (item: PictureItem) => item.uid)
-      }.width('100%')
+  /** 设置里的材质类型 id 翻成 hdsMaterial 枚举；'adaptive' 文档上即按沉浸式材质生效。 */
+  private materialTypeEnum(): hdsMaterial.MaterialType {
+    if (this.settings.materialType === 'immersive') {
+      return hdsMaterial.MaterialType.IMMERSIVE;
     }
-    .width('100%')
-    .constraintSize({ maxHeight: ScreenMetrics.height() * 0.7 })
-    .scrollBar(BarState.Auto)
+    return hdsMaterial.MaterialType.ADAPTIVE;
   }
 
-  private openInspection(uid: string): void {
-    this.discover.inspect(uid);
-    if (this.inspectionDialogId !== undefined) {
-      return;
+  /** 设置里的材质等级 id 翻成 hdsMaterial 枚举；未知值回退为跟随系统。 */
+  private materialLevelEnum(): hdsMaterial.MaterialLevel {
+    const id: string = this.settings.materialLevel;
+    if (id === 'exquisite') {
+      return hdsMaterial.MaterialLevel.EXQUISITE;
     }
-    this.getUIContext().getPromptAction().openCustomDialog({
-      builder: (): void => { this.inspectionSheet(); },
-      alignment: DialogAlignment.Center,
-      width: '90%',
-      autoCancel: true,
-      backgroundColor: Palette.card,
-      systemMaterial: this.sheetMaterial(),
-      onWillDismiss: (action: DismissDialogAction): void => {
-        this.discover.closeInspection();
-        this.inspectionDialogId = undefined;
-        action.dismiss();
-      }
-    }).then((id: number): void => { this.inspectionDialogId = id; });
-  }
-
-  private closeInspection(): void {
-    this.discover.closeInspection();
-    if (this.inspectionDialogId !== undefined) {
-      this.getUIContext().getPromptAction().closeCustomDialog(this.inspectionDialogId);
-      this.inspectionDialogId = undefined;
+    if (id === 'gentle') {
+      return hdsMaterial.MaterialLevel.GENTLE;
     }
+    if (id === 'smooth') {
+      return hdsMaterial.MaterialLevel.SMOOTH;
+    }
+    return hdsMaterial.MaterialLevel.ADAPTIVE;
   }
 
   @Builder
@@ -271,9 +363,13 @@ export struct DiscoverScreen {
         PillButton({ label: '重扫图片', icon: 'scan', variant: 'ghost', small: true,
           onAction: (): void => { this.discover.scan(this.settings.pictureQuality); }
         })
+        PillButton({ label: '收藏/历史', variant: 'ghost', small: true,
+          onAction: (): void => { this.discover.browserPanel = 'history'; }
+        })
       }
       .width('100%')
 
+      this.batchEntry()
       this.expansionControls()
 
       Stack({ alignContent: Alignment.Bottom }) {
@@ -292,13 +388,6 @@ export struct DiscoverScreen {
               this.discover.navigationFailed(event.error.getErrorInfo());
             }
           })
-        if (this.discover.scanning) {
-          Text('正在扫描当前网页…')
-            .fontSize(Font.caption).fontColor(Palette.white)
-            .padding({ left: Space.s10, right: Space.s10, top: Space.s6, bottom: Space.s6 })
-            .borderRadius(Radius.full).backgroundColor('#8C000000')
-            .margin({ bottom: Space.s8 })
-        }
       }
       .width('100%')
       .layoutWeight(1)
@@ -311,13 +400,6 @@ export struct DiscoverScreen {
           .fontSize(Font.caption).fontColor(Palette.warning)
       }
 
-      Scroll() {
-        this.browserLibrary()
-      }
-      .width('100%')
-      .height(this.discover.browserPanel.length > 0 ? 180 : 64)
-      .scrollBar(BarState.Off)
-
       PillButton({
         label: this.discover.scanning ? '正在扫描…' : '查看图片 · ' + this.discover.pictures.length.toString() + ' 张',
         icon: 'image', variant: 'primary',
@@ -329,108 +411,12 @@ export struct DiscoverScreen {
     .padding({
       left: Layout.pagePad, right: Layout.pagePad,
       top: Space.s12,
-      bottom: SCREEN_INSETS.safeBottom + Space.s12
+      bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
     })
     .backgroundColor(Palette.bg)
   }
 
-  @Builder
-  private pageSummary() {
-    Column({ space: Space.s8 }) {
-      Row({ space: Space.s8 }) {
-        Column({ space: Space.s4 }) {
-          Text(this.discover.pageTitle.length > 0 ? this.discover.pageTitle
-            : (this.discover.pageUrl.length > 0 ? '当前网页' : '尚未打开网页'))
-            .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.discover.pageUrl.length > 0 ? this.discover.pageUrl : '打开网页后自动扫描图片')
-            .fontSize(Font.caption).fontColor(Palette.fontTertiary)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .alignItems(HorizontalAlign.Start).layoutWeight(1)
-        Text(this.discover.pictures.length.toString() + ' 张')
-          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-      }
-      .width('100%')
-      PillButton({ label: this.discover.pageUrl.length > 0 ? '继续浏览' : '打开网页',
-        icon: 'globe', variant: 'ghost', small: true, onAction: this.onOpenBrowser })
-      if (this.discover.browserProblem.length > 0) {
-        Text('网页加载失败：' + this.discover.browserProblem)
-          .fontSize(Font.caption).fontColor(Palette.warning)
-      }
-    }
-    .width('100%')
-    .padding(Space.s12)
-    .borderRadius(Radius.r8)
-    .backgroundColor(Palette.card)
-    .shadow(Shadow.card())
-  }
-
-  @Builder
-  private browserLibrary() {
-    Column({ space: Space.s8 }) {
-      Row({ space: Space.s8 }) {
-        PillButton({
-          label: '收藏 ' + this.discover.bookmarks.length.toString(), variant: 'ghost', small: true,
-          onAction: (): void => {
-            this.discover.browserPanel = this.discover.browserPanel === 'bookmarks' ? '' : 'bookmarks';
-          }
-        })
-        PillButton({
-          label: '历史 ' + this.discover.history.length.toString(), variant: 'ghost', small: true,
-          onAction: (): void => {
-            this.discover.browserPanel = this.discover.browserPanel === 'history' ? '' : 'history';
-          }
-        })
-      }.width('100%')
-
-      if (this.discover.browserPanel.length > 0) {
-        Row() {
-          Text(this.discover.browserPanel === 'bookmarks' ? '收藏的网址' : '浏览记录')
-            .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
-            .layoutWeight(1)
-          if (this.discover.browserPanel === 'history' && this.discover.history.length > 0) {
-            PillButton({ label: '清空历史', variant: 'ghost', small: true,
-              onAction: (): void => { this.discover.clearHistory(); } })
-          }
-        }.width('100%')
-        if ((this.discover.browserPanel === 'bookmarks' ? this.discover.bookmarks : this.discover.history).length === 0) {
-          Text(this.discover.browserPanel === 'bookmarks' ? '还没有收藏网页' : '还没有浏览记录')
-            .fontSize(Font.caption).fontColor(Palette.fontTertiary)
-        } else {
-          ForEach(this.discover.browserPanel === 'bookmarks' ? this.discover.bookmarks : this.discover.history,
-            (item: BrowserEntry) => {
-              Row({ space: Space.s8 }) {
-                Column({ space: Space.s4 }) {
-                  Text(item.title).fontSize(Font.body).fontColor(Palette.fontPrimary)
-                    .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(item.url).fontSize(Font.caption).fontColor(Palette.fontTertiary)
-                    .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                }
-                .alignItems(HorizontalAlign.Start).layoutWeight(1)
-                .onClick((): void => {
-                  this.discover.address = item.url;
-                  this.discover.visit();
-                  this.discover.browserPanel = '';
-                })
-                if (this.discover.browserPanel === 'bookmarks') {
-                  PillButton({ label: '移除', variant: 'ghost', small: true,
-                    onAction: (): void => { this.discover.removeBookmark(item.url); } })
-                }
-              }
-              .width('100%')
-              .padding({ top: Space.s8, bottom: Space.s8 })
-            }, (item: BrowserEntry) => item.url)
-        }
-      }
-    }
-    .width('100%')
-    .padding({ left: Space.s12, right: Space.s12, top: Space.s10, bottom: Space.s10 })
-    .borderRadius(Radius.r8)
-    .backgroundColor(Palette.card)
-  }
-
-  /** 扫描结果的网格；空态是一句引导，不是 EmptyState 卡片（这里还在同一个滚动流里）。 */
+  /** 扫描结果的网格；只有筛选排空现有图片时才提示调整条件。 */
   @Builder
   private resultGrid() {
     if (this.discover.visiblePictures.length > 0) {
@@ -442,15 +428,11 @@ export struct DiscoverScreen {
                 SelectTile({
                   picture: cell,
                   index: rowIndex * 3 + colIndex,
-                  // 只传 uid：子组件回传的引用上直接写字段会绕过 @Observed 代理、不发通知
-                  // （见 SelectTile.onToggle 的说明）。
-                  onToggle: (uid: string): void => {
-                    this.discover.togglePicture(uid);
-                  }
+                  immersiveEnabled: this.settings.lightEffect && this.settings.materialType !== 'none',
+                  onOpen: (uid: string): void => { this.onOpenPreview(uid); }
                 })
-                IconButton({ glyph: 'info', glyphSize: 18, diameter: 36,
-                  accessibilityLabel: '查看图片详情',
-                  onAction: (): void => { this.openInspection(cell.uid); } })
+                PictureSelectionButton({ selected: cell.selected, diameter: 36,
+                  onAction: (): void => { this.discover.togglePicture(cell.uid); } })
                   .margin({ right: Space.s4, bottom: Space.s4 })
               }
               .width('100%')
@@ -466,10 +448,8 @@ export struct DiscoverScreen {
         }, (row: PictureItem[]) => row.map((cell: PictureItem): string => cell.uid).join(','))
       }
       .width('100%')
-    } else {
-      Text(this.discover.pictures.length > 0
-        ? '没有符合筛选条件的图片，请调整条件或清除筛选。'
-        : '还没有扫描到图片。输入网页链接，或打开浏览视图后重新扫描。')
+    } else if (this.discover.pictures.length > 0) {
+      Text('没有符合筛选条件的图片，请调整条件或清除筛选。')
         .fontSize(Font.aux)
         .lineHeight(Font.subtitleLine)
         .fontColor(Palette.fontTertiary)
@@ -538,9 +518,6 @@ export struct DiscoverScreen {
       HdsNavigation() {
         Scroll(this.discover.scrollController()) {
         Column({ space: Space.s16 }) {
-          this.batchEntry()
-          this.pageSummary()
-
           Column({ space: Space.s10 }) {
             SectionHead({
               heading: '选择要下载的图片',
@@ -588,10 +565,6 @@ export struct DiscoverScreen {
           .width('100%')
           .alignItems(HorizontalAlign.Start)
 
-          HintRow({
-            glyph: 'sparkle',
-            text: '加载更多只滚动当前网页，可随时停止；新图片不会自动选中或下载。'
-          })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Start)
@@ -600,8 +573,8 @@ export struct DiscoverScreen {
           left: Layout.pagePad,
           right: Layout.pagePad,
           top: Space.s12,
-          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom,
-            (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0))
+          bottom: SCREEN_INSETS.safeBottom + Space.s12
+            + (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
         })
       }
       .width('100%')
@@ -612,8 +585,8 @@ export struct DiscoverScreen {
         this.discover.markScrolled();
       })
       }
-      .titleBar({ enableComponentSafeArea: true, content: {
-        stackBuilder: (): void => { this.addressTitleBar(); }
+      .titleBar({ enableComponentSafeArea: true, style: this.titleBarStyle(), content: {
+        stackBuilder: (): void => { this.resultsTitleBar(); }
       } })
       .titleMode(HdsNavigationTitleMode.MINI)
       .hideBackButton(true)
@@ -626,7 +599,7 @@ export struct DiscoverScreen {
       HdsNavigation() {
         this.browserView()
       }
-      .titleBar({ enableComponentSafeArea: true, content: {
+      .titleBar({ enableComponentSafeArea: true, style: this.titleBarStyle(), content: {
         stackBuilder: (): void => { this.addressTitleBar(); }
       } })
       .titleMode(HdsNavigationTitleMode.MINI)

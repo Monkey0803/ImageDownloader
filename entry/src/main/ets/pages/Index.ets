@@ -1,8 +1,11 @@
+import { PreviewOverlayState } from '../model/PreviewOverlayState';
+import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DownloadItem } from '../model/Models';
 import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
+import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { UiPort } from '../service/UiPort';
 import { ShareInbox } from '../service/ShareInbox';
 import { WidgetLaunch } from '../service/WidgetLaunch';
@@ -13,8 +16,11 @@ import { SettingsViewModel } from '../viewmodel/SettingsViewModel';
 import { TasksViewModel } from '../viewmodel/TasksViewModel';
 import { Layout, Palette, Space } from '../theme/Tokens';
 import { ScreenMetrics } from '../theme/Metrics';
+import { SheetStyle } from '../theme/SheetStyle';
 import { ToastLatch } from '../util/Toast';
 import { DiscoverScreen } from '../view/screens/DiscoverScreen';
+import { BrowserLibrarySheet } from '../view/BrowserLibrarySheet';
+import { DiscoverPreview } from '../view/DiscoverPreview';
 import { LibraryScreen } from '../view/screens/LibraryScreen';
 import { SettingsScreen } from '../view/screens/SettingsScreen';
 import { TasksScreen } from '../view/screens/TasksScreen';
@@ -41,7 +47,7 @@ import { SCREEN_INSETS } from '../theme/Metrics';
 @ComponentV2
 struct Index {
   /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
-  private pageVisible: boolean = true;
+  @Local private pageVisible: boolean = true;
   /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
   private toast: ToastLatch = new ToastLatch();
   /**
@@ -62,8 +68,14 @@ struct Index {
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Local private currentTab: number = TAB_DISCOVER;
-  @Local private browserOpen: boolean = false;
+  /** 浏览扫描是发现页首页；图片结果从“查看图片”进入。 */
+  @Local private browserOpen: boolean = true;
+  @Local private previewIds: string[] = [];
+  @Local private previewStartId: string = '';
+  @Local private previewPanels: PreviewOverlayState = new PreviewOverlayState();
+  @Local private previewOpen: boolean = false;
   @Local private notice: string = '';
+  private browserSheetMaterial: SystemUiMaterial = SheetStyle.material();
 
   /**
    * 商店的刷新回调。
@@ -74,6 +86,10 @@ struct Index {
    */
   private listener: () => void = (): void => {
     this.storeChanged();
+  };
+  private catalogListener: () => void = (): void => { this.library.catalogChanged(); };
+  private foregroundListener: (visible: boolean) => void = (visible: boolean): void => {
+    if (!visible) { this.library.cancelAnalysis(); this.library.cancelSimilar(); }
   };
   private sharedLinkListener: () => void = (): void => { this.consumeSharedLink(); };
   private widgetLaunchListener: () => void = (): void => { this.consumeWidgetLaunch(); };
@@ -91,6 +107,8 @@ struct Index {
     this.device.attach(port);
     // 先挂听握姿和防窥，再初始化数据：initialize() 会按持久化的开关恢复订阅，订阅结果要能刷到界面。
     this.device.start();
+    LIBRARY_CATALOG.subscribe(this.catalogListener);
+    PREVIEW_LIFECYCLE.subscribe(this.foregroundListener);
     DownloadStore.initialize(context, this.listener);
     this.storeChanged();
     this.settings.applyTheme();
@@ -107,6 +125,9 @@ struct Index {
    */
   onPageShow(): void {
     this.pageVisible = true;
+    if (this.currentTab === TAB_LIBRARY) {
+      this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
+    }
     this.flushNotice();
     this.consumeSharedLink();
     this.consumeWidgetLaunch();
@@ -114,12 +135,28 @@ struct Index {
 
   onPageHide(): void {
     this.pageVisible = false;
-    this.discover.cancelScan();
+    this.discover.browserPanel = '';
+    this.discover.cancelScan(this.previewOpen);
+    this.library.cancelAnalysis();
+    this.library.cancelSimilar();
   }
 
   onBackPress(): boolean {
-    if (this.currentTab === TAB_DISCOVER && this.browserOpen) {
-      this.browserOpen = false;
+    if (this.previewOpen) {
+      if (this.previewPanels.dismissTop()) { return true; }
+      this.closeDiscoverPreview();
+      return true;
+    }
+    if (this.currentTab === TAB_DISCOVER && this.discover.browserPanel.length > 0) {
+      this.discover.browserPanel = '';
+      return true;
+    }
+    if (this.library.renameId.length > 0) {
+      this.library.cancelRename();
+      return true;
+    }
+    if (this.currentTab === TAB_DISCOVER && !this.browserOpen) {
+      this.browserOpen = true;
       return true;
     }
     return false;
@@ -132,6 +169,11 @@ struct Index {
    * 商店回调不摘的话，之后每次数据变化都会打到已经销毁的组件上。
    */
   aboutToDisappear(): void {
+    this.library.cancelAnalysis();
+    this.library.cancelSimilar();
+    this.closeDiscoverPreview();
+    LIBRARY_CATALOG.unsubscribe(this.catalogListener);
+    PREVIEW_LIFECYCLE.unsubscribe(this.foregroundListener);
     DownloadStore.unsubscribe(this.listener);
     ShareInbox.unsubscribe(this.sharedLinkListener);
     WidgetLaunch.unsubscribe(this.widgetLaunchListener);
@@ -154,7 +196,7 @@ struct Index {
 
   private consumeWidgetLaunch(): void {
     if (!this.pageVisible || !WidgetLaunch.takeTasks()) { return; }
-    this.browserOpen = false;
+    this.browserOpen = true;
     this.currentTab = TAB_TASKS;
   }
 
@@ -177,8 +219,12 @@ struct Index {
     };
     port.context = (): common.UIAbilityContext => this.hostContext();
     port.switchTab = (index: number): void => {
+      if (index !== TAB_LIBRARY) { this.library.cancelAnalysis(); this.library.cancelSimilar(); }
       if (index !== TAB_DISCOVER) { this.discover.cancelScan(); }
       this.currentTab = index;
+      if (index === TAB_LIBRARY) {
+        this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
+      }
     };
     port.showBrowser = (): void => {
       this.browserOpen = true;
@@ -189,14 +235,17 @@ struct Index {
     port.focusLibrary = (name: string): void => {
       this.library.focus(name);
       this.currentTab = TAB_LIBRARY;
+      this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
     };
     port.openViewer = (item: DownloadItem, rename: boolean, siblings: string[]): void => {
       this.openViewer(item, rename, siblings);
     };
+    port.openImageEditor = (id: string): void => { this.openImageEditor(id); };
     port.confirm = (title: string, message: string, confirmText: string, onConfirm: () => void): void => {
       this.getUIContext().showAlertDialog({
         title: title,
         message: message,
+        systemMaterial: SheetStyle.dialogMaterial(),
         primaryButton: {
           value: '取消', action: (): void => {
           }
@@ -211,6 +260,7 @@ struct Index {
 
   /** 商店里的数据变了：把 ViewModel 拉回一致，再取一次攒下的提示。 */
   private storeChanged(): void {
+    this.discover.refreshLocalPreview();
     this.tasks.sync();
     this.library.sync();
     this.settings.sync();
@@ -238,6 +288,35 @@ struct Index {
       this.pageVisible = true;
       this.say('无法打开预览：' + error.message);
     });
+  }
+
+  private openImageEditor(id: string): void {
+    this.library.cancelAnalysis();
+    this.library.cancelSimilar();
+    this.pageVisible = false;
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/ImageEditor', params: { id: id } })
+      .catch((error: BusinessError): void => {
+        this.pageVisible = true;
+        this.say('无法打开编辑页：' + error.message);
+      });
+  }
+
+  private openDiscoverPreview(uid: string): void {
+    const ids: string[] = this.discover.visiblePictures.map((item): string => item.uid);
+    if (ids.indexOf(uid) < 0) { return; }
+    this.previewPanels.reset();
+    this.previewIds = ids;
+    this.previewStartId = uid;
+    this.previewOpen = true;
+  }
+
+  private closeDiscoverPreview(): void {
+    if (!this.previewOpen) { return; }
+    this.previewPanels.reset();
+    this.previewOpen = false;
+    this.discover.closeInspection();
+    this.previewIds = [];
+    this.previewStartId = '';
   }
 
   // ------------------------------------------------------------------ 提示
@@ -289,14 +368,34 @@ struct Index {
   /**
    * 返回顶部按钮离底边的距离。
    *
-   * 发现页底部还叠着握姿胶囊和选择条，按钮得排在它们上面，否则会压住下载按钮 ——
-   * 用和滚动内容同一套「底部预留」算法，见 DiscoverScreen 的 padding。
+   * 图片结果页底部还叠着握姿胶囊和选择条，按钮得排在它们上面。
    */
   private toTopBottomInset(): number {
     const extra: number = this.currentTab === TAB_DISCOVER
       ? (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
       : 0;
-    return ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12 + extra;
+    const bottom: number = this.currentTab === TAB_DISCOVER
+      ? SCREEN_INSETS.safeBottom : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom);
+    return bottom + Space.s12 + extra;
+  }
+
+  private browserSheetHeight(): number {
+    const count: number = this.discover.browserPanel === 'bookmarks'
+      ? this.discover.bookmarks.length : this.discover.history.length;
+    return Math.min(ScreenMetrics.height() * 0.6,
+      Math.max(200, 150 + count * 64 + SCREEN_INSETS.safeBottom));
+  }
+
+  @Builder
+  private activeSheetContent() {
+    if (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0) {
+      RenameDialog({ heading: '重命名压缩包', initial: this.library.renameName,
+        onSave: (name: string): void => { this.library.applyZipRename(name); },
+        onClose: (): void => { this.library.cancelRename(); } })
+    } else {
+      BrowserLibrarySheet({ discover: this.discover,
+        onClose: (): void => { this.discover.browserPanel = ''; } })
+    }
   }
 
   // ------------------------------------------------------------------ 视图
@@ -313,7 +412,8 @@ struct Index {
           device: this.device,
           browserOpen: this.browserOpen,
           onOpenBrowser: (): void => { this.discover.resumeBrowser(); },
-          onShowResults: (): void => { this.browserOpen = false; }
+          onShowResults: (): void => { this.discover.browserPanel = ''; this.browserOpen = false; },
+          onOpenPreview: (uid: string): void => { this.openDiscoverPreview(uid); }
         })
       }
       .width('100%')
@@ -328,7 +428,8 @@ struct Index {
       .visibility(this.currentTab === TAB_TASKS ? Visibility.Visible : Visibility.None)
 
       Column() {
-        LibraryScreen({ library: this.library, settings: this.settings })
+        LibraryScreen({ library: this.library, settings: this.settings,
+          active: this.currentTab === TAB_LIBRARY })
       }
       .width('100%')
       .height('100%')
@@ -345,10 +446,10 @@ struct Index {
       .height('100%')
       .visibility(this.currentTab === TAB_SETTINGS ? Visibility.Visible : Visibility.None)
 
-      // 大图预览已改成独立页面（pages/Viewer.ets，见 openViewer）：
-      // 这里不再画浮层，否则系统返回键会绕过预览直接退出应用。
+      // 图库预览使用独立页面；发现页预览留在 Index 中复用当前扫描状态，
+      // onBackPress 会优先关闭它，避免系统返回直接退出应用。
 
-      if ((this.currentTab !== TAB_DISCOVER || !this.browserOpen) && this.topVisible()) {
+      if (this.topVisible()) {
         ToTopButton({
           mirror: this.device.gripLeft(),
           bottomSpace: this.toTopBottomInset(),
@@ -372,22 +473,26 @@ struct Index {
         .padding({
           left: Layout.pagePad,
           right: Layout.pagePad,
-          bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
+          bottom: SCREEN_INSETS.safeBottom + Space.s12
         })
       }
 
-      // 防窥遮罩排在页签栏之前：后画的 TabBar 落在它上面，被盖住时用户仍能切页签。
+      // 防窥遮罩排在页签栏之前：浏览首页被盖住时用户仍能切页签。
       if (this.device.peeking) {
         PrivacyVeil({ device: this.device })
       }
 
-      if (!this.browserOpen || this.currentTab !== TAB_DISCOVER) {
+      if (this.browserOpen || this.currentTab !== TAB_DISCOVER) {
         TabBar({
           active: this.currentTab,
           badge: this.tasks.running,
           onSelect: (index: number): void => {
-            if (index !== TAB_DISCOVER) { this.discover.cancelScan(); }
+            if (index !== TAB_DISCOVER) { this.discover.browserPanel = ''; this.discover.cancelScan(); }
+            if (index !== TAB_LIBRARY) { this.library.cancelAnalysis(); this.library.cancelSimilar(); }
             this.currentTab = index;
+            if (index === TAB_LIBRARY) {
+              this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
+            }
           }
         })
       }
@@ -404,7 +509,7 @@ struct Index {
           left: Layout.pagePad,
           right: Layout.pagePad,
           bottom: SCREEN_INSETS.keyboardHeight > 0 ? Space.s16
-            : this.currentTab === TAB_DISCOVER && this.browserOpen
+            : this.currentTab === TAB_DISCOVER && !this.browserOpen
               ? SCREEN_INSETS.safeBottom + Space.s16
               : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + 88
         })
@@ -414,22 +519,39 @@ struct Index {
         .hitTestBehavior(HitTestMode.None)
       }
 
-      // 只剩压缩包会用到这个弹窗；图片改名跟着大图预览页走（pages/Viewer.ets）。
-      if (this.library.renameId.length > 0) {
-        RenameDialog({
-          heading: '重命名压缩包',
-          initial: this.library.renameName,
-          onSave: (name: string): void => {
-            this.library.applyZipRename(name);
-          },
-          onClose: (): void => {
-            this.library.cancelRename();
+      if (this.previewOpen) {
+        DiscoverPreview({ panels: this.previewPanels, foreground: this.pageVisible && PREVIEW_LIFECYCLE.foreground,
+          discover: this.discover,
+          ids: this.previewIds,
+          startId: this.previewStartId,
+          onClose: (): void => { this.closeDiscoverPreview(); },
+          onEdit: (id: string): void => { this.closeDiscoverPreview(); this.openImageEditor(id); },
+          onSourcePage: (): void => {
+            this.closeDiscoverPreview();
+            this.discover.resumeBrowser();
           }
         })
+      }
+      if (this.previewOpen && this.device.peeking) {
+        PrivacyVeil({ device: this.device })
       }
     }
     .width('100%')
     .height('100%')
+    .bindSheet((this.currentTab === TAB_DISCOVER && this.browserOpen
+      && !this.device.peeking && this.discover.browserPanel.length > 0)
+      || (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0),
+      this.activeSheetContent(), {
+        height: this.library.renameId.length > 0 ? SheetSize.FIT_CONTENT : this.browserSheetHeight(),
+        dragBar: true,
+        showClose: false,
+        backgroundColor: Color.Transparent,
+        systemMaterial: this.browserSheetMaterial,
+        onDisappear: (): void => {
+          this.discover.browserPanel = '';
+          this.library.cancelRename();
+        }
+      })
     .backgroundColor(Palette.bg)
   }
 }

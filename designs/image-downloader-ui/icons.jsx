@@ -39,13 +39,21 @@ const HMSYMBOL = {
   clock: 0xF03DD,
   alert: 0xF0109,
   checkCircle: 0xF000F,
+  circle: 0xF0007,
   xCircle: 0xF0055,
   scan: 0xF0123,
   inbox: 0xF089D,
   sparkle: 0xF0037,
   eye: 0xF0120,
+  copy: 0xF04A2,
   paste: 0xF019D,
   arrowRight: 0xF0231,
+  crop: 0xF0161,
+  brush: 0xF07DE,
+  rectangle: 0xF0070,
+  rotateLeft: 0xF0364,
+  undo: 0xF01F3,
+  palette: 0xF0125,
 };
 
 const ICONS = {

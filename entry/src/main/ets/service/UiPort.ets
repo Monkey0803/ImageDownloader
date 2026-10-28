@@ -26,6 +26,8 @@ export class UiPort {
     (item: DownloadItem, rename: boolean, siblings: string[]): void => {
     };
 
+  openImageEditor: (id: string) => void = (id: string): void => {};
+
   /** 切底部页签。 */
   switchTab: (index: number) => void = (index: number): void => {
   };

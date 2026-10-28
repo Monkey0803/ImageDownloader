@@ -81,10 +81,10 @@ export class SettingsViewModel {
   }
 
   confirmClearAll(): void {
-    this.ui.confirm('清空全部记录', '将删除应用内的全部图片、压缩包与下载记录。已导出的副本不受影响。', '删除',
+    this.ui.confirm('清空下载记录', '将删除原始下载图片、压缩包与下载记录。编辑副本及已导出的文件不受影响。', '删除',
       (): void => {
-        DownloadStore.clearAll();
-        this.ui.say('已清空全部记录');
+        this.ui.say(DownloadStore.clearAll() ? '已清空下载记录，编辑副本已保留' :
+          '部分文件未能删除，记录已保留，可重试清理');
       });
   }
 

@@ -133,7 +133,10 @@ export struct TasksScreen {
         caption: this.tasks.running > 0
           ? this.tasks.running.toString() + ' 个任务进行中 · 并发 ' + this.tasks.concurrency.toString()
           : '队列为空',
-        layer: Layout.tbLayerSecondary
+        actionGlyph: this.tasks.isEmpty() ? '' : 'trash',
+        actionLabel: '清除下载记录',
+        layer: Layout.tbLayerSecondary,
+        onAction: (): void => { this.tasks.confirmClearAll(); }
       })
     }
     .width('100%')

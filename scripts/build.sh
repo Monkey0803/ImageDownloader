@@ -11,4 +11,5 @@ export JAVA_HOME="$DEVECO/Contents/jbr/Contents/Home"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 cd "$(dirname "$0")/.."
+bash "$(pwd)/scripts/build-zip-deps.sh"
 exec node "$DEVECO/Contents/tools/hvigor/bin/hvigorw.js" "$@" --no-daemon

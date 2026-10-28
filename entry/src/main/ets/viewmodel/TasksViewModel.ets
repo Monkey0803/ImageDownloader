@@ -53,7 +53,7 @@ export class TasksViewModel {
 
   /** 数据变了：重新生成每个分组的数组，让 ForEach 正确观察到跨分组的任务。 */
   sync(): void {
-    this.downloads = DownloadStore.downloads.slice();
+    this.downloads = DownloadStore.downloads.filter((item: DownloadItem): boolean => item.origin === 'download');
     this.batches = DownloadStore.batches.slice();
     this.concurrency = DownloadStore.concurrency;
     this.active = this.downloads.filter((item: DownloadItem): boolean =>
@@ -95,6 +95,16 @@ export class TasksViewModel {
 
   setConcurrency(value: number): void {
     DownloadStore.setConcurrency(Math.round(value));
+  }
+
+  /** 标题栏清理入口与设置页使用同一份下载数据和删除语义。 */
+  confirmClearAll(): void {
+    if (this.isEmpty()) { return; }
+    this.ui.confirm('清空下载记录', '将删除原始下载图片、压缩包与下载记录。编辑副本及已导出的文件不受影响。', '删除',
+      (): void => {
+        this.ui.say(DownloadStore.clearAll() ? '已清空下载记录，编辑副本已保留' :
+          '部分文件未能删除，记录已保留，可重试清理');
+      });
   }
 
   cancel(task: DownloadItem): void {

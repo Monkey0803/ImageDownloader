@@ -33,3 +33,4 @@
 
 # ArkTS 编译器/检查器的构建缓存（.tsbuildinfo、arkts-check）
 /.cache
+third_party/zip-deps/

@@ -21,6 +21,9 @@ import { SCREEN_INSETS } from '../theme/Metrics';
 import { DownloadStore } from '../service/DownloadStore';
 import { ShareInbox } from '../service/ShareInbox';
 import { WidgetLaunch } from '../service/WidgetLaunch';
+import { PreviewReadingStore } from '../service/PreviewReadingStore';
+import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
+import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 
 const DOMAIN = 0x0000;
 
@@ -36,6 +39,10 @@ export default class EntryAbility extends UIAbility {
   private keyboardWatch: ((data: window.AvoidAreaOptions) => void) | undefined = undefined;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    PreviewReadingStore.initialize(this.context.filesDir);
+    LIBRARY_CATALOG.initialize(this.context.filesDir).catch((): void => {
+      // Index listens to the catalog and presents its recoverable read error.
+    });
     hilog.info(DOMAIN, 'testTag', 'Ability onCreate, bundleName: %{public}s, launchReason: %{public}d',
       want.bundleName ?? '', launchParam.launchReason);
     try {
@@ -61,6 +68,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    PREVIEW_LIFECYCLE.setForeground(false);
+    PreviewReadingStore.flush();
     // 页面已经不在了，但商店里可能还挂着「待存相册」的防抖定时器与合并写盘的定时器：
     // 前者会在别的应用上弹系统确认框，后者会让最后一次进度没落盘。
     DownloadStore.shutdown();
@@ -112,6 +121,7 @@ export default class EntryAbility extends UIAbility {
     this.mainWindow = main;
     this.keyboardWatch = (data: window.AvoidAreaOptions): void => {
       if (data.type !== window.AvoidAreaType.TYPE_KEYBOARD) {
+        EntryAbility.storeInsets(main);
         return;
       }
       const density: number = display.getDefaultDisplaySync().densityPixels;
@@ -157,12 +167,15 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    PREVIEW_LIFECYCLE.setForeground(true);
     DownloadStore.setForeground(true);
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
   }
 
   onBackground(): void {
+    PREVIEW_LIFECYCLE.setForeground(false);
+    PreviewReadingStore.flush();
     DownloadStore.setForeground(false);
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');

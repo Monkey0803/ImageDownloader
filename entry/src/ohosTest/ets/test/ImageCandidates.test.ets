@@ -130,5 +130,15 @@ export default function imageCandidatesTest() {
       expect(SiteRules.expand('https://wx1.sinaimg.cn/orj360/1/2/a.jpg').length).assertEqual(0);
       expect(SiteRules.expand('').length).assertEqual(0);
     });
+
+    it('strips_the_coolapk_thumbnail_suffix_and_keeps_the_query', 0, () => {
+      const thumb: string = 'https://image.coolapk.com/feed/2026/1027/03/27167986_5e6db78f_2793_9069_796-uhdr@2494x3325.jpg.m.jpg';
+      expect(Candidates.urls(SiteRules.expand(thumb)).join(',')).assertEqual(
+        'https://image.coolapk.com/feed/2026/1027/03/27167986_5e6db78f_2793_9069_796-uhdr@2494x3325.jpg');
+      expect(Candidates.urls(SiteRules.expand(thumb + '?sign=1')).join(',')).assertEqual(
+        'https://image.coolapk.com/feed/2026/1027/03/27167986_5e6db78f_2793_9069_796-uhdr@2494x3325.jpg?sign=1');
+      expect(SiteRules.expand('https://image.coolapk.com/feed/a.png').length).assertEqual(0);
+      expect(SiteRules.expand('https://notcoolapk.com/feed/a.jpg.m.jpg').length).assertEqual(0);
+    });
   });
 }

@@ -1,5 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
+import { WebIdentity } from './WebIdentity';
 
 /**
  * 用 HEAD 请求的 `Content-Length` 给候选地址排大小（**仲裁者**）。
@@ -151,6 +152,7 @@ export class SizeArbiter {
       return 0;
     }
     const headers: Record<string, string> = {};
+    headers['User-Agent'] = WebIdentity.userAgent();
     if (referer.startsWith('http')) {
       headers['Referer'] = referer;
     }

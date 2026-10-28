@@ -94,6 +94,7 @@ const SYMBOL_RES: Record<string, Resource> = {
   'clock': $r('sys.symbol.clock'),
   'alert': $r('sys.symbol.exclamationmark_circle'),
   'checkCircle': $r('sys.symbol.checkmark_circle'),
+  'circle': $r('sys.symbol.circle'),
   'xCircle': $r('sys.symbol.xmark_circle'),
   'scan': $r('sys.symbol.circle_viewfinder'),
   'inbox': $r('sys.symbol.arrow_down_circle'),
@@ -102,9 +103,16 @@ const SYMBOL_RES: Record<string, Resource> = {
   'info': $r('sys.symbol.info_circle'),
   'bookmark': $r('sys.symbol.bookmark'),
   'bookmarkFill': $r('sys.symbol.bookmark_fill'),
+  'copy': $r('sys.symbol.rectangle_on_rectangle'),
   // 只在符号层存在的两个名字：地址栏的「粘贴」与「前往」。
   'paste': $r('sys.symbol.text_clipboard'),
-  'arrowRight': $r('sys.symbol.arrow_right')
+  'arrowRight': $r('sys.symbol.arrow_right'),
+  'crop': $r('sys.symbol.crop_rotate'),
+  'brush': $r('sys.symbol.paintbrush'),
+  'rectangle': $r('sys.symbol.rectangle'),
+  'rotateLeft': $r('sys.symbol.rotate_left'),
+  'undo': $r('sys.symbol.undo'),
+  'palette': $r('sys.symbol.paintpalette')
 };
 
 /** Path data for a named glyph, falling back to a dot for unknown names. */

@@ -1,3 +1,4 @@
+import { PreviewOverlayState } from '../model/PreviewOverlayState';
 /*
  * Cards.ets — the prototype's data-bound components.
  *
@@ -7,151 +8,40 @@
  */
 
 import { fileUri } from '@kit.CoreFileKit';
-import { image } from '@kit.ImageKit';
 import { common } from '@kit.AbilityKit';
-import { display } from '@kit.ArkUI';
+import { uiMaterial } from '@kit.ArkUI';
 import { MovingPhotoView, MovingPhotoViewController, photoAccessHelper } from '@kit.MediaLibraryKit';
 import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
 import { MediaFormat } from '../service/MediaFormat';
-import { StillFrames } from '../service/StillFrames';
+import { MaterialSupport } from '../service/MaterialSupport';
+import { SheetStyle } from '../theme/SheetStyle';
 import {
   Font, formatBytes, formatMoment, kindOf, Palette, percentOf, Radius, Shadow, Space
 } from '../theme/Tokens';
 import { Glyph } from './Icons';
 import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
 import { SCREEN_INSETS } from '../theme/Metrics';
-
-/** Image with a type-badge fallback, mirroring the prototype's <Img>. */
-@ComponentV2
-export struct Thumb {
-  /**
-   * @Param：预览页改名后路径会变，裸成员在 V2 里既传不进来也不刷新。
-   * @Monitor（V2 的 @Watch，注意它装饰的是**处理方法**、监听 `src`）：**换 src 必须把 failed 复位**。
-   * 任务页进预览时 src 先是远程地址（那一张不带 Referer/Cookie，防盗链站会 onError），
-   * 落盘后 src 换成沙箱文件 URI；不复位的话组件被复用、`failed` 粘在 true 上，
-   * 大图永远停在那个「IMG」文字块上。
-   */
-  @Param src: string = '';
-  @Param label: string = 'IMG';
-  /** 远程缩略图被站点拒绝时显示明确状态，原文件仍可下载。 */
-  @Param fallbackText: string = '';
-  /**
-   * 非空时只画这个本地文件的**第 0 帧**。
-   *
-   * ArkUI 的 Image 会自己播放 GIF / WebP 动图，没有「只播首帧」的开关：图库里几十个格子
-   * 同时动画既费电又晃眼。所以动图格子把解码好的首帧交给这里静态绘制（见 service/StillFrames）。
-   */
-  @Param firstFramePath: string = '';
-  /** 右下角角标（「动图」「实况」「GIF」…）；空串不画。 */
-  @Param badge: string = '';
-  @Param fit: ImageFit = ImageFit.Cover;
-
-  @Local private failed: boolean = false;
-  @Local private frame: image.PixelMap | undefined = undefined;
-
-  aboutToAppear(): void {
-    this.loadFrame();
-  }
-
-  @Monitor('src')
-  private onSourceChanged(monitor: IMonitor): void {
-    this.failed = false;
-  }
-
-  @Monitor('firstFramePath')
-  private onFirstFrameChanged(monitor: IMonitor): void {
-    this.loadFrame();
-  }
-
-  /**
-   * 取首帧：命中缓存就直接画，否则异步解码一次。
-   *
-   * 解码回来时**再确认一次路径没变**：网格滚动会复用组件，晚到的结果不能画到别的图上。
-   */
-  private loadFrame(): void {
-    if (this.firstFramePath.length === 0) {
-      this.frame = undefined;
-      return;
-    }
-    const cached: image.PixelMap | undefined = StillFrames.cachedFrame(this.firstFramePath);
-    if (cached !== undefined) {
-      this.frame = cached;
-      return;
-    }
-    const path: string = this.firstFramePath;
-    StillFrames.stillFrame(path).then((frame: image.PixelMap | undefined): void => {
-      if (frame !== undefined && path === this.firstFramePath) {
-        this.frame = frame;
-      }
-    });
-  }
-
-  build() {
-    Stack({ alignContent: Alignment.Center }) {
-      if (this.frame !== undefined) {
-        Image(this.frame)
-          .width('100%')
-          .height('100%')
-          .objectFit(this.fit)
-      } else if (this.src.length > 0 && !this.failed) {
-        Image(this.src)
-          .width('100%')
-          .height('100%')
-          .objectFit(this.fit)
-          .onError(() => {
-            this.failed = true;
-          })
-      } else {
-        Text(this.fallbackText.length > 0 ? this.fallbackText : this.label)
-          .fontSize(10)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontTertiary)
-      }
-
-      if (this.badge.length > 0) {
-        // 右下角：左下角留给发现页的序号角标（见 SelectTile）。
-        Column() {
-          Text(this.badge)
-            .fontSize(10)
-            .lineHeight(17)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Palette.white)
-            .height(17)
-            .padding({ left: Space.s6, right: Space.s6 })
-            .borderRadius(Radius.full)
-            .backgroundColor('#6B000000')
-        }
-        .width('100%')
-        .height('100%')
-        .alignItems(HorizontalAlign.End)
-        .justifyContent(FlexAlign.End)
-        .padding({ right: 5, bottom: 5 })
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor(Palette.cardSunken)
-  }
-}
+import { Thumb } from './Thumb';
+import { AnimatedPreviewImage, ZoomablePreviewImage } from './ImageSurface';
+import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
+import { PreviewAsset } from '../model/PreviewAsset';
+import { PreviewTools } from './PreviewTools';
+import { PreviewCompare } from './PreviewCompare';
+export { Thumb } from './Thumb';
+export { AnimatedPreviewImage, ZoomablePreviewImage, LocalPreviewImage } from './ImageSurface';
+export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 
 /** One selectable tile of the discover image grid. */
 @ComponentV2
 export struct SelectTile {
   @Require @Param picture: PictureItem;
   @Param index: number = 0;
-  /**
-   * 回调只传 **uid**，不把 `this.picture` 这个引用交出去。
-   *
-   * 这是真机实测踩出来的：父组件拿到子组件回传的引用后直接写 `selected`，**这次写会绕过
-   * `@Observed` 代理** —— 值确实变了（父组件重算计数能看到），但 `@ObjectLink` 的通知不发，
-   * 于是磁贴自己的已选蒙层「差一拍」：点一下取消勾选，勾还在（要等下一次别的写入才刷掉）。
-   * 对比：父组件从自己的 `pictures` 里取出元素写（「全选 / 反选 / 清空」走的就是这条），蒙层会立刻刷新。
-   *
-   * 所以子组件只报「哪一个」（uid），由父组件回到自己的列表里再取一次那个引用去写。
-   */
-  @Event onToggle: (uid: string) => void = () => {
+  @Param immersiveEnabled: boolean = false;
+  private selectionMaterial: uiMaterial.Material | undefined = undefined;
+  /** 图片点击进入预览；角上的选择按钮由父组件处理。 */
+  @Event onOpen: (uid: string) => void = () => {
   };
 
   /**
@@ -168,30 +58,41 @@ export struct SelectTile {
     return MediaFormat.isAnimatedExt(extension) ? extension.toUpperCase() : '';
   }
 
+  private material(): uiMaterial.Material | undefined {
+    if (!this.immersiveEnabled || !MaterialSupport.immersiveSupported()) {
+      return undefined;
+    }
+    if (this.selectionMaterial === undefined) {
+      this.selectionMaterial = new uiMaterial.ImmersiveMaterial({
+        style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+        applyShadow: false,
+        interactive: true,
+        lightEffect: { color: Palette.brand }
+      });
+    }
+    return this.selectionMaterial;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Thumb({ src: this.picture.url, label: kindOf(this.picture.name), badge: this.badge(),
+      Thumb({ src: this.picture.url,   label: kindOf(this.picture.name), badge: this.badge(),
         fallbackText: '预览不可用' })
 
-      // selection veil: a brand ring plus a wash
+      // 光感材质只覆盖已选图片；设备不支持或设置关闭时保留轻微蒙层。
       if (this.picture.selected) {
-        Row()
-          .width('100%')
-          .height('100%')
-          .borderRadius(Radius.r4)
-          .backgroundColor(Palette.brandSoft)
-          .border({ width: 3, color: Palette.brand, radius: Radius.r4 })
-      }
-
-      if (this.picture.selected) {
-        Stack({ alignContent: Alignment.Center }) {
-          Glyph({ glyph: 'check', glyphSize: 13, glyphTone: Palette.white, glyphWeight: 2.6 })
+        if (this.material() !== undefined) {
+          Row()
+            .width('100%')
+            .height('100%')
+            .borderRadius(Radius.r4)
+            .systemMaterial(this.material())
+        } else {
+          Row()
+            .width('100%')
+            .height('100%')
+            .borderRadius(Radius.r4)
+            .backgroundColor(Palette.brandSoft)
         }
-        .width(21)
-        .height(21)
-        .borderRadius(Radius.full)
-        .backgroundColor(Palette.brand)
-        .margin({ top: 5, left: 5 })
       }
 
       // the prototype's bottom-left index badge
@@ -230,7 +131,7 @@ export struct SelectTile {
     .borderRadius(Radius.r4)
     .clip(true)
     .onClick(() => {
-      this.onToggle(this.picture.uid);
+      this.onOpen(this.picture.uid);
     })
   }
 }
@@ -239,6 +140,9 @@ export struct SelectTile {
 @ComponentV2
 export struct ShotTile {
   @Require @Param image: DownloadItem;
+  @Param favorite: boolean = false;
+  @Param tags: string[] = [];
+  @Param snippet: string = '';
   /** @Prop：密度是运行时切换的（标题栏那颗九宫格按钮），普通成员刷不进来。 */
   @Param dense: boolean = false;
   @Param selecting: boolean = false;
@@ -281,7 +185,8 @@ export struct ShotTile {
           src: fileUri.getUriFromPath(this.coverPath()),
           label: kindOf(this.image.name),
           firstFramePath: this.firstFramePath(),
-          badge: this.badge()
+          badge: this.badge(),
+          badgeTopLeft: true
         })
         Row()
           .width('100%')
@@ -289,13 +194,19 @@ export struct ShotTile {
           .borderRadius(Radius.r6)
           .border({ width: 1, color: Palette.divider, radius: Radius.r6 })
         if (this.selecting) {
-          Text(this.selected ? '✓' : '○')
-            .fontSize(20)
-            .fontColor(this.selected ? Palette.brand : Palette.fontPrimary)
+          Column() {
+            Stack() {
+              Glyph({ glyph: this.selected ? 'checkCircle' : 'circle', glyphSize: 20,
+                glyphTone: this.selected ? Palette.brand : Palette.fontPrimary })
+            }
+            .width(28).height(28)
             .backgroundColor(Palette.card)
             .borderRadius(Radius.full)
-            .padding({ left: Space.s4, right: Space.s4 })
-            .align(Alignment.TopEnd)
+          }
+          .width('100%').height('100%')
+          .alignItems(HorizontalAlign.End)
+          .justifyContent(FlexAlign.End)
+          .padding({ right: Space.s6, bottom: Space.s6 })
         }
       }
       .width('100%')
@@ -321,6 +232,21 @@ export struct ShotTile {
             .fontColor(Palette.fontTertiary)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        if (this.favorite || this.tags.length > 0) {
+          Row({ space: Space.s4 }) {
+            if (this.favorite) {
+              Glyph({ glyph: 'bookmarkFill', glyphSize: 12,
+                glyphTone: Palette.brand, glyphWeight: 1.5 })
+            }
+            Text(this.tags.slice(0, 2).join(' · '))
+              .fontSize(11).fontColor(Palette.fontSecondary)
+              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+        }
+        if (this.snippet.length > 0) {
+          Text(this.snippet).fontSize(11).fontColor(Palette.fontSecondary)
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
         }
       }
       .width('100%')
@@ -722,6 +648,7 @@ export struct ArchiveStack {
 export struct ArchiveCard {
   @Require @Param zip: ZipItem;
   @Event onRetryDelivery: (zip: ZipItem) => void = () => {};
+  @Event onExtract: (zip: ZipItem) => void = () => {};
   @Param selecting: boolean = false;
   @Param selected: boolean = false;
   @Event onSelect: (zip: ZipItem) => void = () => {
@@ -741,9 +668,8 @@ export struct ArchiveCard {
         ArchiveStack({ thumbs: this.zip.thumbs })
 
         if (this.selecting) {
-          Text(this.selected ? '✓' : '○')
-            .fontSize(20)
-            .fontColor(this.selected ? Palette.brand : Palette.fontSecondary)
+          Glyph({ glyph: this.selected ? 'checkCircle' : 'circle', glyphSize: 20,
+            glyphTone: this.selected ? Palette.brand : Palette.fontSecondary })
         }
 
         Column({ space: Space.s2 }) {
@@ -754,7 +680,7 @@ export struct ArchiveCard {
             .fontColor(Palette.fontPrimary)
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.zip.imageCount.toString() + ' 张图片 · ' + formatBytes(this.zip.size))
+          Text(this.zip.imageCount.toString() + (this.zip.imported ? ' 个文件 · ' : ' 张图片 · ') + formatBytes(this.zip.size))
             .fontSize(Font.aux)
             .lineHeight(Font.auxLine)
             .fontColor(Palette.fontSecondary)
@@ -786,27 +712,36 @@ export struct ArchiveCard {
 
       if (!this.selecting) {
         Row({ space: Space.s4 }) {
-          PillButton({
-            label: '重命名', variant: 'ghost', icon: 'pencil', small: true,
+          IconButton({
+            glyph: 'archive', glyphSize: 20, diameter: 40, plain: true,
+            accessibilityLabel: '解压',
+            onAction: (): void => { this.onExtract(this.zip); }
+          })
+          IconButton({
+            glyph: 'pencil', glyphSize: 20, diameter: 40, plain: true,
+            accessibilityLabel: '重命名',
             onAction: () => {
               this.onRename(this.zip);
             }
           })
-          PillButton({
-            label: '导出', variant: 'ghost', icon: 'export', small: true,
+          IconButton({
+            glyph: 'export', glyphSize: 20, diameter: 40, plain: true,
+            accessibilityLabel: '导出',
             onAction: () => {
               this.onExport(this.zip);
             }
           })
-          PillButton({
-            label: '分享', variant: 'ghost', icon: 'share', small: true,
+          IconButton({
+            glyph: 'share', glyphSize: 20, diameter: 40, plain: true,
+            accessibilityLabel: '分享',
             onAction: () => {
               this.onShare(this.zip);
             }
           })
           Blank()
           IconButton({
-            glyph: 'trash', glyphSize: 18, diameter: 34, plain: true, tone: Palette.warning,
+            glyph: 'trash', glyphSize: 20, diameter: 40, plain: true, tone: Palette.warning,
+            accessibilityLabel: '删除压缩包',
             onAction: () => {
               this.onDelete(this.zip);
             }
@@ -835,140 +770,10 @@ export struct ArchiveCard {
  * `label` 是取不到图时兜底的类型角标。组件只负责画，不自己去商店取记录 ——
  * 这样翻页只换数据，不和下载队列的状态纠缠。
  */
-export interface ViewerSlide {
-  /** 下载记录 id，同时当 ForEach 的 key。 */
-  id: string;
-  src: string;
-  /** 已落盘的普通图片路径；远程图与实况照片为空。 */
-  localPath: string;
-  /** 已确认包含多帧的 GIF / WebP 在大图页继续由 ArkUI 播放。 */
-  animated: boolean;
-  name: string;
-  label: string;
-  /** 实况照片解出来的静图沙箱路径；普通图片是空串。 */
-  stillPath: string;
-  /** 实况照片解出来的视频沙箱路径；普通图片是空串。 */
-  motionPath: string;
-}
-
-/** 大图页的本地静图：ImageKit 解码，ArkUI Image 只负责显示 PixelMap。 */
-@ComponentV2
-struct LocalPreviewImage {
-  @Require @Param path: string;
-  @Require @Param fallbackUri: string;
-  @Param label: string = 'IMG';
-  /** Swiper 可能预建全部子页，只允许当前页及相邻页持有解码后的像素图。 */
-  @Param active: boolean = true;
-  @Local private frame: image.PixelMap | undefined = undefined;
-  @Local private failed: boolean = false;
-  private ownedFrame: image.PixelMap | undefined = undefined;
-  private generation: number = 0;
-  private disposed: boolean = false;
-
-  aboutToAppear(): void {
-    this.disposed = false;
-    this.load();
-  }
-
-  aboutToDisappear(): void {
-    this.disposed = true;
-    this.generation++;
-    this.clearFrame();
-  }
-
-  @Monitor('path')
-  private onPathChanged(monitor: IMonitor): void {
-    this.load();
-  }
-
-  @Monitor('active')
-  private onActiveChanged(monitor: IMonitor): void {
-    this.load();
-  }
-
-  private clearFrame(): void {
-    this.frame = undefined;
-    const old: image.PixelMap | undefined = this.ownedFrame;
-    this.ownedFrame = undefined;
-    if (old !== undefined) {
-      try {
-        old.release();
-      } catch (error) {
-      }
-    }
-  }
-
-  private load(): void {
-    const generation: number = ++this.generation;
-    this.clearFrame();
-    this.failed = false;
-    if (this.disposed || !this.active) {
-      return;
-    }
-    const path: string = this.path;
-    if (path.length === 0) {
-      this.failed = true;
-      return;
-    }
-    this.decode(path, generation);
-  }
-
-  private async decode(path: string, generation: number): Promise<void> {
-    let source: image.ImageSource | undefined = undefined;
-    let decoded: image.PixelMap | undefined = undefined;
-    try {
-      source = image.createImageSource(path);
-      const info: image.ImageInfo = await source.getImageInfo();
-      const width: number = info.size.width;
-      const height: number = info.size.height;
-      if (width <= 0 || height <= 0) {
-        throw new Error('Invalid image size');
-      }
-      const screen: display.Display = display.getDefaultDisplaySync();
-      const edge: number = Math.max(1, Math.min(3072, Math.max(screen.width, screen.height)));
-      const factor: number = Math.min(1, edge / Math.max(width, height));
-      const options: image.DecodingOptions = {
-        index: 0,
-        desiredSize: {
-          width: Math.max(1, Math.round(width * factor)),
-          height: Math.max(1, Math.round(height * factor))
-        }
-      };
-      decoded = await source.createPixelMap(options);
-      if (this.disposed || !this.active || generation !== this.generation || path !== this.path) {
-        decoded.release();
-        return;
-      }
-      this.ownedFrame = decoded;
-      this.frame = decoded;
-    } catch (error) {
-      if (!this.disposed && this.active && generation === this.generation && path === this.path) {
-        this.failed = true;
-      }
-    } finally {
-      if (source !== undefined) {
-        try {
-          await source.release();
-        } catch (error) {
-        }
-      }
-    }
-  }
-
-  build() {
-    if (this.frame !== undefined) {
-      Image(this.frame)
-        .width('100%')
-        .height('100%')
-        .objectFit(ImageFit.Contain)
-    } else if (this.failed) {
-      Thumb({ src: this.fallbackUri, label: this.label, fit: ImageFit.Contain })
-    } else {
-      Text('正在加载图片…')
-        .fontSize(Font.aux)
-        .fontColor('#B3FFFFFF')
-    }
-  }
+export class ViewerSlide extends PreviewAsset {
+  label: string = '';
+  stillPath: string = '';
+  motionPath: string = '';
 }
 
 /**
@@ -1077,6 +882,9 @@ export struct LivePhotoSlide {
  */
 @ComponentV2
 export struct ImageViewer {
+  private sheetMaterial: SystemUiMaterial = SheetStyle.dialogMaterial();
+  @Require @Param panels: PreviewOverlayState;
+  @Param foreground: boolean = true;
   /** 可以左右滑的那一批图；只有一张时就是普通大图。 */
   @Require @Param slides: ViewerSlide[];
   /** 当前是第几张；滑动手势通过 `onIndexChange` 回写，这里只读。 */
@@ -1087,6 +895,16 @@ export struct ImageViewer {
   @Param actionable: boolean = true;
   /** 操作区被收起时的解释文案；空则不显示。 */
   @Param hint: string = '';
+  @Local private controlsShown: boolean = true;
+  @Local private zoomed: boolean = false;
+  @Local private actionDockHeight: number = 80;
+  @Local private backgroundMode: string = 'auto';
+  @Local private fitCommand: string = '';
+  private fitSequence: number = 0;
+  @Monitor('index')
+  private onCurrentIndexChanged(monitor: IMonitor): void {
+    this.zoomed = false;
+  }
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   /** 滑动换图时把新下标交回预览页（V2 里双向数据流的标准写法）。 */
   @Event onIndexChange: (index: number) => void = () => {
@@ -1103,6 +921,7 @@ export struct ImageViewer {
   };
   @Event onDelete: () => void = () => {
   };
+  @Event onEdit: (id: string) => void = (id: string): void => {};
 
   /** 当前这一页；列表为空或索引越界时返回 undefined（调用处用 ?? 兜底）。 */
   private current(): ViewerSlide | undefined {
@@ -1110,6 +929,12 @@ export struct ImageViewer {
       return undefined;
     }
     return this.slides[this.index];
+  }
+
+  private thumbnails(): PreviewThumbnail[] {
+    return this.slides.map((slide: ViewerSlide): PreviewThumbnail => {
+      return { id: slide.id, src: slide.src, name: slide.name, localPath: slide.localPath };
+    });
   }
 
   /** 头部的「第几张 / 共几张」；只有一张时不占位置。 */
@@ -1120,8 +945,14 @@ export struct ImageViewer {
     return (this.index + 1).toString() + ' / ' + this.slides.length.toString();
   }
 
+  private requestFit(mode: string): void {
+    this.fitSequence++;
+    this.fitCommand = mode + ':' + this.fitSequence.toString();
+  }
+
   @Builder
   private action(glyph: string, label: string, danger: boolean, act: () => void): void {
+    Button({ type: ButtonType.Normal }) {
     Column({ space: Space.s6 }) {
       Glyph({
         glyph: glyph,
@@ -1133,112 +964,161 @@ export struct ImageViewer {
         .fontSize(11)
         .fontColor(danger ? '#F2826E' : '#E6FFFFFF')
     }
-    .padding({ left: Space.s10, right: Space.s10, top: Space.s6, bottom: Space.s6 })
-    .borderRadius(Radius.r6)
+    .padding({ top: Space.s6, bottom: Space.s6 })
+    }
+    .layoutWeight(1).height(52).backgroundColor(Color.Transparent)
+    .accessibilityText(label).borderRadius(Radius.r6)
     .onClick(() => {
       act();
     })
   }
 
-  build() {
-    Column() {
-      Row({ space: Space.s4 }) {
-        Text(this.current()?.name ?? '')
-          .fontSize(Font.body)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Palette.white)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-        if (this.slideCounter().length > 0) {
-          Text(this.slideCounter())
-            .fontSize(Font.aux)
-            .lineHeight(Font.auxLine)
-            .fontColor('#B3FFFFFF')
-            .margin({ right: Space.s4 })
-        }
-        IconButton({
-          glyph: 'close', glyphSize: 20, diameter: 34, plain: true, tone: Palette.white,
-          onAction: () => {
-            this.onClose();
-          }
-        })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .padding({ left: Space.s16, right: Space.s16, top: SCREEN_INSETS.safeTop + Space.s16, bottom: Space.s8 })
+  @Builder
+  private toolsContent() {
+    if (this.current() !== undefined) {
+      PreviewTools({ asset: this.current()!, backgroundMode: this.backgroundMode,
+        onEdit: (id: string): void => { this.panels.tools = false; this.onEdit(id); },
+        onBackground: (mode: string): void => { this.backgroundMode = mode; },
+        onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
+        onClose: (): void => { this.panels.tools = false; } })
+    }
+  }
 
-      Stack({ alignContent: Alignment.Center }) {
-        // Swiper 负责左右滑动换图：slide 的增减只换 ForEach 的 key，Swiper 自身不会被重建。
-        // `.index()` 受 index 驱动，用户滑完 onChange 把值写回，两边始终一致。
-        Swiper() {
-          ForEach(this.slides, (slide: ViewerSlide, slideIndex: number) => {
-            Stack({ alignContent: Alignment.Center }) {
-              if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
-                // 实况照片：这一页自己装动态照片并播放，装不起来就画静图。
-                LivePhotoSlide({ stillFile: slide.stillPath, motionFile: slide.motionPath })
-              } else if (slide.localPath.length > 0 && !slide.animated) {
-                LocalPreviewImage({
-                  path: slide.localPath,
-                  fallbackUri: slide.src,
-                  label: slide.label,
-                  active: Math.abs(slideIndex - this.index) <= 1
-                })
-              } else {
-                Thumb({ src: slide.src, label: slide.label, fit: ImageFit.Contain })
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Swiper() {
+        ForEach(this.slides, (slide: ViewerSlide, slideIndex: number) => {
+          Stack({ alignContent: Alignment.Center }) {
+            if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
+              LivePhotoSlide({ stillFile: slide.stillPath, motionFile: slide.motionPath })
+            } else if (slide.localPath.length > 0 && !slide.animated) {
+              ZoomablePreviewImage({ imageId: slide.id, path: slide.localPath, fallbackUri: slide.src,
+                readingKey: 'local:' + slide.id, allowDismiss: !this.panels.tools && !this.panels.navigation,
+                onDismiss: this.onClose,
+                label: slide.label, active: this.foreground && slideIndex === this.index && !this.panels.comparison, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
+                showFitControls: false, fitCommand: this.fitCommand,
+                backgroundMode: this.backgroundMode,
+                onTapImage: (): void => { this.controlsShown = !this.controlsShown; },
+                onZoomChange: (value: boolean): void => { this.zoomed = value; } })
+            } else {
+              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
+                allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose })
+                .width('100%').height('100%')
+            }
+          }
+          .width('100%').height('100%')
+          .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
+            if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
+              this.controlsShown = !this.controlsShown;
+            }
+          }))
+        }, (slide: ViewerSlide) => slide.id)
+      }
+      .width('100%').height('100%')
+      .index(this.index).loop(false).indicator(false).cachedCount(1)
+      .disableSwipe(this.zoomed)
+      .onChange((value: number): void => {
+        this.zoomed = false;
+        this.onIndexChange(value);
+      })
+
+      if (this.controlsShown) {
+        Column() {
+          Row({ space: Space.s4 }) {
+            Text(this.current()?.name ?? '')
+              .fontSize(Font.body)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Palette.white)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+            if (this.slideCounter().length > 0) {
+              Text(this.slideCounter())
+                .fontSize(Font.aux)
+                .lineHeight(Font.auxLine)
+                .fontColor('#B3FFFFFF')
+                .margin({ right: Space.s4 })
+                .padding(Space.s8).constraintSize({ minHeight: 40 })
+                .accessibilityText('打开缩略图导航，' + this.slideCounter())
+                .onClick((): void => { this.panels.navigation = !this.panels.navigation; })
+            }
+            IconButton({ glyph: 'info', tone: Palette.white, plain: true, diameter: 40,
+              accessibilityLabel: '图片详情与工具', onAction: (): void => { this.panels.tools = true; } })
+            IconButton({
+              glyph: 'close', glyphSize: 20, diameter: 40, plain: true, tone: Palette.white,
+              accessibilityLabel: '关闭图片预览',
+              onAction: () => { this.onClose(); }
+            })
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Center)
+          .padding({ left: Space.s16, right: Space.s16,
+            top: SCREEN_INSETS.safeTop + Space.s16, bottom: Space.s8 })
+          .backgroundColor('#99000000')
+          if (this.panels.navigation) {
+            PreviewStrip({ items: this.thumbnails(), currentIndex: this.index,
+              onJump: (next: number): void => { this.panels.navigation = false; this.onIndexChange(next); },
+              onClose: (): void => { this.panels.navigation = false; } })
+          }
+          Column().layoutWeight(1).hitTestBehavior(HitTestMode.None)
+
+          Column() {
+          if (this.hint.length > 0) {
+            Text(this.hint)
+              .fontSize(Font.aux)
+              .lineHeight(Font.auxLine)
+              .fontColor('#B3FFFFFF')
+              .textAlign(TextAlign.Center)
+              .width('100%')
+              .padding({ left: Space.s24, right: Space.s24, top: Space.s10 })
+              .backgroundColor('#99000000')
+          }
+
+          if (this.actionable) {
+            Row() {
+              if (this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
+                this.action('scan', '适合屏幕', false, (): void => { this.requestFit('screen'); })
+                this.action('image', '原始像素', false, (): void => { this.requestFit('native'); })
               }
+              if (this.renameAllowed) {
+                this.action('pencil', '重命名', false, this.onRename)
+              }
+              this.action('download', '存相册', false, this.onSaveToGallery)
+              this.action('share', '分享', false, this.onShare)
+              this.action('export', '导出', false, this.onExport)
+              this.action('trash', '删除', true, this.onDelete)
             }
             .width('100%')
-            .height('100%')
-          }, (slide: ViewerSlide) => slide.id)
-        }
-        .width('100%')
-        .height('100%')
-        .index(this.index)
-        .loop(false)
-        // 点状指示器会在图片下缘压一行小点；张数改在头部用「3 / 12」说明。
-        .indicator(false)
-        .cachedCount(1)
-        .onChange((value: number): void => {
-          // @Param 不能写：回传给预览页，由它改自己的状态再传下来（V2 的单向数据流）。
-          this.onIndexChange(value);
-        })
-      }
-      .layoutWeight(1)
-      .width('100%')
-      .padding({ left: Space.s16, right: Space.s16 })
-
-      if (this.hint.length > 0) {
-        Text(this.hint)
-          .fontSize(Font.aux)
-          .lineHeight(Font.auxLine)
-          .fontColor('#B3FFFFFF')
-          .textAlign(TextAlign.Center)
-          .width('100%')
-          .padding({ left: Space.s24, right: Space.s24, top: Space.s10 })
-      }
-
-      if (this.actionable) {
-        Row() {
-          if (this.renameAllowed) {
-            this.action('pencil', '重命名', false, this.onRename)
+            .justifyContent(FlexAlign.SpaceAround)
+            .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
+            .backgroundColor('#99000000')
+          } else {
+            Column().height(SCREEN_INSETS.safeBottom + Space.s16)
           }
-          this.action('download', '存相册', false, this.onSaveToGallery)
-          this.action('share', '分享', false, this.onShare)
-          this.action('export', '导出', false, this.onExport)
-          this.action('trash', '删除', true, this.onDelete)
+          }.width('100%').backgroundColor('#E61C1C1E')
+            .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
+              this.actionDockHeight = Number(newSize.height);
+            })
         }
-        .width('100%')
-        .justifyContent(FlexAlign.SpaceAround)
-        .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
-      } else {
-        Column()
-          .height(SCREEN_INSETS.safeBottom + Space.s16)
+        .width('100%').height('100%')
+        .hitTestBehavior(HitTestMode.None)
+      }
+      if (this.foreground && this.panels.comparison && this.current() !== undefined) {
+        PreviewCompare({ assets: this.slides, currentId: this.current()!.id, backgroundMode: this.backgroundMode,
+          onClose: (): void => { this.panels.comparison = false; } })
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Palette.viewerBg)
-    .backdropBlur(30)
+    .backgroundColor('#000000')
+    .bindSheet(this.panels.tools && this.current() !== undefined, this.toolsContent(), {
+      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+      dragBar: true,
+      showClose: false,
+      backgroundColor: Color.Transparent,
+      systemMaterial: this.sheetMaterial,
+      onDisappear: (): void => { this.panels.tools = false; }
+    })
   }
 }

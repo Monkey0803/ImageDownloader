@@ -109,6 +109,16 @@ interface SizeLadder {
 }
 
 /**
+ * 一张「后缀阶梯」：图床把缩略图后缀拼在真地址后面，去掉后缀就是原图。
+ *
+ * 与 `SizeLadder` 分开：这类规则不靠路径里的尺寸词，而且原图地址不一定是同目录的兄弟。
+ */
+interface SuffixLadder {
+  host: string;
+  suffix: string;
+}
+
+/**
  * 站点专属的地址推导（**策略**：把「不知道的站点」和「有约定的站点」分开）。
  *
  * 为什么必须有这一层：新浪图床的地址里写着尺寸（`/orj360/`），而页面 HTML 里**只有缩略图
@@ -137,6 +147,16 @@ export class SiteRules {
     }
   ];
 
+  /**
+   * Coolapk 图床实测（2026-10-28，同一张 HDR 照片）：
+   * `...@2494x3325.jpg` = 2494×3325 / 189,207 B；页面里的
+   * `...@2494x3325.jpg.m.jpg` = 1080×1440 / 33,039 B，且缩略图不含 gain map。
+   * 去掉末尾 `.m.jpg` 即可得到原图；仍需 `SizeArbiter` 的 HEAD 确认后才采用。
+   */
+  private static readonly SUFFIX_LADDERS: SuffixLadder[] = [
+    { host: 'coolapk.com', suffix: '.m.jpg' }
+  ];
+
   /** 拆 `主机/尺寸词/文件名` 三段；查询串会先切掉，拼兄弟地址时再补回去。 */
   private static readonly SIBLING_PATH: RegExp = new RegExp('^([^?#]+)/([^/?#]+)/([^/?#]+)$');
 
@@ -152,25 +172,45 @@ export class SiteRules {
     const head: string = queryAt < 0 ? url : url.substring(0, queryAt);
     const query: string = queryAt < 0 ? '' : url.substring(queryAt);
     const parts: RegExpExecArray | null = SiteRules.SIBLING_PATH.exec(head);
-    if (parts === null || parts.length < 4) {
-      return out;
-    }
-    const host: string = parts[1];
-    const token: string = parts[2];
-    const file: string = parts[3];
-    for (const ladder of SiteRules.LADDERS) {
-      if (!SiteRules.matchesHost(host, ladder.host) || ladder.tokens.indexOf(token) < 0) {
-        continue;
-      }
-      for (const step of ladder.steps) {
-        if (step === token) {
+    if (parts !== null && parts.length >= 4) {
+      const host: string = parts[1];
+      const token: string = parts[2];
+      const file: string = parts[3];
+      for (const ladder of SiteRules.LADDERS) {
+        if (!SiteRules.matchesHost(host, ladder.host) || ladder.tokens.indexOf(token) < 0) {
           continue;
         }
-        const candidate: ImageCandidate = { url: host + '/' + step + '/' + file + query, declared: 0 };
-        out.push(candidate);
+        for (const step of ladder.steps) {
+          if (step === token) {
+            continue;
+          }
+          const candidate: ImageCandidate = { url: host + '/' + step + '/' + file + query, declared: 0 };
+          out.push(candidate);
+        }
       }
     }
+    for (const ladder of SiteRules.SUFFIX_LADDERS) {
+      const origin: string = SiteRules.hostOf(head);
+      if (!SiteRules.matchesHost(origin, ladder.host) || !head.endsWith(ladder.suffix)) {
+        continue;
+      }
+      const candidate: ImageCandidate = {
+        url: head.substring(0, head.length - ladder.suffix.length) + query, declared: 0
+      };
+      out.push(candidate);
+    }
     return out;
+  }
+
+  /** 取 `https://host/path` 里的 `https://host`；没有 scheme 时返回空串。 */
+  private static hostOf(url: string): string {
+    const scheme: number = url.indexOf('://');
+    if (scheme < 0) {
+      return '';
+    }
+    const start: number = scheme + 3;
+    const slash: number = url.indexOf('/', start);
+    return slash < 0 ? url.substring(start) : url.substring(start, slash);
   }
 
   /** `https://wx3.sinaimg.cn` 命中后缀 `sinaimg.cn`，`https://notsinaimg.cn` 不命中。 */

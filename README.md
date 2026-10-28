@@ -13,10 +13,10 @@
 ### 2026-10-22：预览、恢复与加载更多（已完成本轮真机验收）
 
 - **登录图片详情**：打开详情时携带该图片地址的浏览器 Cookie 和来源页 Referer 获取一次预览；
-  扫描与列表不批量获取登录预览。请求上限 8 MiB，预览长边最多 1200 像素，关闭详情、换页或离开
+  扫描与列表不批量获取登录预览。当时请求上限 8 MiB（现已升级为下文的流式加载），预览长边最多 1200 像素，关闭详情、换页或离开
   发现页即取消并删除临时文件。启动清理上次异常退出留下的专用预览文件。原图地址、选择与下载内容不变。
   预览不跟随重定向，避免把 Cookie 转发到另一来源；登录失效、重定向、超限或解码失败时保留来源页
-  和原文件下载入口，并提供重试。动图详情预览为首帧，下载的动图保留原格式。
+  和原文件下载入口，并提供重试。成功取得源文件的 GIF / WebP 可暂停、继续并导出当前帧；下载原文件保留原格式。
 - **下载恢复**：应用在前台时每 3 秒核对系统任务状态，补足 WAITING 没有字节进度回调的情况；
   回到后台后停止查询，下载仍由系统服务执行。重启恢复时同步系统记录的进度。继续下载根据响应区分
   “从头重新下载”与“服务器接受分段请求”，没有证据时不宣称断点续传。
@@ -28,10 +28,10 @@
   到底后连续 3 轮没有新增图片即停止。显示本次新增数量，可主动停止；保留筛选和已有选择，新图不会
   自动选中、下载或跨网页采集。嵌套滚动区域、需点击“下一页”的网页仍需手动浏览。
 
-离线逻辑验证：`node scripts/test-workflows.cjs`（需要本机 DevEco 的 TypeScript，
+离线逻辑验证：`node scripts/test-workflows.cjs`、`node scripts/test-batch-links.cjs`（需要本机 DevEco 的 TypeScript，
 可用 `ARKTS_TEST_TYPESCRIPT` 指定模块路径）。原生网络、编解码、文件和系统弹窗使用替身；
 这些测试不代表设备 UI、真实登录站点或网络切换已验收。新增持久化和加载更多用例也纳入 ohosTest。
-离线逻辑测试 30 项通过；真机原全套 124 项通过，后续新增的 ZIP 等待状态 3 项定向测试也通过，均无失败或错误。
+离线逻辑测试：既有流程 92 项、批量链接 6 项通过；模拟器原生套件 153 项通过（含新增 `BatchLinks` 9 项），均无失败或错误。
 受控登录预览、原图与系统副本内容校验、另存取消与中断恢复、仅 Wi-Fi 等待及回网、自定义目录失效重试已实测。
 加载更多及取消、ZIP 等待提示已在真机复验；实况部分保存由生产服务的原生故障注入测试验证。
 本次恢复请求实际从头下载；后台 ZIP 场景中，图片后台下载完成，返回应用后才完成打包。
@@ -65,6 +65,8 @@ DevEco Studio 的 HarmonyOS SDK，按「构建」一节在本地跑。
 界面沿用 `designs/image-downloader-ui/` 的设计令牌，四个页签：**发现 / 任务 / 图库 / 设置**。发现页在结果与全屏浏览视图之间切换，浏览器和扫描结果保留同一份页面状态；
 「图库」用分段控件在 **图片 / 压缩包** 之间切换（两种都是已经落到本机的内容，合成一个页签后
 底部少一个入口，进行中的打包任务仍然留在「任务」页）。
+图库还提供本地按需文字索引与搜索、相似图片候选分组、收藏和标签。已下载图片可从预览工具进入
+编辑页，裁剪、旋转或标注后另存独立 PNG；编辑副本不会进入下载任务列表，清空下载记录会保留它。
 配色、间距、圆角、字号等设计令牌集中在 `entry/src/main/ets/theme/Tokens.ets`，颜色以资源形式落在
 `resources/base/element/color.json` 与 `resources/dark/element/color.json`，深浅色随系统或设置页切换。
 
@@ -91,6 +93,9 @@ entry/src/main/ets/
 ├─ service/PageScanner.ets    网页图片扫描：取址策略 + 重扫到张数稳定
 ├─ service/BrowserCollection.ets 浏览历史与收藏的本机存储
 ├─ service/DuplicateFinder.ets 重复来源提示与手动内容检查
+├─ service/LibraryCatalog.ets 收藏、标签、OCR 与视觉特征的本地目录
+├─ service/LibraryAnalysis.ets 按需文字识别与相似候选分析
+├─ service/LibraryImageReader.ets EXIF 统一解码；EditExport/EditJournal.ets 编辑导出与恢复
 ├─ service/PictureFactory.ets PictureItem 的构造与按 url 合并
 ├─ service/Clipboard.ets      剪贴板读取（含权限申请顺序）
 ├─ service/ThemeController.ets / MaterialSupport.ets  主题映射 / 材质能力探测
@@ -99,7 +104,8 @@ entry/src/main/ets/
 ├─ service/AntiPeep.ets       防窥保护：订阅系统窥视状态
 ├─ util/Toast.ets             提示闩（2.6 秒自动消失；销毁后不再弹）
 ├─ pages/Index.ets       @Entry：**外壳**（页签、Toast、浮层、装配 ViewModel）
-└─ pages/Viewer.ets      @Entry：图片大图预览（独立页面，见「大图预览」）
+├─ pages/Viewer.ets      @Entry：图片大图预览（独立页面，见「大图预览」）
+└─ pages/ImageEditor.ets @Entry：本地图片编辑副本
 ```
 
 依赖方向是单向的：`pages → view → viewmodel → service → model`，`theme` / `util` 谁都能用。
@@ -204,10 +210,35 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   `ids` 里已经删掉的记录会在刷新时被剔掉，索引随之收敛到相邻一张。
 - **任务还没下完也能看**：文件没落盘（进行中 / 已失败）时用远程 URL 显示大图，操作区收起并写一句
   「图片还没下载完成…」；落盘后才给出存相册 / 分享 / 导出 / 删除。
-- **本地静图用 ImageKit 解码**：预览页从沙箱路径创建 `ImageSource`，按屏幕尺寸等比解码为
-  `PixelMap`，限制长边不超过 3072 像素，并交给 ArkUI `Image` 显示。只解码当前页及相邻页；
-  快速翻页或改名后丢弃旧路径的解码结果，离开预览时释放图片资源。解码失败则回退到原有的文件 URI 显示。
-  远程图继续直接预览，GIF / WebP 动图仍播放，实况照片仍由 `MovingPhotoView` 播放。
+- **发现页和图库共用图片浏览组件**：点击页码打开按需加载的缩略图条或输入页码跳转；工具面板
+  提供统一详情、复制完整文件名与链接、黑 / 白 / 棋盘格 / 自动背景、文字识别、二维码识别与双图对比。
+  识别只由用户点击触发；结果中的 HTTP(S) 链接需要再次点击才打开。系统返回优先关闭当前工具面板。
+- **静图与大图**：`ImageSurface.ets` 提供触点缩放、惯性拖动、边缘回弹、长图适合宽度、适合屏幕和原始像素。
+  未放大时可下拉关闭，轻拉则回位；长图提供顶部、底部和阅读进度滑块。按图片记住模式、缩放和位置，
+  本地图片可跨进程恢复，网页图片的位置仅保存在当前进程中。`ImageKit` 底图最多 300 万像素，
+  放大后按可见区域及实际显示尺寸裁剪解码，裁剪输出最多 800 万像素，不再随缩放重复升级整图。
+  保留底图、丢弃过时解码结果；透明裁剪区域重建背景以避免透明度重复叠加。
+- **HDR 预览**：源文件为 HDR（HEIF / UltraHDR JPEG）时按 HDR 解码，并让 `Image` 用
+  `dynamicRangeMode(HIGH)` 显示；设备或解码器不支持时自动退回 SDR，下载文件本身不变。
+  详情面板显示「动态范围」，网格缩略图、OCR、相似分析与编辑副本仍使用 SDR。
+  验收证据与未完成项见 [HDR 预览验收](docs/hdr-preview-acceptance.md)。
+- **网格缩略图**：网络与本地静图先按实际原始尺寸中心裁剪，再缩小为最长 512 像素的 PNG，
+  避免解码整张长图或把长图压扁；原文件保持不变。最多同时处理 2 张，重复请求合并，最后一个使用者离开即取消。
+  缩略图请求不携带网页 Cookie / Referer；会话文件缓存最多 64 项 / 32 MiB，退出进程遗留文件下次使用时清理。
+- **大文件在线预览**：最多 64 MiB，分块写入临时文件后交给 ImageKit，显示连接、传输、解码阶段。
+  已知长度显示百分比，未知长度显示已接收字节；支持取消与重试，切图或后台丢弃旧结果并清理未完成文件。
+  15 秒无传输或总计 120 秒会超时；原始预览与展示图的会话缓存合计最多 5 项 / 128 MiB。
+- **预览工具栏**：采用深色底白字，阅读按钮至少 40vp；底部文件操作至少 52vp。
+  长图进度与顶部/底部跳转合为一行，阅读及动图控制按实际操作区高度避让，默认显示、点图隐藏。
+- **动图**：已加载源文件的 GIF / WebP 按帧解码播放，仅持有当前帧和一帧待显示帧，每帧最多 400 万像素；
+  支持暂停、继续、导出当前帧 PNG，非当前页及后台停止播放；返回时恢复当前帧和手动暂停状态。
+  实况照片继续使用 `MovingPhotoView`。
+- **发现页挑图下载**：可切换全部 / 已选、下载当前 / 当前范围已选，保留勾选与 ZIP 设置且不退出预览。
+  本地原图下载完成时替换预览源，静图保持缩放与拖动位置；ZIP 打包移除临时原图时回退到会话预览。
+- **验证边界**：主包构建与 92 项离线测试通过；PLR-AL00 真机已验证双指缩放、横屏对比、OCR、扫码和动图帧导出等交互。
+  各项通过情况、修复及未覆盖边界见 [真机验收记录](docs/image-preview-device-acceptance.md)，资源预算见 [图片浏览验收](docs/image-preview-acceptance.md)。
+  内存对照、流式加载与工具栏的最新验收状态见 [性能与加载验收](docs/image-preview-performance-acceptance.md)。
+  本轮手势、长图、记忆及前后台验证单独记录在 [阅读体验验收](docs/image-preview-reading-acceptance.md)，行为约定见 [阅读体验设计](docs/image-preview-reading-design.md)。
 - 两个页面都挂着商店的刷新回调，所以「待弹提示」（如投递失败）指定由**当前可见的那一页**取走：
   Index 用 `onPageShow` / `onPageHide` 维护可见性，被预览页盖住时不再抢提示。
 
@@ -285,10 +316,17 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
    所以扫描的稳定性重试轮不会把 HEAD 重发一遍。`HEAD` 走 `@kit.NetworkKit` 的 `http`，
    `INTERNET` 权限本来就有，无需改 `module.json5`；`content-length` 拿不到或请求失败一律记为 0（未知），
    未知的不会被选中，也不会影响其它候选。
-4. **站点规则（`SiteRules`，不通用，就是一张小表）**：目前只有一条 —— 微博图床 `sinaimg.cn` 的
+4. **站点规则（`SiteRules`，不通用，就是一张小表）**：目前有两条 —— 微博图床 `sinaimg.cn` 的
    路径尺寸 token（`thumbnail` / `orj360` / `mw690` / …）可以互相推导，于是额外生成 6 个更大的
-   兄弟地址交给第 3 层仲裁。**这张表只写实测能用的规则**：IT之家那种「猜后缀全 404」的站点一律不写，
+   兄弟地址交给第 3 层仲裁；酷安图床的页面地址以 `.m.jpg` 结尾时，去掉后缀得到原图再交给仲裁。
+   **这张表只写实测能用的规则**：IT之家那种「猜后缀全 404」的站点一律不写，
    宁可少一个规则，也不要凭空生成死链去浪费 HEAD。
+   酷安实测：`…uhdr@2494x3325.jpg` 为 2494×3325 / 189,207 B（带 HDR gain map），
+   页面里的 `…uhdr@2494x3325.jpg.m.jpg` 只有 1080×1440 / 33,039 B。
+- **请求带浏览器 UA**：下载、预览、缩略图和 HEAD 统一使用 `WebIdentity`（优先取 WebView 的默认 UA）。
+  酷安等 CDN 对没有浏览器标识的请求会返回 HTTP 567 的 HTML 反爬页，而不是图片；只带 Referer/Cookie 不够。
+  这是「预览不可用 / 下载失败，请检查链接或登录状态」在酷安上的直接原因，详见
+  [酷安链接下载验收](docs/coolapk-cdn-acceptance.md)。
 
 - **默认档改成了「原图优先」**：`original` 现在是 `PICTURE_QUALITIES` 表里的默认档，旧状态文件缺
   `pictureQuality` 字段、或读到认不出的值时都归一到它（`normalizeQuality()` → `ChoiceSet.normalize()`
@@ -398,6 +436,34 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 验证：四个操作各点一轮，`SelectTile` 新建数 **+0**（改前「全选」是 +19），蒙层、勾选角标、
 头部计数、底部选择条全部正确（`.screenshots/fix5-selectall.jpeg`、`fix6-invert.jpeg`）。
 
+发现页已选图片不再画固定蓝色外框；蓝色对勾直接叠在图片上，没有圆形底色。开启「沉浸光感」且
+材质类型不是「无材质效果」时，支持该能力的设备在已选图片上使用轻薄的交互光感材质；其他情况
+保留轻微的品牌色蒙层。切换设置或选中状态只刷新磁贴内容，网格 key 仍保持图片实例的 `uid`。
+
+### 批量链接导入（逐行状态与待确认探测）
+
+「发现 → 批量链接」把输入逐行解析，而不是只给三个总数。每行显示 **有效 / 待确认 / 重复 / 无效** 和原因：
+
+- 扩展名明确是图片或 `.livp` / `.livephoto` → 有效；完整 URL 重复 → 重复，并指出首次出现的行号。
+- 无扩展名、未知后缀（如 `.php` / `.ashx`）、带签名参数但没有扩展名 → 待确认，不再直接判无效。
+- 明确不是图片的后缀（`.html` / `.pdf` / `.zip` / `.mp4` 等）和非 HTTP(S) 文本 → 无效，不进入导入列表。
+
+点「检查待确认」或「确认导入」时会按需发 HEAD：并发 4、单请求 2.5 秒、整轮 8 秒、最多 60 条；
+**不发送浏览器 Cookie**，`Referer` 使用链接自身。`Content-Type: image/*` → 确认图片；`text/html` →
+排除；其余类型、超时、405、403、404、3xx、5xx 都保留为待确认并**默认仍可导入**。确定结论按 URL
+缓存在本次会话里；未知结果不缓存，换网络后可重试。
+
+导入前会进入**面板内二次确认**：完整列出实际将导入的链接（包含待确认项）和已排除的重复/无效数量；
+「返回修改」不产生任务，「加入任务」才入队。确认时快照当前单图 / ZIP 模式，review 期间切换模式不会
+改变实际行为。探测过程最多等 8 秒，中途可点「跳过检查」直接带未确认项进入 review。
+
+单图与 ZIP 都走同一条流程；实况照片包仍然不进 ZIP、单独下载。无扩展名的图片会先按 `.jpg` 命名，
+下载响应带 `image/*` 时由 `DownloadStore` 修正为正确扩展名；响应没有 `Content-Type` 时保留初始后缀。
+
+实现入口：`service/BatchLinks.ets`（纯解析/分类/合并）、`service/BatchLinkProbe.ets`（有界 HEAD）、
+`DiscoverViewModel.batchReport/reviewBatch/confirmBatchReview`、`DiscoverScreen.batchEditor/batchReviewPanel`。
+验收证据见 [批量链接导入验收](docs/batch-link-import-acceptance.md)。
+
 ### 沉浸光感材质
 
 **材质类型**对应
@@ -428,9 +494,9 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   （「已跟随系统 · 本机为精美」），因为「自适应」的结果本来不可见。
 - 两行都只存**语义 id**，不存枚举数值：状态文件可读，SDK 枚举重排也不会错位；读到旧值 / 脏值统一退回
   `adaptive`。`DownloadStore.setMaterialType()` / `setMaterialLevel()` 负责落盘，重启后两枚胶囊各显各的选择。
-- **现状说明**：本应用的卡片是自绘的 ArkUI 组件，还没有接 HDS 组件的 `systemMaterialEffect`
-  （`SystemMaterialParams { materialType, materialLevel }`）或 ArkUI 的材质对象，所以这两项目前是
-  应用内持久化的材质策略；等这些组件真的挂上材质时，按这两个值下发即可，界面和存储都不用再改。
+- **现状说明**：发现页已选图片接入 ArkUI 的 `uiMaterial.ImmersiveMaterial`，由「沉浸光感」开关和
+  「材质类型」的无材质选项控制；「沉浸光感材质」档位仍是应用内持久化的偏好，尚未映射到这些自绘磁贴。
+  其他卡片尚未接 HDS 组件的 `systemMaterialEffect`（`SystemMaterialParams { materialType, materialLevel }`）。
 
 ### 图标
 

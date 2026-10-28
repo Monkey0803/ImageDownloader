@@ -138,6 +138,8 @@ export struct TitleBar {
   @Param caption: string = '';
   /** Empty means no action button. @Param: 图库在压缩包段要把它收起来。 */
   @Param actionGlyph: string = '';
+  @Param actionLabel: string = '';
+  @Param actionText: string = '';
   /**
    * Layout.tbLayerSecondary for screens with a subtitle, Normal without.
    *
@@ -172,8 +174,10 @@ export struct TitleBar {
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
-        if (this.actionGlyph.length > 0) {
-          IconButton({ glyph: this.actionGlyph, onAction: this.onAction })
+        if (this.actionText.length > 0) {
+          PillButton({ label: this.actionText, variant: 'ghost', small: true, onAction: this.onAction })
+        } else if (this.actionGlyph.length > 0) {
+          IconButton({ glyph: this.actionGlyph, accessibilityLabel: this.actionLabel, onAction: this.onAction })
         }
       }
       .width('100%')
@@ -226,6 +230,26 @@ export struct IconButton {
     .onClick(() => {
       this.onAction();
     })
+  }
+}
+
+/** One consistent selection state in grids and full-screen discovery preview. */
+@ComponentV2
+export struct PictureSelectionButton {
+  @Param selected: boolean = false;
+  @Param diameter: number = 36;
+  @Event onAction: () => void = (): void => {};
+
+  build() {
+    Button({ type: ButtonType.Circle }) {
+      Glyph({ glyph: this.selected ? 'checkCircle' : 'circle', glyphSize: this.diameter * 0.58,
+        glyphTone: this.selected ? Palette.white : Palette.fontPrimary, glyphWeight: 2 })
+    }
+    .width(this.diameter).height(this.diameter)
+    .backgroundColor(this.selected ? Palette.brand : Palette.glassStrong)
+    .accessibilityText(this.selected ? '已选中，取消选择此图' : '未选中，选择此图')
+    .accessibilitySelected(this.selected)
+    .onClick((): void => { this.onAction(); })
   }
 }
 
@@ -1089,7 +1113,7 @@ export struct StackedRow {
   }
 }
 
-/** The prototype's rename dialog: a scrim, a card and a text field. */
+/** 重命名表单内容，由页面的系统 bindSheet 承载。 */
 @ComponentV2
 export struct RenameDialog {
   @Param heading: string = '';
@@ -1113,67 +1137,26 @@ export struct RenameDialog {
   }
 
   build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Palette.scrim)
-        .onClick(() => {
-          this.onClose();
-        })
-
-      Column({ space: Space.s10 }) {
-        Text(this.heading)
-          .fontSize(18)
-          .lineHeight(24)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary)
-          .textAlign(TextAlign.Center)
-          .width('100%')
-
-        TextInput({ text: this.draft })
-          .fontSize(Font.body)
-          .fontColor(Palette.fontPrimary)
-          .caretColor(Palette.brand)
-          .backgroundColor(Palette.cardSunken)
-          .borderRadius(Radius.r6)
-          .height(44)
-          .padding({ left: Space.s14, right: Space.s14 })
-          .onChange((value: string) => {
-            this.draft = value;
-          })
-
-        Row({ space: Space.s6 }) {
-          Column() {
-            PillButton({
-              label: '取消', variant: 'ghost', block: true,
-              onAction: () => {
-                this.onClose();
-              }
-            })
-          }
-          .layoutWeight(1)
-
-          Column() {
-            PillButton({
-              label: '保存', variant: 'primary', block: true, active: this.draft.trim().length > 0,
-              onAction: () => {
-                this.submit();
-              }
-            })
-          }
-          .layoutWeight(1)
-        }
-        .width('100%')
-        .margin({ top: Space.s4 })
-      }
-      .width(288)
-      .padding({ left: Space.s16, right: Space.s16, top: Space.s20, bottom: Space.s10 })
-      .borderRadius(Radius.r20)
-      .backgroundColor(Palette.card)
-      .shadow(Shadow.float())
+    Column({ space: Space.s10 }) {
+      Text(this.heading)
+        .fontSize(18).lineHeight(24).fontWeight(FontWeight.Bold)
+        .fontColor(Palette.fontPrimary).width('100%')
+      TextInput({ text: this.draft })
+        .fontSize(Font.body).fontColor(Palette.fontPrimary).caretColor(Palette.brand)
+        .backgroundColor(Palette.cardSunken).borderRadius(Radius.r6).height(44)
+        .padding({ left: Space.s14, right: Space.s14 })
+        .onChange((value: string): void => { this.draft = value; })
+      Row({ space: Space.s6 }) {
+        Column() {
+          PillButton({ label: '取消', variant: 'ghost', block: true, onAction: this.onClose })
+        }.layoutWeight(1)
+        Column() {
+          PillButton({ label: '保存', variant: 'primary', block: true,
+            active: this.draft.trim().length > 0, onAction: (): void => { this.submit(); } })
+        }.layoutWeight(1)
+      }.width('100%').margin({ top: Space.s4 })
     }
     .width('100%')
-    .height('100%')
+    .padding({ left: Space.s16, right: Space.s16, top: Space.s20, bottom: Space.s16 })
   }
 }

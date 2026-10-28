@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "generator": "scripts/make-library-fixtures.cjs",
+  "cases": [
+    {
+      "name": "edit-oracle.png",
+      "width": 300,
+      "height": 400,
+      "sha256": "721df17a3c27c3245aeba306df2019db7358db663264ff90b130f6f8fa492e7f",
+      "caseId": "edit-oracle",
+      "samplePixels": {
+        "topLeft": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "topRight": [
+          0,
+          255,
+          0,
+          255
+        ],
+        "bottomLeft": [
+          0,
+          0,
+          255,
+          255
+        ],
+        "bottomRight": [
+          255,
+          255,
+          0,
+          255
+        ],
+        "transparent": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "blueDot": [
+          0,
+          70,
+          255,
+          255
+        ]
+      }
+    },
+    {
+      "name": "exif-1.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "a4b2c27786f1cd0a3a18ed353ed84ade478b0b557330b8de98bf3882fb9de763",
+      "caseId": "exif-1",
+      "orientation": 1
+    },
+    {
+      "name": "exif-2.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "1a89aca9eb2741e3ffe33a0098575847428405d31349e9d803a349e8ae7e40c9",
+      "caseId": "exif-2",
+      "orientation": 2
+    },
+    {
+      "name": "exif-3.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "d37af6f7472ef6b96ccbfd690f38cea2878ee05d71c77197ec5400d89a4c56d8",
+      "caseId": "exif-3",
+      "orientation": 3
+    },
+    {
+      "name": "exif-4.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "84e2944fa3a8fbde046b9ebcc6bf4b269c076ad0431fca550b9cbacc28840c9a",
+      "caseId": "exif-4",
+      "orientation": 4
+    },
+    {
+      "name": "exif-5.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "bcc510194a11f352d2e2d2a93c2cc97f488a4862300f8d1f85cee1ecb364031d",
+      "caseId": "exif-5",
+      "orientation": 5
+    },
+    {
+      "name": "exif-6.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "35a4a93cbf9b03788f8e13ac1850214c078becb630d8fe99ed8e7e1043208143",
+      "caseId": "exif-6",
+      "orientation": 6
+    },
+    {
+      "name": "exif-7.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "e536dd94419ef4e44de160043a4239dc7d9ddadd779c575c10d8952084d93798",
+      "caseId": "exif-7",
+      "orientation": 7
+    },
+    {
+      "name": "exif-8.jpg",
+      "width": 60,
+      "height": 40,
+      "sha256": "2207b0bf8a77ef953dc14bd66c20482cb80aa280af8b79d5f8e664c2225ae01e",
+      "caseId": "exif-8",
+      "orientation": 8
+    },
+    {
+      "name": "ocr-bilingual.png",
+      "width": 900,
+      "height": 480,
+      "sha256": "1da6947079a4e26a55b987917e8c09e9fe33a4632d08c7f387191c3bfa96e3a0",
+      "caseId": "ocr-bilingual",
+      "expectedPhrases": [
+        "订单号",
+        "EAST-2048",
+        "发票编号",
+        "INVOICE-7A"
+      ]
+    },
+    {
+      "name": "ocr-empty.png",
+      "width": 500,
+      "height": 300,
+      "sha256": "d1d7344c517840686a19f019ae6e723f1fa475ad0d76fea363d9baeb734a2512",
+      "caseId": "ocr-empty",
+      "expectedPhrases": []
+    },
+    {
+      "name": "ocr-long.png",
+      "width": 900,
+      "height": 4200,
+      "sha256": "4bf524da9b015671bc7b892afedb2fdd07ce8810b603fd69455c9807c23aa223",
+      "caseId": "ocr-long",
+      "expectedPhrases": [
+        "顶端",
+        "TOP-ALPHA",
+        "中段",
+        "MID-BRAVO",
+        "末尾",
+        "END-CHARLIE"
+      ]
+    },
+    {
+      "name": "similar-base.png",
+      "width": 320,
+      "height": 240,
+      "sha256": "d2740fe59aa5aee700048efaf7c53499c10debca21b821c7c30195761ce255af",
+      "caseId": "similar-base",
+      "expectedGroup": "pair-a"
+    },
+    {
+      "name": "similar-different.png",
+      "width": 320,
+      "height": 240,
+      "sha256": "94ca4b8f9821984f427785e4618d1636fd36c964dfd5724357cc8ed0d59328fb",
+      "caseId": "similar-different",
+      "expectedGroup": "none"
+    },
+    {
+      "name": "similar-resized.jpg",
+      "width": 640,
+      "height": 480,
+      "sha256": "75f6e239e53689addff2efcab40570e933d1030cd53fceecc4a8cc8b426c227b",
+      "caseId": "similar-resized",
+      "expectedGroup": "pair-a"
+    }
+  ]
+}

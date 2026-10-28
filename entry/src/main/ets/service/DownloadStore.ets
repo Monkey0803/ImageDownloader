@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { request, zlib } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
 import {
   BatchItem, DownloadItem, orNumber, PictureItem, SavedState, ZipItem
@@ -16,6 +17,11 @@ import { LivePhoto, LivePhotoContent } from './LivePhoto';
 import { StillFrames } from './StillFrames';
 import { WidgetForms } from '../widget/WidgetForms';
 import { WidgetSnapshot } from '../widget/WidgetSnapshot';
+import { EditResult, EditTicket } from '../model/ImageEditDocument';
+import { AnalysisToken, AssetStamp } from '../model/LibraryAsset';
+import { EditJournal } from './EditJournal';
+import { LIBRARY_CATALOG } from './LibraryCatalog';
+import { WebIdentity } from './WebIdentity';
 
 interface ProgressSample {
   bytes: number;
@@ -92,6 +98,8 @@ export class DownloadStore {
   static pumpAgain: boolean = false;
   /** 同一批次的压缩只能有一个在途调用，恢复时的回调也不能启动第二次。 */
   private static packingBatches: Set<string> = new Set<string>();
+  /** Serializes edited-copy commits so concurrent taps cannot overwrite one another's state. */
+  private static editQueue: Promise<void> = Promise.resolve();
 
   static exists(path: string): boolean {
     try { return fs.accessSync(path); } catch (error) { return false; }
@@ -99,6 +107,13 @@ export class DownloadStore {
 
   static removeFile(path: string): void {
     try { if (fs.accessSync(path)) { fs.unlinkSync(path); } } catch (error) {}
+  }
+
+  private static removeFileChecked(path: string): boolean {
+    try {
+      if (fs.accessSync(path)) { fs.unlinkSync(path); }
+      return !fs.accessSync(path);
+    } catch (error) { return false; }
   }
 
   /**
@@ -123,6 +138,9 @@ export class DownloadStore {
     DownloadStore.wireDelivery();
     DownloadStore.ensureDirectory(context.filesDir + '/images');
     DownloadStore.ensureDirectory(context.filesDir + '/archives');
+    // A previous extraction may have been interrupted before its finally block ran.
+    LivePhoto.removeTree(context.filesDir + '/archive-extract');
+    DownloadStore.ensureDirectory(context.filesDir + '/archive-extract');
     DownloadStore.ensureDirectory(context.filesDir + '/staging');
     // 实况照片包解出来的静图与视频落在这里，目录名是下载记录的 id（改名不影响它）。
     DownloadStore.ensureDirectory(context.filesDir + '/livephotos');
@@ -313,7 +331,7 @@ export class DownloadStore {
     }
   }
 
-  static save(): void {
+  static save(): boolean {
     const state: SavedState = new SavedState();
     state.downloads = DownloadStore.downloads;
     state.zips = DownloadStore.zips;
@@ -332,13 +350,19 @@ export class DownloadStore {
     state.customDirName = DownloadStore.customDirName;
     const path: string = DownloadStore.context.filesDir + '/download-state.json';
     const temp: string = path + '.tmp';
+    let file: fs.File | undefined = undefined;
     try {
-      const file: fs.File = fs.openSync(temp, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, StoreState.serialize(state));
-      fs.closeSync(file);
+      const bytes: Uint8Array = new util.TextEncoder().encodeInto(StoreState.serialize(state));
+      file = fs.openSync(temp, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+      if (fs.writeSync(file.fd, bytes.buffer) !== bytes.byteLength) {
+        throw new Error('状态写入不完整');
+      }
+      fs.closeSync(file); file = undefined;
       fs.renameSync(temp, path);
       DownloadStore.saveProblem = '';
+      return true;
     } catch (error) {
+      if (file !== undefined) { try { fs.closeSync(file); } catch (closeError) {} }
       /*
        * 写盘失败原来被完全吞掉：磁盘满 / 权限异常时，设置与下载记录会在下次启动时**静默**
        * 退回到上一次成功写入的样子，用户只会觉得「我的设置怎么自己变了」。
@@ -347,13 +371,134 @@ export class DownloadStore {
        * 不弹 Toast：写盘每次数据变化都会试一次，失败会连着弹，反而盖住真正有用的提示。
        */
       DownloadStore.saveProblem = '状态保存失败，设置与记录可能在重启后丢失';
-      console.error('save state failed: ' + String(error));
+      console.error('save state failed');
+      DownloadStore.removeFile(temp);
+      return false;
     }
   }
 
   static nextId(): string {
     DownloadStore.serial += 1;
     return Date.now().toString() + '_' + DownloadStore.serial.toString();
+  }
+
+  /** Register a validated ZIP copied into the app sandbox. */
+  static registerImportedZip(path: string, name: string, count: number): ZipItem {
+    const zip: ZipItem = new ZipItem();
+    zip.id = DownloadStore.nextId();
+    zip.name = name; zip.path = path; zip.imported = true;
+    zip.imageCount = count; zip.size = fs.statSync(path).size; zip.createdAt = Date.now();
+    DownloadStore.zips.unshift(zip);
+    if (!DownloadStore.save()) {
+      DownloadStore.zips = DownloadStore.zips.filter((entry: ZipItem): boolean => entry.id !== zip.id);
+      throw new Error('压缩包记录保存失败');
+    }
+    DownloadStore.notify();
+    return zip;
+  }
+
+  /** Commit extracted images only after every file has been prepared. */
+  static registerExtracted(items: DownloadItem[]): void {
+    DownloadStore.downloads = items.concat(DownloadStore.downloads);
+    if (!DownloadStore.save()) {
+      const ids: string[] = items.map((item: DownloadItem): string => item.id);
+      DownloadStore.downloads = DownloadStore.downloads.filter((item: DownloadItem): boolean => !ids.includes(item.id));
+      throw new Error('图库记录保存失败');
+    }
+    DownloadStore.notify();
+  }
+
+  /** Register a finalized PNG as an independent gallery item after durable state write. */
+  static registerEdited(sourceId: string, ticket: EditTicket, result: EditResult,
+    label: string = '编辑', token?: AnalysisToken, expectedStamp?: AssetStamp): Promise<DownloadItem> {
+    const commit: Promise<DownloadItem> = DownloadStore.editQueue.then((): Promise<DownloadItem> =>
+      DownloadStore.registerEditedOnce(sourceId, ticket, result, label, token, expectedStamp));
+    DownloadStore.editQueue = commit.then((): void => {}, (): void => {});
+    return commit;
+  }
+
+  private static async registerEditedOnce(sourceId: string, ticket: EditTicket,
+    result: EditResult, label: string, token?: AnalysisToken,
+    expectedStamp?: AssetStamp): Promise<DownloadItem> {
+    if (token?.cancelled) { throw new Error('图片超分已取消'); }
+    const existing: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
+      entry.id === ticket.id);
+    if (existing !== undefined) {
+      if (existing.origin === 'edited' && existing.originalId === sourceId &&
+        existing.path === ticket.finalPath && DownloadStore.exists(existing.path)) { return existing; }
+      throw new Error('编辑副本编号已占用');
+    }
+    const source: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
+      entry.id === sourceId);
+    if (source === undefined || source.status !== 'completed' || !DownloadStore.exists(source.path) ||
+      ticket.originalId !== sourceId || result.path !== ticket.pendingPath ||
+      !DownloadStore.exists(ticket.finalPath) || result.bytes <= 0 ||
+      fs.statSync(ticket.finalPath).size !== result.bytes) {
+      await EditJournal.rollback(ticket);
+      throw new Error('原图或编辑副本已变化');
+    }
+    if (expectedStamp !== undefined &&
+      !DownloadStore.matchesEditedSource(source, expectedStamp)) {
+      await EditJournal.rollback(ticket);
+      throw new Error('原图或封面已变化');
+    }
+    const sourcePath: string = source.path;
+    const sourceStat: fs.Stat = fs.statSync(sourcePath);
+    const item: DownloadItem = new DownloadItem();
+    item.id = ticket.id; item.origin = 'edited'; item.originalId = sourceId;
+    item.name = DownloadStore.uniqueName(Naming.clean(Naming.withExtension(source.name, 'png')
+      .replace(new RegExp('\\.png$', 'i'), '') + '-' + label + '.png', '图片-' + label + '.png'),
+      DownloadStore.context.filesDir + '/edits');
+    item.path = ticket.finalPath; item.sourcePage = source.sourcePage;
+    item.url = ''; item.kind = 'image'; item.animated = false;
+    item.status = 'completed'; item.size = result.bytes;
+    item.processed = result.bytes; item.total = result.bytes;
+    item.createdAt = Date.now(); item.finishedAt = item.createdAt;
+    const catalogSnapshot: DownloadItem[] = DownloadStore.downloads;
+    // Catalog writes before state commit: a failed state write can remove this orphan metadata.
+    try {
+      await LIBRARY_CATALOG.reconcile([item].concat(catalogSnapshot));
+      const tags: string[] = LIBRARY_CATALOG.getMeta(sourceId).tags;
+      if (tags.length > 0) { await LIBRARY_CATALOG.changeTags([item.id], tags, []); }
+      const stillSource: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
+        entry.id === sourceId && entry.status === 'completed');
+      if (stillSource !== source || source.path !== sourcePath || !DownloadStore.exists(sourcePath)) {
+        throw new Error('保存期间原图已变化');
+      }
+      const currentStat: fs.Stat = fs.statSync(sourcePath);
+      if (currentStat.size !== sourceStat.size || currentStat.mtime !== sourceStat.mtime ||
+        currentStat.ctime !== sourceStat.ctime) { throw new Error('保存期间原图已变化'); }
+      if (expectedStamp !== undefined &&
+        !DownloadStore.matchesEditedSource(source, expectedStamp)) {
+        throw new Error('保存期间原图或封面已变化');
+      }
+      if (token?.cancelled) { throw new Error('图片超分已取消'); }
+      // Other download mutations may have run while catalog IO was awaited.
+      DownloadStore.downloads = [item].concat(DownloadStore.downloads);
+      DownloadStore.cancelPendingSave();
+      if (!DownloadStore.save()) { throw new Error('编辑副本记录写入失败'); }
+    } catch (error) {
+      DownloadStore.downloads = DownloadStore.downloads.filter((entry: DownloadItem): boolean =>
+        entry.id !== item.id);
+      try { await LIBRARY_CATALOG.reconcile(DownloadStore.downloads); } catch (cleanupError) {}
+      await EditJournal.rollback(ticket);
+      throw new Error('编辑副本登记失败：' + String(error));
+    }
+    // The state already references the PNG. Journal cleanup is recoverable and must not undo it.
+    try { await EditJournal.finish(ticket); } catch (error) {}
+    DownloadStore.publishWidget();
+    DownloadStore.emit();
+    return item;
+  }
+
+  private static matchesEditedSource(source: DownloadItem, stamp: AssetStamp): boolean {
+    const actualPath: string = source.kind === 'livephoto' ? source.stillPath : source.path;
+    if (actualPath !== stamp.path || !DownloadStore.exists(actualPath)) { return false; }
+    try {
+      const current: fs.Stat = fs.statSync(actualPath);
+      return current.size === stamp.bytes && current.mtime === stamp.modified &&
+        current.ctime === stamp.changed;
+    } catch (error) { return false; }
   }
 
   /**
@@ -565,23 +710,33 @@ export class DownloadStore {
   }
 
   /**
-   * Delete every downloaded file and every record.
+   * Delete downloaded originals and archives, preserving independent edited copies.
    *
-   * Staging directories of batches that are still downloading or packing are
-   * left alone: their files are inputs to a pack that has not finished yet.
+   * A file that cannot be removed keeps its record for an explicit retry. Staging
+   * directories of active batches are left alone until their transfer stops.
    */
-  static clearAll(): void {
+  static clearAll(): boolean {
     // **先掐掉在飞的下载**：只清记录不停任务的话，任务还在写文件，晚到的 completed 回调
     // 会把它标成已完成、甚至再投递一份到相册 —— 用户看到的却是「已清空」。
     // 先标 cancelled 是关键：complete() / fail() 开头都会因此直接返回，晚到的回调变成空操作。
+    const priorStatuses: Map<string, string> = new Map(DownloadStore.downloads.map(
+      (item: DownloadItem): [string, string] => [item.id, item.status]));
     DownloadStore.abortAll();
+    const retained: DownloadItem[] = [];
     for (const item of DownloadStore.downloads) {
-      DownloadStore.removeFile(item.path);
+      if (item.origin === 'edited') { retained.push(item); continue; }
+      if (!DownloadStore.removeFileChecked(item.path)) {
+        item.status = priorStatuses.get(item.id) === 'completed' ? 'completed' : 'cancelled';
+        item.batchId = '';
+        retained.push(item);
+        continue;
+      }
       // 实况照片还有一整个解包目录（静图 + 视频），以及缓存里的首帧。
       LivePhoto.removeTree(DownloadStore.livePhotoDir(item.id));
     }
+    const retainedZips: ZipItem[] = [];
     for (const zip of DownloadStore.zips) {
-      DownloadStore.removeFile(zip.path);
+      if (!DownloadStore.removeFileChecked(zip.path)) { retainedZips.push(zip); }
     }
     for (const batch of DownloadStore.batches) {
       if (batch.status === 'downloading' || batch.status === 'packing') {
@@ -589,11 +744,12 @@ export class DownloadStore {
       }
       DownloadStore.removeDirectory(DownloadStore.context.filesDir + '/staging/' + batch.id);
     }
-    DownloadStore.downloads = [];
-    DownloadStore.zips = [];
+    DownloadStore.downloads = retained;
+    DownloadStore.zips = retainedZips;
     DownloadStore.batches = [];
     StillFrames.clear();
     DownloadStore.notify();
+    return retained.every((item: DownloadItem): boolean => item.origin === 'edited') && retainedZips.length === 0;
   }
 
   /**
@@ -607,6 +763,7 @@ export class DownloadStore {
    */
   private static abortAll(): void {
     for (const item of DownloadStore.downloads) {
+      if (item.origin === 'edited' || item.origin === 'extracted') { continue; }
       item.status = 'cancelled';
       const task: request.agent.Task | undefined = DownloadStore.active.get(item.id);
       if (task !== undefined) {
@@ -713,6 +870,7 @@ export class DownloadStore {
     if (canIUse('SystemCapability.Request.FileTransferAgent')) {
       try {
         const headers: Record<string, string> = {};
+        headers['User-Agent'] = WebIdentity.userAgent();
         if (item.sourcePage.startsWith('http')) { headers['Referer'] = item.sourcePage; }
         try {
           const cookie: string = webview.WebCookieManager.fetchCookieSync(item.url);
@@ -886,7 +1044,7 @@ export class DownloadStore {
       } catch (error) {
         item.note = '内容处理失败，已保留原文件';
         DownloadStore.pendingNotice = item.note;
-        console.error('finish content failed: ' + String(error));
+        console.error('finish content failed');
       }
       DownloadStore.active.delete(item.id);
       DownloadStore.progressSamples.delete(item.id);
@@ -989,7 +1147,7 @@ export class DownloadStore {
       DownloadStore.destinationProblem = detail;
       DownloadStore.pendingNotice = detail;
     } else {
-      console.error('deliver to ' + where + ' failed: ' + outcome.message);
+      console.error('deliver to ' + where + ' failed');
       DownloadStore.destinationProblem = '上次存入' + where + '失败，已保留应用内文件';
       DownloadStore.pendingNotice = '存入' + where + '失败，已保留应用内文件';
     }
@@ -1178,6 +1336,8 @@ export class DownloadStore {
   }
 
   static async recover(): Promise<void> {
+    try { await EditJournal.recover(DownloadStore.context.filesDir, DownloadStore.downloads); }
+    catch (error) { console.error('recover edited copies failed'); }
     // 先处理上次进程留下的 packing。若放在逐项恢复之后，第二项的 complete()
     // 可能已启动本进程的压缩；这里再把 packing 改回 downloading 会并发压同一路径。
     for (const batch of DownloadStore.batches) {
@@ -1339,7 +1499,7 @@ export class DownloadStore {
       } catch (error) {
         item.note = '内容处理失败，已保留原文件';
         DownloadStore.pendingNotice = item.note;
-        console.error('restore content failed: ' + String(error));
+        console.error('restore content failed');
       }
     }
   }
@@ -1415,10 +1575,15 @@ export class DownloadStore {
     const name: string = Naming.withExtension(raw, extension);
     const dir: string = item.path.substring(0, item.path.lastIndexOf('/'));
     const destination: string = dir + '/' + name;
+    const previousPath: string = item.path;
     if (destination !== item.path && DownloadStore.exists(destination)) { return false; }
     // 移动失败就不提交新名字：记录必须一直指着真实存在的那个文件。
     if (destination !== item.path && !DownloadStore.moveFile(item.path, destination)) { return false; }
     item.name = name; item.path = destination;
+    if (destination !== previousPath) {
+      // Queue relocation before notify triggers the gallery's reconciliation.
+      LIBRARY_CATALOG.relocate(item.id, previousPath, destination).catch((): void => {});
+    }
     DownloadStore.notify();
     return true;
   }
@@ -1434,19 +1599,21 @@ export class DownloadStore {
     return true;
   }
 
-  static deleteDownload(item: DownloadItem): void {
-    DownloadStore.removeFile(item.path);
+  static deleteDownload(item: DownloadItem): boolean {
+    if (!DownloadStore.removeFileChecked(item.path)) { return false; }
     // 实况照片的解包目录与两份缓存都要一起收掉，否则删了记录还占着空间。
     LivePhoto.removeTree(DownloadStore.livePhotoDir(item.id));
     StillFrames.forget(item.path);
     StillFrames.forget(item.stillPath);
     DownloadStore.downloads = DownloadStore.downloads.filter((entry: DownloadItem): boolean => entry.id !== item.id);
     DownloadStore.notify();
+    return true;
   }
 
-  static deleteZip(item: ZipItem): void {
-    DownloadStore.removeFile(item.path);
+  static deleteZip(item: ZipItem): boolean {
+    if (!DownloadStore.removeFileChecked(item.path)) { return false; }
     DownloadStore.zips = DownloadStore.zips.filter((entry: ZipItem): boolean => entry.id !== item.id);
     DownloadStore.notify();
+    return true;
   }
 }

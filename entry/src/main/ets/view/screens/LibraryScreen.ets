@@ -1,21 +1,18 @@
 import { DownloadItem, ZipItem } from '../../model/Models';
-import { DuplicateGroup } from '../../service/DuplicateFinder';
+import { LibraryText } from '../../util/LibraryText';
 import { LibraryViewModel } from '../../viewmodel/LibraryViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, formatBytes, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
+import { SheetStyle } from '../../theme/SheetStyle';
 import { Glyph } from '../Icons';
 import { ArchiveCard, ShotTile } from '../Cards';
-import { EmptyState, LibrarySegment, PillButton, SettingSelect, TitleBar } from '../Widgets';
+import { LibraryFilterSheet } from '../LibraryFilterSheet';
+import { LibraryOrganizeSheet } from '../LibraryOrganizeSheet';
+import { ImageTagDialog } from '../ImageTagDialog';
+import { EmptyState, IconButton, LibrarySegment, PillButton, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
-
-const SORT_IDS: string[] = ['newest', 'oldest', 'name', 'size'];
-const SORT_LABELS: string[] = ['最新', '最早', '名称', '大小'];
-const SORT_OPTIONS: SelectOption[] = SORT_LABELS.map((label: string): SelectOption => ({ value: label }));
-const FORMAT_IDS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'heic', 'avif'];
-const FORMAT_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', 'HEIC', 'AVIF'];
-const FORMAT_OPTIONS: SelectOption[] = FORMAT_LABELS.map((label: string): SelectOption => ({ value: label }));
 
 /**
  * 「图库」页：图片 / 压缩包分段 + 搜索 + 密度切换。
@@ -28,6 +25,10 @@ const FORMAT_OPTIONS: SelectOption[] = FORMAT_LABELS.map((label: string): Select
 export struct LibraryScreen {
   @Require @Param library: LibraryViewModel;
   @Require @Param settings: SettingsViewModel;
+  @Param active: boolean = false;
+  @Local private tagDialogOpen: boolean = false;
+  @Local private sheet: string = '';
+  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -36,7 +37,7 @@ export struct LibraryScreen {
   private searchPill() {
     Row({ space: Space.s8 }) {
       Glyph({ glyph: 'search', glyphSize: 18, glyphTone: Palette.fontTertiary, glyphWeight: 1.7 })
-      TextInput({ placeholder: '搜索文件名', text: this.library.query })
+      TextInput({ placeholder: this.library.isZips() ? '搜索压缩包' : '搜索图片', text: this.library.query })
         .placeholderColor(Palette.fontSecondary)
         .caretColor(Palette.brand)
         .fontSize(Font.body)
@@ -58,7 +59,7 @@ export struct LibraryScreen {
           })
       }
     }
-    .width('100%')
+    .layoutWeight(1)
     .height(44)
     .padding({ left: Space.s14, right: Space.s8 })
     .borderRadius(Radius.full)
@@ -66,136 +67,161 @@ export struct LibraryScreen {
     .shadow(Shadow.card())
   }
 
-  @Builder
-  private organizeControls() {
-    Column({ space: Space.s8 }) {
-      Row({ space: Space.s8 }) {
-        SettingSelect({
-          options: SORT_OPTIONS,
-          selectedIndex: SORT_IDS.indexOf(this.library.sortOrder),
-          label: SORT_LABELS[SORT_IDS.indexOf(this.library.sortOrder)],
-          onPick: (index: number): void => { this.library.sortOrder = SORT_IDS[index]; }
-        })
-        if (!this.library.isZips()) {
-          SettingSelect({
-            options: FORMAT_OPTIONS,
-            selectedIndex: FORMAT_IDS.indexOf(this.library.formatFilter),
-            label: FORMAT_LABELS[FORMAT_IDS.indexOf(this.library.formatFilter)],
-            onPick: (index: number): void => { this.library.formatFilter = FORMAT_IDS[index]; }
-          })
-        }
-      }
-      .width('100%')
-      if (!this.library.isZips()) {
-        TextInput({ placeholder: '按来源网页搜索', text: this.library.sourceQuery })
-          .fontSize(Font.aux).fontColor(Palette.fontPrimary)
-          .backgroundColor(Palette.card).borderRadius(Radius.r4)
-          .width('100%')
-          .onChange((value: string): void => { this.library.sourceQuery = value; })
-      }
-    }
-    .width('100%')
+  private activeOptionCount(): number {
+    let count: number = this.library.sortOrder === 'newest' ? 0 : 1;
+    if (this.library.isZips()) { return count; }
+    if (this.library.formatFilter.length > 0) { count++; }
+    if (this.library.sourceQuery.length > 0) { count++; }
+    if (this.library.favoritesOnly) { count++; }
+    if (this.library.tagFilter.length > 0) { count++; }
+    if (this.library.searchScope !== 'all') { count++; }
+    if (this.library.density !== 2) { count++; }
+    return count;
+  }
+
+  private hasImageFilter(): boolean {
+    return this.library.query.length > 0 || this.library.sourceQuery.length > 0
+      || this.library.formatFilter.length > 0 || this.library.favoritesOnly
+      || this.library.tagFilter.length > 0;
   }
 
   @Builder
-  private duplicateSection(title: string, groups: DuplicateGroup[], showKey: boolean) {
-    Text(title + ' · ' + groups.length.toString() + ' 组')
-      .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
-    if (groups.length === 0) {
-      Text('未发现').fontSize(Font.caption).fontColor(Palette.fontTertiary)
+  private searchTools() {
+    Row({ space: Space.s6 }) {
+      this.searchPill()
+      Stack({ alignContent: Alignment.TopEnd }) {
+        IconButton({ glyph: 'sliders', diameter: 40,
+          tone: this.activeOptionCount() > 0 ? Palette.brand : Palette.fontPrimary,
+          accessibilityLabel: this.activeOptionCount() > 0
+            ? '筛选，已启用 ' + this.activeOptionCount().toString() + ' 项' : '筛选',
+          onAction: (): void => { this.sheet = 'filter'; } })
+        if (this.activeOptionCount() > 0) {
+          Text(this.activeOptionCount().toString())
+            .fontSize(10).fontColor(Palette.fontOnPrimary).textAlign(TextAlign.Center)
+            .width(16).height(16).borderRadius(Radius.full).backgroundColor(Palette.brand)
+            .hitTestBehavior(HitTestMode.None)
+        }
+      }
+      if (this.library.isZips()) {
+        PillButton({ label: '导入', small: true, variant: 'ghost',
+          onAction: (): void => { this.library.importZip(); } })
+      } else {
+        PillButton({ label: '整理', small: true, variant: 'ghost',
+          onAction: (): void => { this.sheet = 'organize'; } })
+      }
+    }.width('100%')
+  }
+
+  private activeSheet(): string {
+    if (this.library.extractZipId.length > 0) { return 'extract'; }
+    if (this.tagDialogOpen) { return 'tag'; }
+    return this.sheet;
+  }
+
+  @Builder
+  private extractContent() {
+    Column({ space: Space.s16 }) {
+      Text('解压压缩包').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+      if (this.library.extractTarget.length === 0) {
+        Text('选择解压位置').fontSize(Font.body).fontColor(Palette.fontSecondary)
+        PillButton({ label: '加入应用图库', variant: 'primary',
+          onAction: (): void => { this.library.chooseExtractTarget('gallery'); } })
+        PillButton({ label: '保存到系统目录', variant: 'ghost',
+          onAction: (): void => { this.library.chooseExtractTarget('folder'); } })
+      } else if (this.library.extractEncrypted && !this.library.extractBusy) {
+        Text('此压缩包需要密码').fontSize(Font.body).fontColor(Palette.fontSecondary)
+        TextInput({ placeholder: '输入 ZIP 密码', text: this.library.extractPassword })
+          .type(InputType.Password)
+          .onChange((value: string): void => { this.library.extractPassword = value; })
+          .onSubmit((): void => { this.library.submitExtract(); })
+        PillButton({ label: '开始解压', variant: 'primary',
+          onAction: (): void => { this.library.submitExtract(); } })
+      } else {
+        Text('正在解压，请稍候…').fontSize(Font.body).fontColor(Palette.fontSecondary)
+      }
+      if (!this.library.extractBusy) {
+        PillButton({ label: '取消', variant: 'ghost',
+          onAction: (): void => { this.library.closeExtract(); } })
+      }
+    }.width('100%').alignItems(HorizontalAlign.Start)
+      .padding({ left: Layout.pagePad, right: Layout.pagePad,
+        top: Space.s16, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
+  }
+
+  @Builder
+  private sheetContent() {
+    if (this.activeSheet() === 'tag') {
+      ImageTagDialog({ single: false,
+        onSave: (add: string[], remove: string[]): void => {
+          this.library.changeSelectedTags(add, remove);
+          this.tagDialogOpen = false;
+        },
+        onClose: (): void => { this.tagDialogOpen = false; } })
+    } else if (this.activeSheet() === 'extract') {
+      this.extractContent()
     } else {
-      ForEach(groups.slice(0, 10), (group: DuplicateGroup) => {
-        Column({ space: Space.s4 }) {
-          Text((showKey ? group.key : 'SHA-256 一致') + ' · ' + group.items.length.toString() + ' 张')
-            .fontSize(Font.aux).fontColor(Palette.fontPrimary)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(group.items.map((item: DownloadItem): string => item.name).join('、'))
-            .fontSize(Font.caption).fontColor(Palette.fontTertiary)
-            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-        .padding({ top: Space.s6, bottom: Space.s6 })
-      }, (group: DuplicateGroup) => group.key)
-      if (groups.length > 10) {
-        Text('另有 ' + (groups.length - 10).toString() + ' 组未展开')
-          .fontSize(Font.caption).fontColor(Palette.fontTertiary)
-      }
+      Column({ space: Space.s12 }) {
+        Row({ space: Space.s8 }) {
+          Text(this.sheet === 'filter' ? '筛选与排序' : '查找与整理')
+            .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+            .layoutWeight(1)
+          IconButton({ glyph: 'close', plain: true, diameter: 36,
+            accessibilityLabel: '关闭面板', onAction: (): void => { this.sheet = ''; } })
+        }.width('100%')
+        List() {
+          ListItem() {
+            if (this.sheet === 'filter') {
+              LibraryFilterSheet({ library: this.library })
+            } else {
+              LibraryOrganizeSheet({ library: this.library,
+                onOpenGroup: (): void => { this.sheet = ''; } })
+            }
+          }.width('100%').padding({ bottom: SCREEN_INSETS.safeBottom + Space.s12 })
+        }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
+      }.width('100%').height('100%').alignItems(HorizontalAlign.Start)
+        .justifyContent(FlexAlign.Start)
+        .padding({ left: Layout.pagePad, right: Layout.pagePad, top: Space.s16 })
     }
-  }
-
-  @Builder
-  private duplicatePanel() {
-    Column({ space: Space.s8 }) {
-      PillButton({
-        label: this.library.duplicateOpen ? '收起重复提示' : '查找重复图片',
-        variant: 'ghost', small: true,
-        onAction: (): void => { this.library.duplicateOpen = !this.library.duplicateOpen; }
-      })
-      if (this.library.duplicateOpen) {
-        Text('同来源地址、同来源文件名不代表文件内容相同。以下统计整个图库，不会自动删除文件。')
-          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        this.duplicateSection('同来源 URL', this.library.sameUrlGroups, true)
-        this.duplicateSection('同来源文件名', this.library.sameSourceNameGroups, true)
-        PillButton({
-          label: this.library.contentAnalyzing ? '正在检查…' : '检查文件内容',
-          variant: 'tonal', small: true, active: !this.library.contentAnalyzing,
-          onAction: (): void => { this.library.analyzeContent(); }
-        })
-        if (this.library.contentAnalyzing) {
-          Text(this.library.contentProgress).fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        }
-        if (this.library.contentChecked) {
-          this.duplicateSection('文件内容一致', this.library.contentReport.groups, false)
-          Text('检查 ' + this.library.contentReport.candidates.toString() + ' 个同大小候选，合计 '
-            + formatBytes(this.library.contentReport.bytes) + '，耗时 '
-            + (this.library.contentReport.elapsedMs / 1000).toFixed(2) + ' 秒；'
-            + this.library.contentReport.failures.toString() + ' 个文件无法读取。')
-            .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        }
-      }
-    }
-    .alignItems(HorizontalAlign.Start)
-    .width('100%')
-    .padding(Space.s12)
-    .borderRadius(Radius.r8)
-    .backgroundColor(Palette.card)
   }
 
   @Builder
   private selectionControls() {
-    Row({ space: Space.s8 }) {
-      PillButton({
-        label: this.library.selecting ? '完成' : '选择', variant: 'ghost', small: true,
-        onAction: (): void => {
-          if (this.library.selecting) { this.library.endSelection(); }
-          else { this.library.startSelection(); }
-        }
-      })
-      if (this.library.selecting) {
-        Text('当前结果已选 ' + this.library.visibleSelectedCount.toString())
-          .fontSize(Font.aux).fontColor(Palette.fontSecondary)
+    if (this.library.selecting) {
+      Row({ space: Space.s8 }) {
+        Text('已选 ' + this.library.visibleSelectedCount.toString())
+          .fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
         PillButton({ label: '全选', variant: 'ghost', small: true,
           onAction: (): void => { this.library.selectVisible(); } })
         PillButton({ label: '清空', variant: 'ghost', small: true,
           onAction: (): void => { this.library.clearVisibleSelection(); } })
-      }
+      }.width('100%')
     }
-    .width('100%')
   }
 
   @Builder
   private selectionActions() {
     if (this.library.selecting && this.library.visibleSelectedCount > 0) {
+      Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
         PillButton({ label: '分享', variant: 'ghost', small: true,
           onAction: (): void => { this.library.shareSelected(); } })
         PillButton({ label: '导出', variant: 'ghost', small: true,
           onAction: (): void => { this.library.exportSelected(); } })
-        PillButton({ label: '删除', variant: 'ghost', small: true,
+        PillButton({ label: '删除', variant: 'danger', small: true,
           onAction: (): void => { this.library.deleteSelected(); } })
       }
       .width('100%')
+      if (!this.library.isZips()) {
+        Row({ space: Space.s8 }) {
+          PillButton({ label: '收藏', variant: 'ghost', small: true,
+            onAction: (): void => { this.library.setSelectedFavorite(true); } })
+          PillButton({ label: '取消收藏', variant: 'ghost', small: true,
+            onAction: (): void => { this.library.setSelectedFavorite(false); } })
+          PillButton({ label: '编辑标签', variant: 'ghost', small: true,
+            onAction: (): void => { this.tagDialogOpen = true; } })
+        }.width('100%')
+      }
+      }.width('100%')
     }
   }
 
@@ -209,6 +235,10 @@ export struct LibraryScreen {
               Column() {
                 ShotTile({
                   image: cell,
+                  favorite: this.library.entry(cell.id).favorite,
+                  tags: this.library.entry(cell.id).tags,
+                  snippet: this.library.query.length > 0
+                    ? LibraryText.snippet(this.library.entry(cell.id).text, this.library.query, 64) : '',
                   dense: this.library.density === 3,
                   selecting: this.library.selecting,
                   selected: this.library.isSelected(cell.id),
@@ -243,8 +273,12 @@ export struct LibraryScreen {
     } else {
       EmptyState({
         glyph: 'image',
-        heading: this.library.query.length > 0 ? '没有匹配的图片' : '图库还是空的',
-        body: this.library.query.length > 0 ? '换一个关键词试试。' : '下载完成的图片会出现在这里。'
+        heading: !this.library.catalogReady ? '正在读取图库信息' :
+          this.hasImageFilter()
+            ? '没有匹配的图片' : '图库还是空的',
+        body: !this.library.catalogReady ? '图片文字与标签读取完成后可搜索。' :
+          this.hasImageFilter()
+            ? '换个关键词或清除筛选试试。' : '下载完成的图片会出现在这里。'
       })
     }
   }
@@ -257,6 +291,7 @@ export struct LibraryScreen {
         ForEach(this.library.archives, (zip: ZipItem) => {
           ArchiveCard({
             zip: zip,
+            onExtract: (item: ZipItem): void => { this.library.startExtract(item); },
             onRetryDelivery: (item: ZipItem): void => { this.library.retryArchiveDelivery(item); },
             selecting: this.library.selecting,
             selected: this.library.isSelected(zip.id),
@@ -283,7 +318,7 @@ export struct LibraryScreen {
         heading: this.library.query.length > 0 ? '没有匹配的压缩包' : '还没有压缩包',
         body: this.library.query.length > 0
           ? '换一个关键词试试。'
-          : '在「发现」里打开 ZIP 模式，把选中的图片打包成一个压缩包。'
+          : '可以从系统文件导入 ZIP，或在「发现」中把选中的图片打包。'
       })
     }
   }
@@ -303,11 +338,7 @@ export struct LibraryScreen {
             }
           })
 
-          this.searchPill()
-          this.organizeControls()
-          if (!this.library.isZips()) {
-            this.duplicatePanel()
-          }
+          this.searchTools()
           this.selectionControls()
           this.selectionActions()
 
@@ -340,15 +371,34 @@ export struct LibraryScreen {
         caption: this.library.isZips()
           ? this.library.zips.length.toString() + ' 个压缩包'
           : this.library.imageCount.toString() + ' 张图片 · ' + formatBytes(this.library.imageBytes),
-        // 密度切换只对图片网格有意义，压缩包段不显示这个按钮。
-        actionGlyph: this.library.isZips() ? '' : 'grid',
+        actionText: this.library.selecting ? '完成' : '选择',
         layer: Layout.tbLayerSecondary,
         onAction: (): void => {
-          this.library.setDensity(this.library.density === 2 ? 3 : 2);
+          if (this.library.selecting) { this.library.endSelection(); }
+          else { this.library.startSelection(); }
         }
       })
     }
     .width('100%')
     .height('100%')
+    .bindSheet(this.active && this.activeSheet().length > 0, this.sheetContent(), {
+      height: this.activeSheet() === 'organize' ? undefined
+        : this.activeSheet() === 'filter' ? SheetSize.MEDIUM : SheetSize.FIT_CONTENT,
+      detents: this.activeSheet() === 'organize'
+        ? [SheetSize.MEDIUM, SheetSize.LARGE] : undefined,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+      dragBar: true,
+      showClose: false,
+      backgroundColor: Color.Transparent,
+      systemMaterial: this.sheetMaterial,
+      onWillDismiss: (action: DismissSheetAction): void => {
+        if (!this.library.extractBusy) { action.dismiss(); }
+      },
+      onDisappear: (): void => {
+        this.sheet = '';
+        this.tagDialogOpen = false;
+        this.library.closeExtract();
+      }
+    })
   }
 }

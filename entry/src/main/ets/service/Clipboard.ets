@@ -15,6 +15,10 @@ import { BusinessError, pasteboard } from '@kit.BasicServicesKit';
  * 取不到授权时抛 Error，由调用方决定怎么提示（提示文案属于界面，不属于这一层）。
  */
 export class Clipboard {
+  static async writeText(value: string): Promise<void> {
+    await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, value));
+  }
+
   static async readText(context: common.UIAbilityContext): Promise<string> {
     const manager: abilityAccessCtrl.AtManager = abilityAccessCtrl.createAtManager();
     let tokenId: number = 0;

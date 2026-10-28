@@ -372,6 +372,8 @@ export default function downloadStoreTest() {
       const state: SavedState = new SavedState();
       const item: DownloadItem = new DownloadItem();
       item.id = 'p1';
+      item.origin = 'edited';
+      item.originalId = 'original-p0';
       item.url = 'https://example.com/a.png';
       item.name = 'still_color.jpg';
       item.path = '/data/files/images/still_color.jpg';
@@ -392,6 +394,8 @@ export default function downloadStoreTest() {
       const back: SavedState = StoreState.normalized(StoreState.parse(raw) as SavedState);
       expect(back.downloads.length).assertEqual(1);
       expect(back.downloads[0].name).assertEqual('still_color.jpg');
+      expect(back.downloads[0].origin).assertEqual('edited');
+      expect(back.downloads[0].originalId).assertEqual('original-p0');
       expect(back.downloads[0].status).assertEqual('completed');
       expect(back.downloads[0].size).assertEqual(10138);
       expect(back.downloads[0].kind).assertEqual('livephoto');
@@ -424,6 +428,7 @@ export default function downloadStoreTest() {
         + '"downloadLocation":"custom","customDirUri":null}';
       const safe: SavedState = StoreState.normalized(StoreState.parse(raw) as SavedState);
       expect(safe.downloads[0].name).assertEqual('');
+      expect(safe.downloads[0].origin).assertEqual('download');
       expect(safe.downloads[0].processed).assertEqual(0);
       // finishedAt 丢了就退回 createdAt，否则图库会显示成 1970 年。
       expect(safe.downloads[0].finishedAt).assertEqual(5);

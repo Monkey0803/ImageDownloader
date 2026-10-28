@@ -1,9 +1,11 @@
 import { webview } from '@kit.ArkWeb';
+import { fileUri } from '@kit.CoreFileKit';
 import { PictureItem } from '../model/Models';
 import { TAB_TASKS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
 import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
-import { BatchLinks, BatchLinkReport } from '../service/BatchLinks';
+import { BatchCheckKind, BatchLinkCheck, BatchLinks, BatchLinkReport, BatchLinkRow, BatchLinkStatus, BatchProbeToken } from '../service/BatchLinks';
+import { BatchLinkProbe } from '../service/BatchLinkProbe';
 import { Clipboard } from '../service/Clipboard';
 import { MediaFormat } from '../service/MediaFormat';
 import { PictureFactory, ScanImage } from '../service/PictureFactory';
@@ -13,6 +15,8 @@ import { PageExpansion, ExpansionStep } from '../service/PageExpansion';
 import { ScanUpgrader } from '../service/ScanUpgrader';
 import { SizeArbiter } from '../service/SizeArbiter';
 import { AuthenticatedPreview, PreviewResult } from '../service/AuthenticatedPreview';
+import { PreviewLoadProgress } from '../model/PreviewLoadProgress';
+import { LocalPreview, LocalPreviewFile } from '../service/LocalPreview';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
 import { formatBytes } from '../theme/Tokens';
@@ -65,14 +69,110 @@ export class DiscoverViewModel {
   @Trace quickFilter: string = '';
   @Trace batchOpen: boolean = false;
   @Trace batchText: string = '';
+  @Trace batchProbing: boolean = false;
+  @Trace batchProbeDone: number = 0;
+  @Trace batchProbeTotal: number = 0;
+  @Trace batchProbeNote: string = '';
+  @Trace batchChecks: BatchLinkCheck[] = [];
+  /** 'edit' | 'review'：review 时只展示确认列表，不再改文本。 */
+  @Trace batchStage: string = 'edit';
+  @Trace batchReview: BatchLinkReport = new BatchLinkReport();
+  @Trace batchReviewZip: boolean = false;
+  private batchProbeGeneration: number = 0;
+  private batchToken: BatchProbeToken | undefined = undefined;
   @Trace inspectedUid: string = '';
   @Trace inspectionBytes: number = 0;
   @Trace inspectionLoading: boolean = false;
   @Trace previewUri: string = '';
+  @Trace previewFailure: string = '';
+  @Trace previewDownloadQueued: boolean = false;
   @Trace previewMessage: string = '';
   @Trace previewLoading: boolean = false;
+  @Trace previewPhase: string = 'idle';
+  @Trace previewReceived: number = 0;
+  @Trace previewTotal: number = 0;
+
   @Computed
-  get batchReport(): BatchLinkReport { return BatchLinks.parse(this.batchText); }
+  get previewLoadTitle(): string {
+    return this.previewPhase === 'decoding' ? '正在准备图片'
+      : this.previewPhase === 'receiving' ? '正在加载图片' : '正在连接来源';
+  }
+
+  @Computed
+  get previewLoadDetail(): string {
+    if (this.previewPhase === 'decoding') { return '文件已收到，正在准备清晰画面…'; }
+    if (this.previewReceived <= 0) { return '连接后将显示加载进度，可随时取消'; }
+    return '已接收 ' + formatBytes(this.previewReceived)
+      + (this.previewTotal > 0 ? ' / ' + formatBytes(this.previewTotal) : ' · 总大小未知');
+  }
+
+  @Computed
+  get previewPercent(): number {
+    return this.previewTotal > 0 ? Math.min(100, Math.floor(this.previewReceived * 100 / this.previewTotal)) : 0;
+  }
+  @Trace previewFromLocal: boolean = false;
+  @Trace previewLocalPath: string = '';
+  @Trace previewLocalAnimated: boolean = false;
+  @Computed
+  get batchReport(): BatchLinkReport {
+    return BatchLinks.merge(BatchLinks.parse(this.batchText), this.batchChecks);
+  }
+
+  /** 编辑态的一行摘要；数量都以当前行状态为准。 */
+  @Computed
+  get batchSummary(): string {
+    const report: BatchLinkReport = this.batchReport;
+    let text: string = '可导入 ' + report.urls.length.toString() + ' 条';
+    if (report.pending > 0) {
+      text += '（含待确认 ' + report.pending.toString() + ' 条）';
+    }
+    if (report.duplicates > 0) {
+      text += ' · 重复 ' + report.duplicates.toString();
+    }
+    if (report.invalid > 0) {
+      text += ' · 无效 ' + report.invalid.toString();
+    }
+    return text;
+  }
+
+  @Computed
+  get batchProbeLabel(): string {
+    if (this.batchProbing) {
+      return '正在检查待确认链接 ' + this.batchProbeDone.toString() + '/' + this.batchProbeTotal.toString();
+    }
+    return this.batchProbeNote;
+  }
+
+  @Computed
+  get batchReviewRows(): BatchLinkRow[] {
+    return this.batchReview.rows.filter((row: BatchLinkRow): boolean =>
+      row.status === BatchLinkStatus.VALID || row.status === BatchLinkStatus.PENDING);
+  }
+
+  @Computed
+  get batchReviewSummary(): string {
+    let text: string = '将导入 ' + this.batchReview.urls.length.toString() + ' 条';
+    if (this.batchReview.pending > 0) {
+      text += '，其中 ' + this.batchReview.pending.toString() + ' 条类型待确认，仍会尝试下载';
+    }
+    return text;
+  }
+
+  @Computed
+  get batchReviewExcluded(): string {
+    const report: BatchLinkReport = this.batchReview;
+    if (report.duplicates === 0 && report.invalid === 0) {
+      return '';
+    }
+    let text: string = '已排除';
+    if (report.duplicates > 0) {
+      text += '重复 ' + report.duplicates.toString() + ' 条';
+    }
+    if (report.invalid > 0) {
+      text += (report.duplicates > 0 ? '、' : '') + '无效 ' + report.invalid.toString() + ' 条';
+    }
+    return text;
+  }
   @Computed
   get inspectedPicture(): PictureItem | undefined {
     return this.pictures.find((item: PictureItem): boolean => item.uid === this.inspectedUid);
@@ -152,6 +252,20 @@ export class DiscoverViewModel {
   removeBookmark(url: string): void {
     this.bookmarks = this.bookmarks.filter((item: BrowserEntry): boolean => item.url !== url);
     this.saveBrowserCollection();
+  }
+
+  removeHistory(url: string): void {
+    this.history = this.history.filter((item: BrowserEntry): boolean => item.url !== url);
+    this.saveBrowserCollection();
+  }
+
+  async copyBrowserUrl(url: string): Promise<void> {
+    try {
+      await Clipboard.writeText(url);
+      this.ui.say('已复制网址');
+    } catch (error) {
+      this.ui.say('复制网址失败，请重试');
+    }
   }
 
   clearHistory(): void {
@@ -268,50 +382,232 @@ export class DiscoverViewModel {
 
   async pasteBatch(): Promise<void> {
     try {
-      this.batchText = await Clipboard.readText(this.ui.context());
+      this.setBatchText(await Clipboard.readText(this.ui.context()));
       this.batchOpen = true;
     } catch (error) {
       this.ui.say('读取剪贴板失败：' + String((error as BusinessError).message));
     }
   }
 
-  /** 多链接不改变当前网页和扫描结果，用户确认后才入队。 */
-  enqueueBatch(): void {
-    const report: BatchLinkReport = this.batchReport;
-    if (report.urls.length === 0) { this.ui.say('请逐行输入图片直链'); return; }
-    const count: number = report.urls.length;
-    const detail: string = '有效 ' + count.toString() + ' 条；无效 '
-      + report.invalid.toString() + ' 条，重复 ' + report.duplicates.toString() + ' 条。';
-    this.ui.confirm('导入图片链接', detail, '加入任务', (): void => {
-      const images: PictureItem[] = report.urls.map((url: string): PictureItem => PictureFactory.fromUrl(url));
-      DownloadStore.add(images, '', '批量链接', this.mode === 'zip');
-      this.batchText = '';
-      this.batchOpen = false;
-      this.ui.switchTab(TAB_TASKS);
-      this.ui.say('已加入 ' + count.toString() + ' 条下载任务');
-    });
+  /** 文本变化会作废在途探测；已经缓存的确定结论仍按 URL 复用。 */
+  setBatchText(value: string): void {
+    this.batchText = value;
+    this.batchStage = 'edit';
+    this.batchReview = new BatchLinkReport();
+    this.batchReviewZip = false;
+    this.cancelBatchProbe();
+    this.batchProbeNote = '';
   }
 
-  inspect(uid: string): void {
+  setBatchPanel(open: boolean): void {
+    if (!open) {
+      this.cancelBatchProbe();
+      this.batchStage = 'edit';
+      this.batchReview = new BatchLinkReport();
+      this.batchReviewZip = false;
+      this.batchProbeNote = '';
+    }
+    this.batchOpen = open;
+  }
+
+  async startBatchCheck(): Promise<void> {
+    if (this.batchProbing) { return; }
+    const pending: string[] = this.batchReport.rows
+      .filter((row: BatchLinkRow): boolean => row.status === BatchLinkStatus.PENDING)
+      .map((row: BatchLinkRow): string => row.url);
+    if (pending.length === 0) {
+      this.ui.say('没有待确认的链接');
+      return;
+    }
+    await this.runBatchProbe(pending);
+  }
+
+  /**
+   * 进入二次确认前按需探测待确认链接。
+   *
+   * 这里只准备 review 快照，不入队；真正的入队由用户再点一次完成。
+   */
+  async reviewBatch(): Promise<void> {
+    if (this.batchProbing) { return; }
+    let report: BatchLinkReport = this.batchReport;
+    if (report.urls.length === 0) {
+      this.ui.say('没有可导入的图片直链');
+      return;
+    }
+    const pending: string[] = report.rows
+      .filter((row: BatchLinkRow): boolean => row.status === BatchLinkStatus.PENDING)
+      .map((row: BatchLinkRow): string => row.url);
+    if (pending.length > 0) {
+      const completed: boolean = await this.runBatchProbe(pending);
+      if (!completed) { return; }
+      report = this.batchReport;
+    }
+    if (report.urls.length === 0) {
+      this.ui.say('没有可导入的图片直链');
+      return;
+    }
+    this.batchReview = BatchLinks.merge(BatchLinks.parse(this.batchText), this.batchChecks);
+    this.batchReviewZip = this.mode === 'zip';
+    this.batchStage = 'review';
+  }
+
+  /** 用户不想等探测时保留未确认项直接进入 review；在途请求最多再等一个超时。 */
+  skipBatchProbe(): void {
+    if (!this.batchProbing) { return; }
+    if (this.batchToken !== undefined) { this.batchToken.cancel(); }
+    this.batchProbeNote = '已跳过检查，未确认链接仍会导入';
+  }
+
+  cancelBatchReview(): void {
+    this.batchStage = 'edit';
+    this.batchReview = new BatchLinkReport();
+    this.batchReviewZip = false;
+  }
+
+  /** 二次确认后入队；使用 review 时的模式快照，避免确认期间切换模式造成不一致。 */
+  confirmBatchReview(): void {
+    const urls: string[] = this.batchReview.urls;
+    const count: number = urls.length;
+    if (count === 0) {
+      this.ui.say('没有可导入的图片直链');
+      return;
+    }
+    const images: PictureItem[] = urls.map((url: string): PictureItem => PictureFactory.fromUrl(url));
+    DownloadStore.add(images, '', '批量链接', this.batchReviewZip);
+    this.batchText = '';
+    this.batchChecks = [];
+    this.batchStage = 'edit';
+    this.batchReview = new BatchLinkReport();
+    this.batchReviewZip = false;
+    this.batchProbeNote = '';
+    this.batchOpen = false;
+    this.ui.switchTab(TAB_TASKS);
+    this.ui.say('已加入 ' + count.toString() + ' 条下载任务');
+  }
+
+  private cancelBatchProbe(): void {
+    this.batchProbeGeneration++;
+    if (this.batchToken !== undefined) {
+      this.batchToken.cancel();
+      this.batchToken = undefined;
+    }
+    this.batchProbing = false;
+    this.batchProbeDone = 0;
+    this.batchProbeTotal = 0;
+  }
+
+  private async runBatchProbe(urls: string[]): Promise<boolean> {
+    if (urls.length === 0) { return true; }
+    this.batchProbeGeneration++;
+    const generation: number = this.batchProbeGeneration;
+    const token: BatchProbeToken = new BatchProbeToken();
+    this.batchToken = token;
+    this.batchProbing = true;
+    this.batchProbeDone = 0;
+    this.batchProbeTotal = urls.length;
+    this.batchProbeNote = '';
+    try {
+      const checks: BatchLinkCheck[] = await BatchLinkProbe.check(urls, token,
+        (done: number, total: number): void => {
+          if (generation !== this.batchProbeGeneration) { return; }
+          this.batchProbeDone = done;
+          this.batchProbeTotal = total;
+        });
+      if (generation !== this.batchProbeGeneration) { return false; }
+      this.batchChecks = this.batchChecks.concat(checks);
+      this.batchProbeNote = this.probeNoteOf(checks, urls.length);
+      return true;
+    } finally {
+      if (generation === this.batchProbeGeneration) {
+        this.batchProbing = false;
+        this.batchToken = undefined;
+      }
+    }
+  }
+
+  private probeNoteOf(checks: BatchLinkCheck[], requested: number): string {
+    let image: number = 0;
+    let page: number = 0;
+    let unknown: number = 0;
+    for (const check of checks) {
+      if (check.kind === BatchCheckKind.IMAGE) {
+        image++;
+      } else if (check.kind === BatchCheckKind.PAGE) {
+        page++;
+      } else {
+        unknown++;
+      }
+    }
+    let text: string = '已检查 ' + checks.length.toString() + ' 条';
+    const details: string[] = [];
+    if (image > 0) { details.push('确认图片 ' + image.toString()); }
+    if (page > 0) { details.push('排除网页 ' + page.toString()); }
+    if (unknown > 0) { details.push('仍待确认 ' + unknown.toString()); }
+    if (details.length > 0) { text += '：' + details.join('，'); }
+    const missed: number = requested - checks.length;
+    if (missed > 0) { text += ' · ' + missed.toString() + ' 条未检查，仍可导入'; }
+    return text;
+  }
+
+  inspect(uid: string, force: boolean = false): void {
     const picture: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean => item.uid === uid);
     if (picture === undefined) { return; }
-    this.closeInspection();
+    this.closeInspection(true);
     const generation: number = this.inspectionGeneration;
     this.inspectedUid = uid;
+    this.previewDownloadQueued = DownloadStore.downloads.some((item): boolean => item.url === picture.url
+      && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
     this.inspectionBytes = 0;
     this.inspectionLoading = true;
     const url: string = picture.url;
+    const local: LocalPreviewFile | undefined = LocalPreview.find(url, picture.kind, DownloadStore.downloads);
+    if (local !== undefined) {
+      const displayPath: string = picture.kind === 'livephoto' ? local.stillPath : local.path;
+      let uri: string = '';
+      try {
+        if (displayPath.length > 0) { uri = fileUri.getUriFromPath(displayPath); }
+      } catch (error) {}
+      if (picture.kind === 'livephoto' || uri.length > 0) {
+        this.inspectionBytes = local.size;
+        this.inspectionLoading = false;
+        this.previewUri = uri;
+        this.previewFromLocal = true;
+        this.previewLocalPath = displayPath;
+        this.previewLocalAnimated = local.animated;
+        this.previewMessage = picture.kind === 'livephoto'
+          ? '已使用本地下载文件，可在图库播放实况照片'
+          : local.animated ? '本地原图 · 动图播放' : '本地原图 · 放大可查看更清晰细节';
+        return;
+      }
+    }
     if (picture.kind === 'image') {
       this.previewLoading = true;
+      this.previewPhase = 'connecting';
       this.previewMessage = '正在加载预览…';
-      this.preview.load(url, this.pageUrl, this.ui.context().cacheDir).then((result: PreviewResult): void => {
+      this.preview.load(url, this.pageUrl, this.ui.context().cacheDir, force,
+        (progress: PreviewLoadProgress): void => {
+          if (generation !== this.inspectionGeneration) { return; }
+          this.previewPhase = progress.phase;
+          this.previewReceived = progress.received;
+          this.previewTotal = progress.total;
+        }).then((result: PreviewResult): void => {
         if (generation !== this.inspectionGeneration) { return; }
         this.previewUri = result.uri;
-        this.previewMessage = result.message;
+        this.previewLocalPath = result.path;
+        this.previewFailure = result.failure;
+        this.previewLocalAnimated = result.animated;
+        if (result.width > 0 && result.height > 0) {
+          picture.width = result.width;
+          picture.height = result.height;
+        }
+        this.previewMessage = result.animated && result.path.length > 0 ? '动图预览 · 可暂停或保存当前帧' : result.message;
         this.previewLoading = false;
+        this.previewPhase = result.uri.length > 0 ? 'ready' : 'failed';
       }).catch((): void => {
         if (generation !== this.inspectionGeneration) { return; }
         this.previewLoading = false;
+        this.previewPhase = 'failed';
+        this.previewFailure = 'network';
         this.previewMessage = '预览不可用，可查看来源页或下载原文件';
       });
     } else {
@@ -326,13 +622,116 @@ export class DiscoverViewModel {
     });
   }
 
-  closeInspection(): void {
+  suspendInspection(): void {
+    this.inspectionGeneration++;
+    this.preview.cancelRequest();
+    this.previewLoading = false;
+    this.inspectionLoading = false;
+  }
+
+  cancelPreviewLoading(): void {
+    if (!this.previewLoading) { return; }
+    this.suspendInspection();
+    this.previewPhase = 'cancelled';
+    this.previewFailure = 'cancelled';
+    this.previewMessage = '加载已取消，可重试或下载后查看';
+  }
+
+  closeInspection(preserveCache: boolean = false): void {
     this.inspectionGeneration++;
     this.inspectedUid = '';
     this.previewUri = '';
+    this.previewFailure = '';
+    this.previewDownloadQueued = false;
     this.previewMessage = '';
     this.previewLoading = false;
-    this.preview.cancel();
+    this.previewPhase = 'idle';
+    this.previewReceived = 0;
+    this.previewTotal = 0;
+    this.previewFromLocal = false;
+    this.previewLocalPath = '';
+    this.previewLocalAnimated = false;
+    if (preserveCache) { this.preview.cancelRequest(); } else { this.preview.cancel(); }
+  }
+
+  /** A completed download replaces the preview source without changing image identity. */
+  refreshLocalPreview(): void {
+    const picture: PictureItem | undefined = this.inspectedPicture;
+    if (picture === undefined) { return; }
+    this.previewDownloadQueued = DownloadStore.downloads.some((item): boolean => item.url === picture.url
+      && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
+    const local: LocalPreviewFile | undefined = LocalPreview.find(picture.url, picture.kind, DownloadStore.downloads);
+    if (local === undefined) {
+      if (this.previewFromLocal) { this.inspect(picture.uid); }
+      return;
+    }
+    const path: string = picture.kind === 'livephoto' ? local.stillPath : local.path;
+    if (this.previewFromLocal && this.previewLocalPath === path) { return; }
+    let uri: string = '';
+    try { if (path.length > 0) { uri = fileUri.getUriFromPath(path); } } catch (error) { return; }
+    if (uri.length === 0 && picture.kind !== 'livephoto') { return; }
+    this.inspectionGeneration++;
+    this.preview.cancelRequest();
+    this.previewUri = uri;
+    this.previewLocalPath = path;
+    this.previewLocalAnimated = local.animated;
+    this.previewFromLocal = true;
+    this.previewLoading = false;
+    this.previewFailure = '';
+    this.inspectionBytes = local.size;
+    this.inspectionLoading = false;
+    this.previewMessage = picture.kind === 'livephoto' ? '已使用本地下载文件，可在图库播放实况照片'
+      : local.animated ? '本地原图 · 动图播放' : '本地原图 · 放大可查看更清晰细节';
+  }
+
+  /** Download this preview's selected range while keeping the overlay and selection intact. */
+  downloadPreviewSelection(ids: string[]): void {
+    const copies: PictureItem[] = [];
+    const seen: string[] = [];
+    let skipped: number = 0;
+    for (const id of ids) {
+      const picture: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean => item.uid === id);
+      if (picture === undefined || !picture.selected) { continue; }
+      const key: string = picture.kind + ':' + picture.url;
+      if (seen.includes(key)) { continue; }
+      seen.push(key);
+      const pending: boolean = DownloadStore.downloads.some((item): boolean => item.url === picture.url
+        && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
+      if (pending) { skipped++; continue; }
+      const copy: PictureItem = PictureFactory.fromUrl(picture.url);
+      copy.name = picture.name;
+      copy.kind = picture.kind;
+      copy.userNamed = picture.userNamed;
+      copy.description = picture.description;
+      copies.push(copy);
+    }
+    if (copies.length === 0) {
+      this.ui.say(skipped > 0 ? '所选图片已在下载任务中' : '请先选择图片');
+      return;
+    }
+    DownloadStore.add(copies, this.pageUrl, this.pageTitle, this.mode === 'zip');
+    this.refreshLocalPreview();
+    this.ui.say('已加入 ' + copies.length.toString() + ' 张图片'
+      + (this.mode === 'zip' ? '，普通图片将打包为 ZIP' : '')
+      + (skipped > 0 ? '；已跳过 ' + skipped.toString() + ' 张正在下载的图片' : ''));
+  }
+
+  /** Explicit single-image recovery action; leave the grid selection and ZIP setting untouched. */
+  downloadInspected(): void {
+    const picture: PictureItem | undefined = this.inspectedPicture;
+    if (picture === undefined || this.previewDownloadQueued) { return; }
+    const pending: boolean = DownloadStore.downloads.some((item): boolean => item.url === picture.url
+      && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
+    if (!pending) {
+      const copy: PictureItem = PictureFactory.fromUrl(picture.url);
+      copy.name = picture.name;
+      copy.kind = picture.kind;
+      copy.userNamed = picture.userNamed;
+      copy.description = picture.description;
+      DownloadStore.add([copy], this.pageUrl, this.pageTitle, false);
+    }
+    this.previewDownloadQueued = true;
+    this.ui.say(pending ? '这张图片已在下载任务中' : '已加入下载任务，完成后可在图库查看');
   }
 
   inspectionSizeLabel(): string {
@@ -361,7 +760,7 @@ export class DiscoverViewModel {
       input = 'https://' + input;
     }
     this.address = input;
-    this.batchOpen = false;
+    this.setBatchPanel(false);
     this.pageUrl = input;
     this.pictures = [];
     this.closeInspection();
@@ -467,9 +866,9 @@ export class DiscoverViewModel {
         },
       onSettled: (total: number): void => {
         this.scanning = false;
-        this.ui.say(total === 0
-          ? '暂未扫描到图片，滚动页面后点刷新可再试'
-          : '找到 ' + this.pictures.length.toString() + ' 张图片');
+        if (total === 0) {
+          this.ui.say('暂未扫描到图片，滚动页面后点刷新可再试');
+        }
       },
       onAborted: (): void => {
         this.scanning = false;
@@ -483,10 +882,10 @@ export class DiscoverViewModel {
   }
 
   /** 页面销毁 / 换页时停掉排队中的重扫（页面没了还继续注入脚本是白跑）。 */
-  cancelScan(): void {
+  cancelScan(preserveInspection: boolean = false): void {
     this.scanner.invalidate();
     this.scanning = false;
-    this.closeInspection();
+    if (preserveInspection) { this.suspendInspection(); } else { this.closeInspection(); }
     this.stopExpansion();
   }
 

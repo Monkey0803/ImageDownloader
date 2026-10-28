@@ -14,6 +14,14 @@ import galleryBatchingTest from './GalleryBatching.test';
 import pageExpansionTest from './PageExpansion.test';
 import saveReceiptTest from './SaveReceipt.test';
 import batchViewTest from './BatchView.test';
+import libraryCatalogTest from './LibraryCatalog.test';
+
+import libraryVisionTest from './LibraryVision.test';
+import imageEditTest from './ImageEdit.test';
+import editRegistrationTest from './EditRegistration.test';
+import libraryFixturesTest from './LibraryFixtures.test';
+import zipArchiveTest from './ZipArchive.test';
+import hdrDecodeTest from './HdrDecode.test';
 
 export default function testsuite() {
   downloadStoreTest();
@@ -32,4 +40,11 @@ export default function testsuite() {
   pageExpansionTest();
   saveReceiptTest();
   batchViewTest();
+  libraryCatalogTest();
+  libraryVisionTest();
+  imageEditTest();
+  editRegistrationTest();
+  libraryFixturesTest();
+  zipArchiveTest();
+  hdrDecodeTest();
 }

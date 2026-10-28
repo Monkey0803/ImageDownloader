@@ -40,6 +40,8 @@ class DownloadWire {
   receipt: ReceiptWire = new ReceiptWire();
   recoveryMessage: string = '';
   id: string = '';
+  origin: string = 'download';
+  originalId: string = '';
   url: string = '';
   name: string = '';
   userNamed: boolean = false;
@@ -68,6 +70,7 @@ class ZipWire {
   name: string = '';
   path: string = '';
   batchId: string = '';
+  imported: boolean = false;
   imageCount: number = 0;
   failedCount: number = 0;
   size: number = 0;
@@ -115,6 +118,8 @@ export class StoreState {
       out.receipt = ReceiptWire.from(item.receipt);
       out.recoveryMessage = item.recoveryMessage;
       out.id = item.id;
+      out.origin = item.origin === 'edited' || item.origin === 'extracted' ? item.origin : 'download';
+      out.originalId = item.originalId;
       out.url = item.url;
       out.name = item.name;
       out.userNamed = item.userNamed;
@@ -144,6 +149,7 @@ export class StoreState {
       out.name = zip.name;
       out.path = zip.path;
       out.batchId = zip.batchId;
+      out.imported = zip.imported;
       out.imageCount = zip.imageCount;
       out.failedCount = zip.failedCount;
       out.size = zip.size;
@@ -200,6 +206,8 @@ export class StoreState {
       item.receipt = ReceiptWire.restore(entry.receipt);
       item.recoveryMessage = orString(entry.recoveryMessage, '');
       item.id = orString(entry.id, '');
+      item.origin = entry.origin === 'edited' || entry.origin === 'extracted' ? entry.origin : 'download';
+      item.originalId = orString(entry.originalId, '');
       item.url = orString(entry.url, '');
       item.name = orString(entry.name, '');
       item.userNamed = orBoolean(entry.userNamed, false);
@@ -230,6 +238,7 @@ export class StoreState {
       zip.name = orString(entry.name, '');
       zip.path = orString(entry.path, '');
       zip.batchId = orString(entry.batchId, '');
+      zip.imported = orBoolean(entry.imported, false);
       zip.imageCount = orNumber(entry.imageCount, 0);
       zip.failedCount = orNumber(entry.failedCount, 0);
       zip.size = orNumber(entry.size, 0);

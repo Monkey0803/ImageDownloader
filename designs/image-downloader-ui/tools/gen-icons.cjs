@@ -123,6 +123,7 @@ const SYMBOL_RES: Record<string, Resource> = {
   'clock': $r('sys.symbol.clock'),
   'alert': $r('sys.symbol.exclamationmark_circle'),
   'checkCircle': $r('sys.symbol.checkmark_circle'),
+  'circle': $r('sys.symbol.circle'),
   'xCircle': $r('sys.symbol.xmark_circle'),
   'scan': $r('sys.symbol.circle_viewfinder'),
   'inbox': $r('sys.symbol.arrow_down_circle'),

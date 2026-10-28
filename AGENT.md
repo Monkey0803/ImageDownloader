@@ -7,9 +7,10 @@
 | File | Why |
 |------|-----|
 | `entry/src/main/ets/pages/Index.ets` | `@Entry` **外壳**：页签、Toast、浮层、装配 ViewModel、订阅商店。四个页面不在这里 |
-| `entry/src/main/ets/viewmodel/*.ets` | 五个 `@ObservedV2` ViewModel：Discover / Tasks / Library / Settings / Device（状态 + 行为，派生量用 `@Computed`） |
+| `entry/src/main/ets/viewmodel/*.ets` | Discover / Tasks / Library / Settings / Device 及独立的 ImageEditor `@ObservedV2` ViewModel |
 | `entry/src/main/ets/view/screens/*.ets` | 四个 `@Component` 页面：Discover / Tasks / Library / Settings（纯展示，事件转给 VM） |
 | `entry/src/main/ets/pages/Viewer.ets` | 第二个 `@Entry`：图片大图预览，独立页面（系统返回键只认页面栈；图库进来可左右滑动换图） |
+| `entry/src/main/ets/pages/ImageEditor.ets` | 图片编辑副本页面；画布手势在 `view/ImageEditorCanvas.ets`，保存经 EditExport → EditJournal → DownloadStore |
 | `entry/src/main/ets/theme/Tokens.ets` | 设计令牌；颜色在 `resources/{base,dark}/element/color.json` |
 | `entry/src/main/ets/theme/Metrics.ets` | 页面几何：安全区 + 标题栏 / 页签栏 / 滚动阈值（`ScreenMetrics`） |
 | `entry/src/main/resources/base/profile/main_pages.json` | 页面路由，新增页面时必须同步更新 |
@@ -23,10 +24,12 @@ theme/     设计令牌 + 页面几何
 service/   系统能力与业务：DownloadStore / StoreState / Naming / Delivery / FileActions /
            GripSensor / AntiPeep / Clipboard / ThemeController / MaterialSupport /
            PageScanner / PictureFactory / UiPort / MediaFormat（纯格式判定）/
-           StillFrames（动图首帧）/ LivePhoto（.livp 解包与动态照片加载）
+           StillFrames（动图首帧）/ LivePhoto（.livp 解包与动态照片加载）/
+           LibraryCatalog（收藏、标签及索引）/ LibraryAnalysis（按需 OCR、相似图）/
+           LibraryImageReader（统一 EXIF 解码）/ EditExport、EditJournal（独立 PNG 与恢复）
 viewmodel/ @ObservedV2 ViewModel：状态 + 行为 + @Computed 派生，界面只读它
 view/      Icons / Widgets / Cards + screens/（四个页面）+ shell/（浮层）
-pages/     Index（外壳）、Viewer（大图预览）
+pages/     Index（外壳）、Viewer（大图预览）、ImageEditor（编辑副本）
 ```
 
 依赖方向是**单向**的：`pages → view → viewmodel → service → model`，`theme` / `util` 谁都能用。
@@ -59,8 +62,14 @@ pages/     Index（外壳）、Viewer（大图预览）
 - `service/MediaFormat.ets` — 媒体格式判定（**纯函数、零 IO**）：扩展名与类型（image / livephoto / video）、
   动图的头部特征（GIF 的 `NETSCAPE2.0` / 多图形控制扩展，WebP 的 `VP8X` ANIM 位）、ZIP 魔数。
   `Naming` 的扩展名白名单、地址栏的直链识别、投递层的视频类型判断都读它这一份。
+- `service/BatchLinks.ets` — 批量直链的**纯逻辑**：逐行状态（有效 / 待确认 / 重复 / 无效）、原因、
+  重复行指向、HEAD 响应分类和探测结果合并。零 IO，宿主测试可直接加载。
+- `service/BatchLinkProbe.ets` — 批量直链的按需 HEAD 探测：并发 4、单请求 2.5s、整轮 8s、最多 60 条，
+  **不带 Cookie**；只缓存确定的 image/page 结论，超时/405/403 等一律返回未知由界面保留“仍可导入”。
 - `service/StillFrames.ets` — 动图的「静止首帧」：读文件头判动图（带缓存）、解码第 0 帧成 `PixelMap`
-  （长边封顶、FIFO 缓存 64 条）。只给 `view/Cards.ets` 的 `Thumb` 用，见下面坑 17。
+  （长边封顶、FIFO 缓存 64 条）。只给 `view/Thumb.ets` 的 `Thumb` 用，见下面坑 17。
+- `service/ThumbnailImages.ets` — `Thumb` 的静态缩略图渲染管线：读取真实尺寸、中心裁剪后缩放、PNG临时缓存。
+  与 `StillFrames` 一样仅由图片展示组件使用；网格请求不携带网页身份信息，最多2并发，并按组件生命周期取消。
 - `service/LivePhoto.ets` — Apple 实况照片包（`.livp` / `.livephoto`）的解包与播放：解成静图 + 视频
   （两个平台硬约束见坑 15）、用 `loadMovingPhoto` 装成 `MovingPhoto`。**不改下载状态**：
   解包失败只回一句 `message`，由商店记进 `DownloadItem.note`。
@@ -189,7 +198,7 @@ pages/     Index（外壳）、Viewer（大图预览）
    表现是「停在封面上一动不动」，看起来像一张静态图、也没有任何报错。要在 `onPrepared` 里
    `controller.startPlayback()`（`MovingPhotoViewController`），另外 `.onError` 要有降级文案 ——
    设备解码不了这段 MOV / HEVC 时同样不会抛异常，只会静静停住。
-17. **`Thumb` 是唯一直接调 `service/StillFrames` 的展示组件**：首帧是「逐文件、逐格子」的决定，
+17. **`view/Thumb.ets` 中的 `Thumb` 是唯一直接调 `service/StillFrames` 的展示组件**：首帧是「逐文件、逐格子」的决定，
    放到 ViewModel 里预计算会把不可序列化的 `PixelMap` 塞进状态。别的展示组件仍然只吃模型字段。
    另外 `PixelMap` **不能用 `@Prop` 传**（对象类型会走深拷贝），句柄会被拷坏 ——
    `LivePhotoSlide` 因此由自己 `LivePhoto.load()`，而不是让预览页把 `MovingPhoto` 传下来。

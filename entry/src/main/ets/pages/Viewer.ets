@@ -1,11 +1,15 @@
+import { PreviewOverlayState } from '../model/PreviewOverlayState';
+import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { common } from '@kit.AbilityKit';
 import { fileUri } from '@kit.CoreFileKit';
 import { DownloadItem } from '../model/Models';
 import { DownloadStore } from '../service/DownloadStore';
+import { PreviewOrientation } from '../service/PreviewOrientation';
 import {
   ActionOutcome, exportFile, shareFile, shareLivePhoto
 } from '../service/FileActions';
 import { kindOf, Palette, Space } from '../theme/Tokens';
+import { SheetStyle } from '../theme/SheetStyle';
 import { ToastLatch } from '../util/Toast';
 import { ImageViewer, ViewerSlide } from '../view/Cards';
 import { EmptyState, PillButton, RenameDialog, ToastPill } from '../view/Widgets';
@@ -31,8 +35,10 @@ interface ViewerParams {
 @Entry
 @ComponentV2
 struct Viewer {
+  private orientation: PreviewOrientation = new PreviewOrientation();
   /** 页面是否在前台；不在前台时不要把商店里的提示取走，否则那条提示谁也看不见。 */
-  private visible: boolean = false;
+  @Local private visible: boolean = true;
+  @Local private previewPanels: PreviewOverlayState = new PreviewOverlayState();
   /**
    * 提示的定时器与「销毁后不再弹」的守卫。
    *
@@ -41,6 +47,7 @@ struct Viewer {
    * `show()` 一律空操作，所以这里不需要再自己记一个 destroyed 标志。
    */
   private toast: ToastLatch = new ToastLatch();
+  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
   /** 商店的刷新回调；箭头函数属性，注册和注销用的是同一个引用。 */
   private listener: () => void = (): void => {
     this.refresh();
@@ -68,6 +75,7 @@ struct Viewer {
   @Local private renameDraft: string = '';
 
   aboutToAppear(): void {
+    this.orientation.enter(DownloadStore.context);
     this.toast.bind((text: string): void => {
       this.notice = text;
     });
@@ -96,9 +104,22 @@ struct Viewer {
   }
 
   aboutToDisappear(): void {
+    this.orientation.leave();
     DownloadStore.unsubscribe(this.listener);
     // 定时器与「销毁后不再弹」一起收掉（异步文件操作的晚到回调也走这里挡）。
     this.toast.release();
+  }
+
+  onBackPress(): boolean {
+    if (this.renaming) { this.renaming = false; return true; }
+    return this.previewPanels.dismissTop();
+  }
+
+  @Builder
+  private renameContent() {
+    RenameDialog({ heading: '重命名图片', initial: this.renameDraft,
+      onSave: (name: string): void => { this.applyRename(name); },
+      onClose: (): void => { this.renaming = false; } })
   }
 
   onPageShow(): void {
@@ -140,9 +161,11 @@ struct Viewer {
     const motion: string = live && item.motionPath.length > 0 && DownloadStore.exists(item.motionPath)
       ? item.motionPath : '';
     const slide: ViewerSlide = {
-      id: item.id,
+      id: item.id, libraryId: landed ? item.id : '', downloaded: landed,
+      url: item.url, sourcePage: item.sourcePage, bytes: item.size, downloadedAt: item.finishedAt,
+      width: 0, height: 0,
       src: landed ? fileUri.getUriFromPath(still.length > 0 ? still : item.path) : item.url,
-      localPath: landed && !live ? item.path : '',
+      localPath: landed ? (live ? still : item.path) : '',
       animated: landed && item.animated,
       name: item.name,
       label: live ? '实况' : kindOf(item.name),
@@ -258,17 +281,34 @@ struct Viewer {
     if (item === undefined) {
       return;
     }
+    // 只在打开预览时传入的这一批图片中继续浏览，优先当前图片右侧的下一张。
+    const nextIds: string[] = this.slides.slice(this.index + 1).map((slide: ViewerSlide): string => slide.id);
+    const previousIds: string[] = this.slides.slice(0, this.index).reverse()
+      .map((slide: ViewerSlide): string => slide.id);
     this.getUIContext().showAlertDialog({
       title: '删除图片',
       message: '将同时删除应用内文件和下载记录，已导出的副本不受影响。',
+      systemMaterial: SheetStyle.dialogMaterial(),
       primaryButton: {
         value: '取消', action: (): void => {
         }
       },
       secondaryButton: {
+        fontColor: Palette.warning,
         value: '删除', action: (): void => {
-          DownloadStore.deleteDownload(item);
-          this.getUIContext().getRouter().back();
+          if (!DownloadStore.deleteDownload(item)) {
+            this.say('文件未能删除，记录已保留，请重试');
+            return;
+          }
+          // deleteDownload 会同步通知 refresh；候选图可能也已被其他操作移除，逐个跳过。
+          const neighbor: string | undefined = nextIds.find((id: string): boolean => this.order.includes(id))
+            ?? previousIds.find((id: string): boolean => this.order.includes(id));
+          if (neighbor === undefined) {
+            this.close();
+            return;
+          }
+          this.index = this.order.indexOf(neighbor);
+          this.refresh();
         }
       }
     });
@@ -316,18 +356,27 @@ struct Viewer {
       if (this.missing) {
         this.missingState()
       } else {
-        ImageViewer({
+        ImageViewer({ panels: this.previewPanels, foreground: this.visible && PREVIEW_LIFECYCLE.foreground,
           slides: this.slides,
           index: this.index,
           // V2 没有 @Link：滑动换图由子组件回传，这里改自己的状态再传下去（单向数据流）。
           onIndexChange: (next: number): void => {
             this.index = next;
+            this.refresh();
           },
           renameAllowed: this.renameAllowed,
           actionable: this.local,
           hint: this.localHint(),
           onClose: (): void => {
             this.close();
+          },
+          onEdit: (id: string): void => {
+            this.visible = false;
+            this.getUIContext().getRouter().pushUrl({ url: 'pages/ImageEditor', params: { id: id } })
+              .catch((error: BusinessError): void => {
+                this.visible = true;
+                this.toast.show('无法打开编辑页：' + error.message);
+              });
           },
           onRename: (): void => {
             this.renameDraft = this.item()?.name ?? '';
@@ -341,6 +390,7 @@ struct Viewer {
             if (item.receipt.target === 'gallery' && item.receipt.status === 'saved') {
               this.getUIContext().showAlertDialog({ title: '再保存一份',
                 message: '这张图片此前已存入系统相册，是否再保存一份？',
+                systemMaterial: SheetStyle.dialogMaterial(),
                 primaryButton: { value: '取消', action: (): void => {} },
                 secondaryButton: { value: '再保存', action: (): void => { DownloadStore.saveToGallery(item, true); } }
               });
@@ -349,6 +399,7 @@ struct Viewer {
             if (item.receipt.status === 'interrupted') {
               this.getUIContext().showAlertDialog({ title: '再次另存',
                 message: '上次保存结果未确认。请先检查目标位置，避免产生重复副本。',
+                systemMaterial: SheetStyle.dialogMaterial(),
                 primaryButton: { value: '取消', action: (): void => {} },
                 secondaryButton: { value: '仍要另存', action: (): void => { DownloadStore.saveToGallery(item); } }
               });
@@ -395,20 +446,16 @@ struct Viewer {
         .hitTestBehavior(HitTestMode.None)
       }
 
-      if (this.renaming) {
-        RenameDialog({
-          heading: '重命名图片',
-          initial: this.renameDraft,
-          onSave: (name: string): void => {
-            this.applyRename(name);
-          },
-          onClose: (): void => {
-            this.renaming = false;
-          }
-        })
-      }
     }
     .width('100%')
     .height('100%')
+    .bindSheet(this.renaming, this.renameContent(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      showClose: false,
+      backgroundColor: Color.Transparent,
+      systemMaterial: this.sheetMaterial,
+      onDisappear: (): void => { this.renaming = false; }
+    })
   }
 }

@@ -48,6 +48,9 @@ export class DownloadItem {
   @Trace receipt: SaveReceipt = new SaveReceipt();
   @Trace recoveryMessage: string = '';
   @Trace id: string = '';
+  /** 'download' | 'edited' | 'extracted'; local copies have an empty download URL. */
+  @Trace origin: string = 'download';
+  @Trace originalId: string = '';
   @Trace url: string = '';
   @Trace name: string = '';
   @Trace userNamed: boolean = false;
@@ -95,6 +98,7 @@ export class ZipItem {
   @Trace name: string = '';
   @Trace path: string = '';
   @Trace batchId: string = '';
+  @Trace imported: boolean = false;
   @Trace imageCount: number = 0;
   @Trace failedCount: number = 0;
   @Trace size: number = 0;
