@@ -1,3 +1,4 @@
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { PillButton, SettingSelect } from './Widgets';
@@ -48,7 +49,7 @@ export struct LibraryFilterSheet {
   build() {
     Column({ space: Space.s16 }) {
       Row({ space: Space.s8 }) {
-        Text('排序').fontSize(Font.body).fontColor(Palette.fontPrimary).layoutWeight(1)
+        Text('排序').fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
         SettingSelect({
           options: SORT_OPTIONS,
           selectedIndex: this.sortFieldIndex(),
@@ -61,7 +62,7 @@ export struct LibraryFilterSheet {
 
       if (!this.library.isZips()) {
         Row({ space: Space.s8 }) {
-          Text('格式').fontSize(Font.body).fontColor(Palette.fontPrimary).layoutWeight(1)
+          Text('格式').fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
           SettingSelect({
             options: FORMAT_OPTIONS,
             selectedIndex: FORMAT_IDS.indexOf(this.library.formatFilter),
@@ -70,7 +71,7 @@ export struct LibraryFilterSheet {
           })
         }.width('100%')
 
-        Text('搜索范围').fontSize(Font.body).fontColor(Palette.fontPrimary)
+        Text('搜索范围').fontSize(Font.body).fontColor(TransparentGlass.foreground())
         Row({ space: Space.s6 }) {
           ForEach(SEARCH_SCOPES, (scope: string, index: number) => {
             PillButton({ label: SEARCH_LABELS[index], small: true,
@@ -80,11 +81,11 @@ export struct LibraryFilterSheet {
         }.width('100%')
 
         TextInput({ placeholder: '按来源网页搜索', text: this.library.sourceQuery })
-          .fontSize(Font.aux).fontColor(Palette.fontPrimary)
+          .fontSize(Font.aux).fontColor(TransparentGlass.foreground())
           .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
           .onChange((value: string): void => { this.library.sourceQuery = value; })
         TextInput({ placeholder: '按标签筛选', text: this.library.tagFilter })
-          .fontSize(Font.aux).fontColor(Palette.fontPrimary)
+          .fontSize(Font.aux).fontColor(TransparentGlass.foreground())
           .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
           .onChange((value: string): void => { this.library.tagFilter = value; })
 

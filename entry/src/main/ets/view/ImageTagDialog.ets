@@ -1,3 +1,4 @@
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { LibraryText } from '../util/LibraryText';
 import { Font, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
@@ -36,16 +37,16 @@ export struct ImageTagDialog {
   build() {
     Column({ space: Space.s12 }) {
       Text(this.single ? '编辑图片标签' : '批量编辑标签')
-        .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+        .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
       Text(this.single ? '用逗号分隔标签，删除输入中的标签即移除。'
         : '可同时添加和移除标签，不会删除图片。')
-        .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
       TextInput({ placeholder: this.single ? '输入标签' : '添加标签', text: this.addDraft })
-        .fontSize(Font.body).fontColor(Palette.fontPrimary)
+        .fontSize(Font.body).fontColor(TransparentGlass.foreground())
         .onChange((value: string): void => { this.addDraft = value; })
       if (!this.single) {
         TextInput({ placeholder: '移除标签（可留空）', text: this.removeDraft })
-          .fontSize(Font.body).fontColor(Palette.fontPrimary)
+          .fontSize(Font.body).fontColor(TransparentGlass.foreground())
           .onChange((value: string): void => { this.removeDraft = value; })
       }
       Row({ space: Space.s8 }) {

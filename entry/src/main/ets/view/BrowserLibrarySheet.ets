@@ -1,3 +1,4 @@
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { BrowserEntry } from '../service/BrowserCollection';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { Font, Layout, Palette, Space } from '../theme/Tokens';
@@ -18,8 +19,8 @@ export struct BrowserLibrarySheet {
     Column({ space: Space.s12 }) {
       Row({ space: Space.s8 }) {
         Text('收藏与历史').fontSize(Font.body).fontWeight(FontWeight.Bold)
-          .fontColor(Palette.fontPrimary).layoutWeight(1)
-        IconButton({ glyph: 'close', diameter: 36, plain: true,
+          .fontColor(TransparentGlass.foreground()).layoutWeight(1)
+        IconButton({ glyph: 'close', diameter: 36, plain: true, tone: TransparentGlass.foreground(),
           accessibilityLabel: '关闭收藏与历史', onAction: this.onClose })
       }.width('100%')
 
@@ -34,7 +35,7 @@ export struct BrowserLibrarySheet {
 
       Row() {
         Text(this.discover.browserPanel === 'bookmarks' ? '收藏的网址' : '浏览记录')
-          .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+          .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
           .layoutWeight(1)
         if (this.discover.browserPanel === 'history' && this.discover.history.length > 0) {
           PillButton({ label: '清空历史', variant: 'danger', small: true,
@@ -45,15 +46,15 @@ export struct BrowserLibrarySheet {
       Scroll() {
         if (this.entries().length === 0) {
           Text(this.discover.browserPanel === 'bookmarks' ? '还没有收藏网页' : '还没有浏览记录')
-            .fontSize(Font.caption).fontColor(Palette.fontTertiary).padding({ top: Space.s8 })
+            .fontSize(Font.caption).fontColor(TransparentGlass.secondary()).padding({ top: Space.s8 })
         } else {
           Column() {
             ForEach(this.entries(), (item: BrowserEntry) => {
               Row({ space: Space.s8 }) {
                 Column({ space: Space.s4 }) {
-                  Text(item.title).fontSize(Font.body).fontColor(Palette.fontPrimary)
+                  Text(item.title).fontSize(Font.body).fontColor(TransparentGlass.foreground())
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(item.url).fontSize(Font.caption).fontColor(Palette.fontTertiary)
+                  Text(item.url).fontSize(Font.caption).fontColor(TransparentGlass.secondary())
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                 }
                 .alignItems(HorizontalAlign.Start).layoutWeight(1)

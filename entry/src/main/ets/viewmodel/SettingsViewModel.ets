@@ -6,7 +6,7 @@ import { UiPort } from '../service/UiPort';
 import { formatBytes } from '../theme/Tokens';
 import {
   ChoiceOption, DOWNLOAD_LOCATIONS, EDIT_QUALITIES, EditQualityHints, LocationHints,
-  MATERIAL_LEVELS, MATERIAL_TYPES, PICTURE_QUALITIES, QualityHints, THEME_CHOICES
+  MATERIAL_TYPES, PICTURE_QUALITIES, QualityHints, THEME_CHOICES
 } from '../model/SettingsOptions';
 
 /**
@@ -27,8 +27,6 @@ export class SettingsViewModel {
 
   @Trace themeMode: string = 'system';
   @Trace materialType: string = 'adaptive';
-  /** 沉浸光感材质等级；与 DownloadStore.materialLevel 同步。 */
-  @Trace materialLevel: string = 'adaptive';
   @Trace lightEffect: boolean = true;
   /** 预览是否按 HDR 解码/显示；与 DownloadStore.hdrEnabled 同步。 */
   @Trace hdrEnabled: boolean = true;
@@ -59,7 +57,6 @@ export class SettingsViewModel {
   sync(): void {
     this.themeMode = DownloadStore.themeMode;
     this.materialType = DownloadStore.materialType;
-    this.materialLevel = DownloadStore.materialLevel;
     this.lightEffect = DownloadStore.lightEffect;
     this.hdrEnabled = DownloadStore.hdrEnabled;
     this.wifiOnly = DownloadStore.wifiOnly;
@@ -136,40 +133,18 @@ export class SettingsViewModel {
     DownloadStore.setMaterialType(type.id);
     this.sync();
     if (type.id === 'immersive' && !MaterialSupport.immersiveSupported()) {
-      this.ui.say('本机不支持沉浸式材质，将回退为静态模糊');
+      this.ui.say('本机不支持沉浸式材质，将回退为普通样式');
     }
   }
 
-  /**
-   * 切换沉浸光感材质等级。
-   *
-   * 文档给的挑选规则是：先查设备支持的材质能力，支持沉浸式材质才建议精美 / 轻柔，
-   * 否则用流畅更省性能、少发热。这里不做静默改写，只提示一次，选择权留给用户。
-   */
-  pickMaterialLevel(index: number): void {
-    if (index < 0 || index >= MATERIAL_LEVELS.size()) {
-      return;
-    }
-    const level: ChoiceOption = MATERIAL_LEVELS.at(index);
-    DownloadStore.setMaterialLevel(level.id);
-    this.sync();
-    if ((level.id === 'exquisite' || level.id === 'gentle') && !MaterialSupport.immersiveSupported()) {
-      this.ui.say('本机不支持沉浸式材质，建议改为流畅');
-      return;
-    }
-    if (level.id === 'adaptive') {
-      this.ui.say('已跟随系统 · 本机为' + MaterialSupport.deviceLevelLabel());
-    }
+  /** API 26 材质等级为设备只读能力，不能用用户偏好覆盖。 */
+  deviceMaterialLevel(): string {
+    return MaterialSupport.immersiveSupported() ? MaterialSupport.deviceLevelLabel() : '不支持';
   }
 
   /** 「材质类型」下拉的当前下标。 */
   materialTypeIndex(): number {
     return MATERIAL_TYPES.index(this.materialType);
-  }
-
-  /** 「沉浸光感材质」下拉的当前下标。 */
-  materialLevelIndex(): number {
-    return MATERIAL_LEVELS.index(this.materialLevel);
   }
 
   // ------------------------------------------------------------------ 下载图片质量

@@ -5,13 +5,13 @@ import { uiMaterial } from '@kit.ArkUI';
  *
  * `uiMaterial` 的 `MaterialLevel` 与 `hdsMaterial` 的同名枚举是一一对应的三档
  * （精致 / 均衡 / 轻盈 vs 精美 / 轻柔 / 流畅）。界面下拉里用的是后一套名字，
- * 用户选「自适应 = 跟随系统」时得能对上号，所以这里统一成下拉里的叫法。
+ * 设备等级只读展示时统一使用后一套中文名称；不提供覆盖设备算力的选项。
  *
  * 两个方法都可能抛：没有对应 syscap 的设备上直接调会抛异常，所以都要 try 包住并给保守值
  * （不支持 / 自适应），不能让它冲崩页面。
  */
 export class MaterialSupport {
-  /** 本机是否支持沉浸式材质；不支持时界面应提示会回退为静态模糊。 */
+  /** 本机是否支持沉浸式材质；不支持时界面回退为普通不透明背景。 */
   static immersiveSupported(): boolean {
     try {
       return uiMaterial.isImmersiveMaterialSupported();

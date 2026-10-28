@@ -2,7 +2,7 @@ import { TasksViewModel } from '../../viewmodel/TasksViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import {
-  DOWNLOAD_LOCATIONS, EDIT_QUALITIES, MATERIAL_LEVELS, MATERIAL_TYPES, PICTURE_QUALITIES, THEME_CHOICES
+  DOWNLOAD_LOCATIONS, EDIT_QUALITIES, MATERIAL_TYPES, PICTURE_QUALITIES, THEME_CHOICES
 } from '../../model/SettingsOptions';
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
@@ -132,7 +132,8 @@ export struct SettingsScreen {
 
                 ListRow({
                   glyph: 'layers',
-                  heading: '材质类型'
+                  heading: '材质类型',
+                  aux: '玻璃固定通透赋色，不随深浅色调色'
                 }) {
                   // 和下面「沉浸光感材质」同一个控件：三档用分段控件会挤，
                   // 而且系统设置里这类「当前值 + 下拉」本来就是 Select 的形态。
@@ -150,16 +151,11 @@ export struct SettingsScreen {
 
                 ListRow({
                   glyph: 'sliders',
-                  heading: '沉浸光感材质'
+                  heading: '设备材质等级',
+                  aux: '由设备算力决定'
                 }) {
-                  SettingSelect({
-                    options: MATERIAL_LEVELS.selectOptions(),
-                    selectedIndex: this.settings.materialLevelIndex(),
-                    label: MATERIAL_LEVELS.label(this.settings.materialLevel),
-                    onPick: (index: number): void => {
-                      this.settings.pickMaterialLevel(index);
-                    }
-                  })
+                  Text(this.settings.deviceMaterialLevel())
+                    .fontSize(Font.aux).fontColor(Palette.fontSecondary)
                 }
               }
               .width('100%')

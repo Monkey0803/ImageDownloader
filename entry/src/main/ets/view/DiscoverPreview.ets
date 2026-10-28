@@ -21,7 +21,7 @@ import { IconButton, PictureSelectionButton } from './Widgets';
 @ComponentV2
 export struct DiscoverPreview {
   private orientation: PreviewOrientation = new PreviewOrientation();
-  private sheetMaterial: SystemUiMaterial = SheetStyle.dialogMaterial();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.dialogMaterial();
   @Require @Param panels: PreviewOverlayState;
   @Param foreground: boolean = true;
   @Require @Param discover: DiscoverViewModel;
@@ -230,6 +230,14 @@ export struct DiscoverPreview {
     }
   }
 
+  private detailsMaterialAllowed(): boolean {
+    const item: PictureItem | undefined = this.current();
+    if (item === undefined || item.kind === 'livephoto') { return false; }
+    // 远程预览可能尚未获得真实动图元数据；仅已落盘且确认为静态的图片启用材质。
+    const asset: PreviewAsset = this.asset(item);
+    return asset.downloaded && !asset.animated;
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Swiper() {
@@ -355,8 +363,8 @@ export struct DiscoverPreview {
       scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,
       showClose: false,
-      backgroundColor: Color.Transparent,
-      systemMaterial: this.sheetMaterial,
+      backgroundColor: this.detailsMaterialAllowed() ? SheetStyle.background() : Palette.card,
+      systemMaterial: this.detailsMaterialAllowed() ? this.sheetMaterial : undefined,
       onDisappear: (): void => { this.panels.tools = false; }
     })
   }

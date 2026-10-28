@@ -8,6 +8,7 @@ import { LibraryImageReader } from '../service/LibraryImageReader';
 import { Font, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { SheetStyle } from '../theme/SheetStyle';
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { HdsColorPicker } from '@kit.UIDesignKit';
 import { ImageEditorViewModel } from '../viewmodel/ImageEditorViewModel';
 import { ImageEditorCanvas } from '../view/ImageEditorCanvas';
@@ -44,7 +45,7 @@ struct ImageEditor {
   @Local private penWidth: number = 4;
   @Local private notice: string = '';
   private leaving: boolean = false;
-  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   aboutToAppear(): void {
     const port: EditorRuntimePort = new EditorRuntimePort();
@@ -107,6 +108,7 @@ struct ImageEditor {
     }
     this.getUIContext().showAlertDialog({
       title: '放弃编辑？', message: '当前修改尚未保存。',
+      backgroundColor: SheetStyle.background(),
       systemMaterial: SheetStyle.dialogMaterial(),
       primaryButton: { value: '继续编辑', action: (): void => {} },
       secondaryButton: { value: '放弃修改', action: (): void => {
@@ -164,6 +166,7 @@ struct ImageEditor {
       range: widths,
       selected: this.penWidth - 1,
       canLoop: false,
+      backgroundColor: SheetStyle.background(),
       systemMaterial: SheetStyle.dialogMaterial(),
       onAccept: (result: TextPickerResult): void => {
         const index: number = Array.isArray(result.index) ? result.index[0] : result.index;
@@ -175,13 +178,13 @@ struct ImageEditor {
   @Builder
   private colorPickerContent() {
     Column({ space: Space.s12 }) {
-      Text('自定义颜色').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+      Text('自定义颜色').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
         .width('100%')
       Row({ space: Space.s12 }) {
         HdsColorPicker({ initialColor: this.color,
           onColorSelected: (value: string): void => { this.colorDraft = value; } })
           .width(44).height(44)
-        Text('点按色环选择颜色').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        Text('点按色环选择颜色').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           .layoutWeight(1)
         Circle().width(28).height(28).fill(this.colorDraft)
           .accessibilityText('待应用颜色')
@@ -299,7 +302,7 @@ struct ImageEditor {
       height: SheetSize.FIT_CONTENT,
       dragBar: true,
       showClose: false,
-      backgroundColor: Color.Transparent,
+      backgroundColor: SheetStyle.background(),
       systemMaterial: this.sheetMaterial,
       onDisappear: (): void => { this.colorPickerOpen = false; }
     })

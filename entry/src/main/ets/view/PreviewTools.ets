@@ -10,6 +10,7 @@ import { DownloadItem } from '../model/Models';
 import { Font, formatBytes, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { SheetStyle } from '../theme/SheetStyle';
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { IconButton, PillButton } from './Widgets';
 import { ImageTagDialog } from './ImageTagDialog';
 
@@ -31,7 +32,7 @@ export struct PreviewTools {
   @Local private tagDialogOpen: boolean = false;
   @Local private activeTab: string = 'details';
   @Local private noticeGroup: string = 'details';
-  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
   private generation: number = 0;
   private alive: boolean = false;
   private superResolutionToken: AnalysisToken | undefined = undefined;
@@ -213,14 +214,14 @@ export struct PreviewTools {
 
   @Builder
   private sectionTitle(label: string) {
-    Text(label).fontSize(Font.aux).fontWeight(FontWeight.Bold).fontColor(Palette.fontSecondary)
+    Text(label).fontSize(Font.aux).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.secondary())
       .width('100%')
   }
 
   @Builder
   private metadataRow(label: string, key: string) {
     Row({ space: Space.s8 }) {
-      Text(label).fontSize(Font.aux).fontColor(Palette.fontSecondary).width(72)
+      Text(label).fontSize(Font.aux).fontColor(TransparentGlass.secondary()).width(72)
       Text(key === 'dimensions' ? this.dimensions() :
         key === 'format' ? (this.metadata.format || '未知') :
         key === 'range' ? (this.metadata.width > 0
@@ -229,7 +230,7 @@ export struct PreviewTools {
           ? formatBytes(this.metadata.bytes || this.asset.bytes) : '未知') :
         (this.asset.downloadedAt > 0 ? new Date(this.asset.downloadedAt).toLocaleString()
           : this.asset.downloaded ? '未记录' : '尚未下载'))
-        .fontSize(Font.aux).fontColor(Palette.fontPrimary).layoutWeight(1)
+        .fontSize(Font.aux).fontColor(TransparentGlass.foreground()).layoutWeight(1)
         .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
     }.width('100%').alignItems(VerticalAlign.Top)
   }
@@ -238,7 +239,7 @@ export struct PreviewTools {
   private linkRow(label: string, value: string, sourcePage: boolean) {
     Column({ space: Space.s4 }) {
       Row() {
-        Text(label).fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
+        Text(label).fontSize(Font.aux).fontColor(TransparentGlass.secondary()).layoutWeight(1)
         IconButton({ glyph: 'copy', tone: Palette.brand, plain: true, diameter: 36,
           accessibilityLabel: '复制' + label, onAction: (): void => { this.copy(value); } })
         if (sourcePage && ImageTools.link(value).length > 0) {
@@ -246,7 +247,7 @@ export struct PreviewTools {
             accessibilityLabel: '打开来源网页', onAction: (): void => { this.open(value); } })
         }
       }.width('100%')
-      Text(value).fontSize(Font.caption).fontColor(Palette.fontPrimary)
+      Text(value).fontSize(Font.caption).fontColor(TransparentGlass.foreground())
         .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
         .copyOption(CopyOptions.LocalDevice).width('100%')
     }.width('100%').alignItems(HorizontalAlign.Start)
@@ -255,7 +256,7 @@ export struct PreviewTools {
   @Builder
   private status(group: string) {
     if (this.noticeGroup === group && this.notice.length > 0) {
-      Text(this.notice).fontSize(Font.caption).fontColor(Palette.fontPrimary).width('100%')
+      Text(this.notice).fontSize(Font.caption).fontColor(TransparentGlass.foreground()).width('100%')
     }
   }
 
@@ -283,7 +284,7 @@ export struct PreviewTools {
           this.sectionTitle('文件信息')
           Row({ space: Space.s8 }) {
             Text(this.asset.name.length > 0 ? this.asset.name : '未命名图片')
-              .fontSize(Font.body).fontWeight(FontWeight.Medium).fontColor(Palette.fontPrimary)
+              .fontSize(Font.body).fontWeight(FontWeight.Medium).fontColor(TransparentGlass.foreground())
               .layoutWeight(1).maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
               .copyOption(CopyOptions.LocalDevice)
             if (this.asset.name.length > 0) {
@@ -298,7 +299,7 @@ export struct PreviewTools {
           this.metadataRow('下载时间', 'downloadedAt')
           if (MediaFormat.isLivepicStill(this.asset.url)) {
             Text('实况照片：网页只提供静图，动态部分不可用')
-              .fontSize(Font.caption).fontColor(Palette.fontTertiary).width('100%')
+              .fontSize(Font.caption).fontColor(TransparentGlass.secondary()).width('100%')
           }
         }.width('100%').alignItems(HorizontalAlign.Start)
         if (this.asset.url.length > 0 || this.asset.sourcePage.length > 0) {
@@ -329,9 +330,9 @@ export struct PreviewTools {
                 onAction: (): void => { this.tagDialogOpen = true; } })
             }
             Text(this.tags.length > 0 ? this.tags.join('、') : '尚无标签')
-              .fontSize(Font.caption).fontColor(Palette.fontSecondary).width('100%')
+              .fontSize(Font.caption).fontColor(TransparentGlass.secondary()).width('100%')
           } else {
-            Text('下载后可收藏和添加标签').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Text('下载后可收藏和添加标签').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           }
           this.status('manage')
         }.width('100%').alignItems(HorizontalAlign.Start)
@@ -356,11 +357,11 @@ export struct PreviewTools {
             }.layoutWeight(1)
           }.width('100%')
           if (this.asset.libraryId.length === 0) {
-            Text('下载后可编辑并生成超分副本').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Text('下载后可编辑并生成超分副本').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           } else if (!this.localReady()) {
-            Text('本地图片不可读，重新下载后可使用').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Text('本地图片不可读，重新下载后可使用').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           } else if (!ImageSuperResolution.available()) {
-            Text(ImageSuperResolution.unavailableHint()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Text(ImageSuperResolution.unavailableHint()).fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           }
           if (this.busy && this.noticeGroup === 'edit') {
             LoadingProgress().width(28).height(28).color(Palette.brand)
@@ -389,21 +390,21 @@ export struct PreviewTools {
               onAction: (): void => { this.recognize(false); } })
           }
           if (this.asset.localPath.length === 0) {
-            Text('加载预览或下载图片后可使用识别工具').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Text('加载预览或下载图片后可使用识别工具').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           }
           if (this.busy && this.noticeGroup === 'recognize') {
             LoadingProgress().width(28).height(28).color(Palette.brand)
           }
           this.status('recognize')
           if (this.recognizedText.length > 0) {
-            Text(this.recognizedText).fontSize(Font.body).fontColor(Palette.fontPrimary)
+            Text(this.recognizedText).fontSize(Font.body).fontColor(TransparentGlass.foreground())
               .copyOption(CopyOptions.LocalDevice).width('100%')
             PillButton({ label: '复制全部文字', small: true, variant: 'tonal',
               onAction: (): void => { this.copy(this.recognizedText, 'recognize'); } })
           }
           ForEach(this.codes, (value: string) => {
             Column({ space: Space.s8 }) {
-              Text(value).fontSize(Font.caption).fontColor(Palette.fontPrimary)
+              Text(value).fontSize(Font.caption).fontColor(TransparentGlass.foreground())
                 .copyOption(CopyOptions.LocalDevice).width('100%')
               Row({ space: Space.s8 }) {
                 PillButton({ label: '复制内容', small: true, variant: 'tonal',
@@ -430,9 +431,9 @@ export struct PreviewTools {
   build() {
     Column({ space: Space.s12 }) {
       Row() {
-        Text('图片详情').fontSize(Font.body).fontColor(Palette.fontPrimary)
+        Text('图片详情').fontSize(Font.body).fontColor(TransparentGlass.foreground())
           .fontWeight(FontWeight.Bold).layoutWeight(1)
-        IconButton({ glyph: 'close', tone: Palette.fontPrimary, plain: true, diameter: 36,
+        IconButton({ glyph: 'close', tone: TransparentGlass.foreground(), plain: true, diameter: 36,
           accessibilityLabel: '关闭图片详情', onAction: this.onClose })
       }.width('100%')
       Row({ space: Space.s8 }) {
@@ -455,7 +456,7 @@ export struct PreviewTools {
         height: SheetSize.FIT_CONTENT,
         dragBar: true,
         showClose: false,
-        backgroundColor: Color.Transparent,
+        backgroundColor: SheetStyle.background(),
         systemMaterial: this.sheetMaterial,
         onDisappear: (): void => { this.tagDialogOpen = false; }
       })

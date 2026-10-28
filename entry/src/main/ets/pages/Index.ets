@@ -75,7 +75,7 @@ struct Index {
   @Local private previewPanels: PreviewOverlayState = new PreviewOverlayState();
   @Local private previewOpen: boolean = false;
   @Local private notice: string = '';
-  private browserSheetMaterial: SystemUiMaterial = SheetStyle.material();
+  private browserSheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   /**
    * 商店的刷新回调。
@@ -245,6 +245,7 @@ struct Index {
       this.getUIContext().showAlertDialog({
         title: title,
         message: message,
+        backgroundColor: SheetStyle.background(),
         systemMaterial: SheetStyle.dialogMaterial(),
         primaryButton: {
           value: '取消', action: (): void => {
@@ -485,6 +486,9 @@ struct Index {
       if (this.browserOpen || this.currentTab !== TAB_DISCOVER) {
         TabBar({
           active: this.currentTab,
+          // 网页可能含视频/动画，浏览首页底栏用不透明背景，避免固定叠加材质滤镜。
+          immersiveEnabled: this.currentTab !== TAB_DISCOVER
+            && this.settings.lightEffect && this.settings.materialType !== 'none',
           badge: this.tasks.running,
           onSelect: (index: number): void => {
             if (index !== TAB_DISCOVER) { this.discover.browserPanel = ''; this.discover.cancelScan(); }
@@ -545,8 +549,9 @@ struct Index {
         height: this.library.renameId.length > 0 ? SheetSize.FIT_CONTENT : this.browserSheetHeight(),
         dragBar: true,
         showClose: false,
-        backgroundColor: Color.Transparent,
-        systemMaterial: this.browserSheetMaterial,
+        // ArkWeb 可能播放视频/动画，收藏历史面板用不透明背景。
+        backgroundColor: this.library.renameId.length > 0 ? SheetStyle.background() : Palette.card,
+        systemMaterial: this.library.renameId.length > 0 ? this.browserSheetMaterial : undefined,
         onDisappear: (): void => {
           this.discover.browserPanel = '';
           this.library.cancelRename();

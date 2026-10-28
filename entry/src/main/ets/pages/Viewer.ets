@@ -47,7 +47,7 @@ struct Viewer {
    * `show()` 一律空操作，所以这里不需要再自己记一个 destroyed 标志。
    */
   private toast: ToastLatch = new ToastLatch();
-  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
   /** 商店的刷新回调；箭头函数属性，注册和注销用的是同一个引用。 */
   private listener: () => void = (): void => {
     this.refresh();
@@ -288,6 +288,7 @@ struct Viewer {
     this.getUIContext().showAlertDialog({
       title: '删除图片',
       message: '将同时删除应用内文件和下载记录，已导出的副本不受影响。',
+      backgroundColor: SheetStyle.background(),
       systemMaterial: SheetStyle.dialogMaterial(),
       primaryButton: {
         value: '取消', action: (): void => {
@@ -390,6 +391,7 @@ struct Viewer {
             if (item.receipt.target === 'gallery' && item.receipt.status === 'saved') {
               this.getUIContext().showAlertDialog({ title: '再保存一份',
                 message: '这张图片此前已存入系统相册，是否再保存一份？',
+                backgroundColor: SheetStyle.background(),
                 systemMaterial: SheetStyle.dialogMaterial(),
                 primaryButton: { value: '取消', action: (): void => {} },
                 secondaryButton: { value: '再保存', action: (): void => { DownloadStore.saveToGallery(item, true); } }
@@ -399,6 +401,7 @@ struct Viewer {
             if (item.receipt.status === 'interrupted') {
               this.getUIContext().showAlertDialog({ title: '再次另存',
                 message: '上次保存结果未确认。请先检查目标位置，避免产生重复副本。',
+                backgroundColor: SheetStyle.background(),
                 systemMaterial: SheetStyle.dialogMaterial(),
                 primaryButton: { value: '取消', action: (): void => {} },
                 secondaryButton: { value: '仍要另存', action: (): void => { DownloadStore.saveToGallery(item); } }
@@ -453,7 +456,7 @@ struct Viewer {
       height: SheetSize.FIT_CONTENT,
       dragBar: true,
       showClose: false,
-      backgroundColor: Color.Transparent,
+      backgroundColor: SheetStyle.background(),
       systemMaterial: this.sheetMaterial,
       onDisappear: (): void => { this.renaming = false; }
     })

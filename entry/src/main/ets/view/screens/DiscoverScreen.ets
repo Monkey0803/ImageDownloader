@@ -1,7 +1,6 @@
 import { PictureSelectionButton } from '../Widgets';
 import { PictureItem } from '../../model/Models';
-import { BlurStrategy, hdsMaterial, HdsNavigation, HdsNavigationTitleMode, ScrollEffectOptions, ScrollEffectType, SystemMaterialParams, TitleBarStyleOptions } from '@kit.UIDesignKit';
-import { MaterialSupport } from '../../service/MaterialSupport';
+import { TransparentGlass } from '../../theme/TransparentGlass';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { BatchLinkRow, BatchLinkStatus } from '../../service/BatchLinks';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
@@ -92,7 +91,7 @@ export struct DiscoverScreen {
         this.addressEntry()
       }.layoutWeight(1)
       IconButton({ glyph: this.discover.isBookmarked() ? 'bookmarkFill' : 'bookmark',
-        glyphSize: 20, diameter: 36, plain: true,
+        glyphSize: 20, diameter: 36, plain: true, tone: TransparentGlass.foreground(this.glassEnabled()),
         accessibilityLabel: this.discover.isBookmarked() ? '取消收藏当前网页' : '收藏当前网页',
         onAction: (): void => { this.discover.toggleBookmark(); } })
     }
@@ -104,8 +103,10 @@ export struct DiscoverScreen {
   private resultsTitleBar() {
     Row({ space: Space.s8 }) {
       IconButton({ glyph: 'chevronRight', glyphSize: 18, diameter: 36, plain: true,
+        tone: TransparentGlass.foreground(this.glassEnabled()),
         accessibilityLabel: '返回浏览扫描', onAction: this.onOpenBrowser }).rotate({ angle: 180 })
-      Text('查看图片').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+      Text('查看图片').fontSize(Font.body).fontWeight(FontWeight.Bold)
+        .fontColor(TransparentGlass.foreground(this.glassEnabled()))
     }.width('100%').padding({ left: Layout.pagePad, right: Layout.pagePad })
   }
 
@@ -274,57 +275,8 @@ export struct DiscoverScreen {
     return Palette.alert;
   }
 
-  /**
-   * 首页标题栏的「沉浸光感」样式：标题栏材质跟着下方滚动的内容透出光感，并随滚动渐进模糊。
-   *
-   * 门控与图片选择材质一致 —— 设备不支持、关掉「沉浸光感」开关，
-   * 或「材质类型」选了「无材质效果」时返回 undefined，标题栏回退成系统默认（不强加模糊）。
-   * 材质类型与等级都读设置里用户已选的那一档，和图片详情用的是同一组开关。
-   */
-  private titleBarStyle(): TitleBarStyleOptions | undefined {
-    if (!MaterialSupport.immersiveSupported()) {
-      return undefined;
-    }
-    if (!this.settings.lightEffect || this.settings.materialType === 'none') {
-      return undefined;
-    }
-    const scrollEffect: ScrollEffectOptions = {
-      enableScrollEffect: true,
-      scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR
-    };
-    const material: SystemMaterialParams = {
-      materialType: this.materialTypeEnum(),
-      materialLevel: this.materialLevelEnum()
-    };
-    const style: TitleBarStyleOptions = {
-      blurStrategy: BlurStrategy.ADAPTIVE,
-      scrollEffectOpts: scrollEffect,
-      systemMaterialEffect: material
-    };
-    return style;
-  }
-
-  /** 设置里的材质类型 id 翻成 hdsMaterial 枚举；'adaptive' 文档上即按沉浸式材质生效。 */
-  private materialTypeEnum(): hdsMaterial.MaterialType {
-    if (this.settings.materialType === 'immersive') {
-      return hdsMaterial.MaterialType.IMMERSIVE;
-    }
-    return hdsMaterial.MaterialType.ADAPTIVE;
-  }
-
-  /** 设置里的材质等级 id 翻成 hdsMaterial 枚举；未知值回退为跟随系统。 */
-  private materialLevelEnum(): hdsMaterial.MaterialLevel {
-    const id: string = this.settings.materialLevel;
-    if (id === 'exquisite') {
-      return hdsMaterial.MaterialLevel.EXQUISITE;
-    }
-    if (id === 'gentle') {
-      return hdsMaterial.MaterialLevel.GENTLE;
-    }
-    if (id === 'smooth') {
-      return hdsMaterial.MaterialLevel.SMOOTH;
-    }
-    return hdsMaterial.MaterialLevel.ADAPTIVE;
+  private glassEnabled(): boolean {
+    return this.settings.lightEffect && this.settings.materialType !== 'none';
   }
 
   @Builder
@@ -428,7 +380,6 @@ export struct DiscoverScreen {
                 SelectTile({
                   picture: cell,
                   index: rowIndex * 3 + colIndex,
-                  immersiveEnabled: this.settings.lightEffect && this.settings.materialType !== 'none',
                   onOpen: (uid: string): void => { this.onOpenPreview(uid); }
                 })
                 PictureSelectionButton({ selected: cell.selected, diameter: 36,
@@ -515,7 +466,7 @@ export struct DiscoverScreen {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      HdsNavigation() {
+      Navigation() {
         Scroll(this.discover.scrollController()) {
         Column({ space: Space.s16 }) {
           Column({ space: Space.s10 }) {
@@ -585,10 +536,11 @@ export struct DiscoverScreen {
         this.discover.markScrolled();
       })
       }
-      .titleBar({ enableComponentSafeArea: true, style: this.titleBarStyle(), content: {
-        stackBuilder: (): void => { this.resultsTitleBar(); }
-      } })
-      .titleMode(HdsNavigationTitleMode.MINI)
+      .title(this.resultsTitleBar(), {
+        backgroundColor: TransparentGlass.background(this.glassEnabled()),
+        systemMaterial: TransparentGlass.material(this.glassEnabled())
+      })
+      .titleMode(NavigationTitleMode.Mini)
       .hideBackButton(true)
       .mode(NavigationMode.Stack)
       .width('100%')
@@ -596,13 +548,14 @@ export struct DiscoverScreen {
       .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.None : Visibility.Visible)
 
-      HdsNavigation() {
+      Navigation() {
         this.browserView()
       }
-      .titleBar({ enableComponentSafeArea: true, style: this.titleBarStyle(), content: {
-        stackBuilder: (): void => { this.addressTitleBar(); }
-      } })
-      .titleMode(HdsNavigationTitleMode.MINI)
+      .title(this.addressTitleBar(), {
+        backgroundColor: TransparentGlass.background(this.glassEnabled()),
+        systemMaterial: TransparentGlass.material(this.glassEnabled())
+      })
+      .titleMode(NavigationTitleMode.Mini)
       .hideBackButton(true)
       .mode(NavigationMode.Stack)
       .width('100%')

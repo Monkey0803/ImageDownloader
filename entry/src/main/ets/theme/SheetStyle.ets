@@ -1,13 +1,17 @@
-import { uiMaterial } from '@kit.ArkUI';
+import { TransparentGlass } from './TransparentGlass';
 
 /** 为应用内系统半模态面板创建同一档材质；每个宿主只创建一次。 */
 export class SheetStyle {
-  static material(): SystemUiMaterial {
-    return new uiMaterial.ImmersiveMaterial({ style: uiMaterial.ImmersiveStyle.THICK });
+  static material(): SystemUiMaterial | undefined {
+    return TransparentGlass.material();
   }
 
-  /** 确认弹窗比半模态面板更需要遮蔽背景，使用系统推荐的超厚材质。 */
-  static dialogMaterial(): SystemUiMaterial {
-    return new uiMaterial.ImmersiveMaterial({ style: uiMaterial.ImmersiveStyle.ULTRA_THICK });
+  /** 确认弹窗复用固定半透明赋色，避免系统深色调色使玻璃发灰。 */
+  static dialogMaterial(): SystemUiMaterial | undefined {
+    return TransparentGlass.material();
+  }
+
+  static background(): ResourceColor | undefined {
+    return TransparentGlass.background();
   }
 }

@@ -358,17 +358,17 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   `emu3-quality-original.jpeg`「原图优先」），`aa force-stop` 重启后档位保留
   （`download-state.json` 里 `pictureQuality: original`）。
 
-### 下拉式设置行（主题 / 材质类型 / 沉浸光感材质 / 下载位置）
+### 下拉式设置行（主题 / 材质类型 / 下载位置）
 
-设置页这三行都用系统设置里同款的**下拉选择**：原生 `Select`，收起时是「当前值 ▾」胶囊，点开是选项菜单、
+设置页可选项使用系统设置里同款的**下拉选择**：原生 `Select`，收起时是「当前值 ▾」胶囊，点开是选项菜单、
 当前项高亮。控件抽成了 `view/Widgets.ets` 的 `SettingSelect`（`@Param` 传选项表 / 当前下标 / 当前文字，
-`onPick` 回下标），三行只差一张选项表和一次落盘：
+`onPick` 回下标），各行只差一张选项表和一次落盘：
 
 | 行 | 选项（默认项在前/后见下） | 落盘字段 |
 |----|---------------------------|----------|
 | 主题 | 跟随系统（默认）/ 浅色 / 深色 | `DownloadStore.themeMode` |
 | 材质类型 | 自适应（默认）/ 沉浸式 / 无材质效果 | `DownloadStore.materialType` |
-| 沉浸光感材质 | 精美 / 轻柔 / 流畅 / 自适应（默认） | `DownloadStore.materialLevel` |
+| 设备材质等级 | 设备只读：精美 / 轻柔 / 流畅 / 不支持 | 不提供修改；旧偏好保留兼容 |
 
 - 主题行原来用 `StackedRow` + 分段控件，现在也是「标题 + 下拉」；它那句「跟随系统 / 固定为深色」的 aux
   与胶囊上的当前值重复，一并去掉了。切深浅色时左侧图标要在 sun / moon 之间换，所以 `ListRow.glyph`
@@ -400,7 +400,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   声称「底色由材质决定、留空才不盖掉材质」—— 材质管不到选中项，真机上就是**整块蓝药丸 + 近黑字**，
   和设计稿的「白药丸 + 品牌色字」完全不是一回事（`.screenshots/library-segment-zips.jpeg`）。
   现在两个颜色**开不开材质都按设计稿写死**（`Palette.segOn` / `Palette.brand`），只有
-  `buttonBackgroundColor` 那一层随材质走；未选中的字色也统一回设计稿的次级灰。
+  `buttonBackgroundColor` 那一层随材质走；未选中字色在材质模式使用特殊系统资源 `sys.color.font_primary`，无材质时保留次级灰。
 - **宽度得自己算**。文档写明该组件不支持通用属性、也没有宽度参数：它内部把宽度撑满父容器，
   外面只套一层自适应宽度的 `Row` 也没用（测量时拿到的还是父级的 maxWidth，回落的仍是满宽）。
   所以 `capsuleWidth()` 按 `.seg` 的盒模型算出宽度、把 `Row` 钉上去；同时因为组件在内部
@@ -440,9 +440,8 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 验证：四个操作各点一轮，`SelectTile` 新建数 **+0**（改前「全选」是 +19），蒙层、勾选角标、
 头部计数、底部选择条全部正确（`.screenshots/fix5-selectall.jpeg`、`fix6-invert.jpeg`）。
 
-发现页已选图片不再画固定蓝色外框；蓝色对勾直接叠在图片上，没有圆形底色。开启「沉浸光感」且
-材质类型不是「无材质效果」时，支持该能力的设备在已选图片上使用轻薄的交互光感材质；其他情况
-保留轻微的品牌色蒙层。切换设置或选中状态只刷新磁贴内容，网格 key 仍保持图片实例的 `uid`。
+发现页已选图片不再画固定蓝色外框；蓝色对勾直接叠在图片上，没有圆形底色。
+图片网格不在 `systemMaterial` 通用属性的生效区域，选择反馈使用静态品牌色蒙层。
 
 ### 批量链接导入（逐行状态与待确认探测）
 
@@ -470,37 +469,20 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 
 ### 沉浸光感材质
 
-**材质类型**对应
-[hdsMaterial.MaterialType](https://developer.huawei.com/consumer/cn/doc/doccenter-references/api/ui-design-hdsmaterial#materialtype)，
-三档齐全（原来只有自适应 / 沉浸式两档，漏了 `NONE`）：
+API 26 / Stage 模型使用 `@kit.ArkUI` 的 `uiMaterial.ImmersiveMaterial`。
+`theme/TransparentGlass.ets` 在设备能力检测通过后创建一次材质：`REGULAR`、固定半透明
+`materialColor: '#33FFFFFF'`、`colorInvert: true`、`applyShadow: true`。固定赋色不随深浅色切换；
+直接位于玻璃上的前景使用特殊系统资源色，不支持设备返回 `undefined` 并提供普通背景。
+材质生效时不另叠 `backgroundColor`。
 
-| 界面 | 语义 id | `hdsMaterial.MaterialType` |
-|------|---------|-----------------------------|
-| 自适应（默认） | `adaptive` | `ADAPTIVE = 100`，文档说默认就按沉浸式材质生效 |
-| 沉浸式 | `immersive` | `IMMERSIVE = 101` |
-| 无材质效果 | `none` | `NONE = 0`，关掉材质，不是一档效果，所以排最后 |
-
-**沉浸光感材质**替代了原来只读的「材质等级」行：旧实现只把设备的算力档位读出来，现在可以自己选，
-四档对应
-[hdsMaterial.MaterialLevel](https://developer.huawei.com/consumer/cn/doc/doccenter-references/api/ui-design-hdsmaterial#materiallevel)：
-
-| 界面 | 语义 id（状态文件里存这个） | `hdsMaterial.MaterialLevel` |
-|------|------------------------------|------------------------------|
-| 精美 | `exquisite` | `EXQUISITE = 0` |
-| 轻柔 | `gentle` | `GENTLE = 1` |
-| 流畅 | `smooth` | `SMOOTH = 2` |
-| 自适应（默认） | `adaptive` | `ADAPTIVE = 10`，由系统按设备算力自适应 |
-
-- **两行的默认值都是 `ADAPTIVE`**：文档明确推荐这个档位（系统按算力动态调整，性能与效果平衡最好）。
-- **按文档给的规则提示，但不替用户改**：选沉浸式（或精美 / 轻柔）前先看 `isImmersiveMaterialSupported()`，
-  不支持就用 Toast 说一次「本机不支持沉浸式材质，将回退为静态模糊」/「建议改为流畅」（精美 / 轻柔吃性能，
-  流畅最省，文档建议此时用流畅以降低卡顿与发热）；选沉浸光感材质的自适应时用 Toast 报一下本机对应的档位
-  （「已跟随系统 · 本机为精美」），因为「自适应」的结果本来不可见。
-- 两行都只存**语义 id**，不存枚举数值：状态文件可读，SDK 枚举重排也不会错位；读到旧值 / 脏值统一退回
-  `adaptive`。`DownloadStore.setMaterialType()` / `setMaterialLevel()` 负责落盘，重启后两枚胶囊各显各的选择。
-- **现状说明**：发现页已选图片接入 ArkUI 的 `uiMaterial.ImmersiveMaterial`，由「沉浸光感」开关和
-  「材质类型」的无材质选项控制；「沉浸光感材质」档位仍是应用内持久化的偏好，尚未映射到这些自绘磁贴。
-  其他卡片尚未接 HDS 组件的 `systemMaterialEffect`（`SystemMaterialParams { materialType, materialLevel }`）。
+- 发现页使用原生 `Navigation` 标题栏，底栏在原生横向 `Tabs` 的底部 TabBar builder 内挂载材质。
+  Index 继续持有四页状态，底栏 builder 中四个导航按钮仍回调原来的切页逻辑。
+- 浏览首页底栏、收藏历史面板使用不透明背景，避免叠在 ArkWeb 的视频或动画上。
+  动图、实况照片及尚未确认静态的远程图片详情同样降级；静态图片详情和图库整理等系统面板复用通透玻璃。
+- 「沉浸光感」开关及「无材质效果」控制标题栏、底栏与图库分段；系统弹层按设备能力降级。
+  图库分段沿用组件专属 `backgroundSystemMaterial`，固定赋色，保留选中药丸的独立底色和字色。
+- 「设备材质等级」为只读能力；`getGlobalMaterialLevel()` 由设备决定，不能用玻璃厚薄或历史 HDS 偏好覆盖。
+  原有 `materialLevel` 存储字段仅保留数据兼容。材质强弱仍由用户系统设置控制。
 
 ### 图标
 

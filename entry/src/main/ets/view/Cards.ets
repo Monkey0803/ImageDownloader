@@ -9,13 +9,11 @@ import { PreviewOverlayState } from '../model/PreviewOverlayState';
 
 import { fileUri } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { uiMaterial } from '@kit.ArkUI';
 import { MovingPhotoView, MovingPhotoViewController, photoAccessHelper } from '@kit.MediaLibraryKit';
 import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
 import { MediaFormat } from '../service/MediaFormat';
-import { MaterialSupport } from '../service/MaterialSupport';
 import { SheetStyle } from '../theme/SheetStyle';
 import {
   Font, formatBytes, formatMoment, kindOf, Palette, percentOf, Radius, Shadow, Space
@@ -38,8 +36,6 @@ export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 export struct SelectTile {
   @Require @Param picture: PictureItem;
   @Param index: number = 0;
-  @Param immersiveEnabled: boolean = false;
-  private selectionMaterial: uiMaterial.Material | undefined = undefined;
   /** 图片点击进入预览；角上的选择按钮由父组件处理。 */
   @Event onOpen: (uid: string) => void = () => {
   };
@@ -61,41 +57,15 @@ export struct SelectTile {
     return MediaFormat.isAnimatedExt(extension) ? extension.toUpperCase() : '';
   }
 
-  private material(): uiMaterial.Material | undefined {
-    if (!this.immersiveEnabled || !MaterialSupport.immersiveSupported()) {
-      return undefined;
-    }
-    if (this.selectionMaterial === undefined) {
-      this.selectionMaterial = new uiMaterial.ImmersiveMaterial({
-        style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
-        applyShadow: false,
-        interactive: true,
-        lightEffect: { color: Palette.brand }
-      });
-    }
-    return this.selectionMaterial;
-  }
-
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Thumb({ src: this.picture.url,   label: kindOf(this.picture.name), badge: this.badge(),
         fallbackText: '预览不可用' })
 
-      // 光感材质只覆盖已选图片；设备不支持或设置关闭时保留轻微蒙层。
+      // 图片网格不在系统材质生效区域，选择反馈使用普通静态蒙层。
       if (this.picture.selected) {
-        if (this.material() !== undefined) {
-          Row()
-            .width('100%')
-            .height('100%')
-            .borderRadius(Radius.r4)
-            .systemMaterial(this.material())
-        } else {
-          Row()
-            .width('100%')
-            .height('100%')
-            .borderRadius(Radius.r4)
-            .backgroundColor(Palette.brandSoft)
-        }
+        Row().width('100%').height('100%').borderRadius(Radius.r4)
+          .backgroundColor(Palette.brandSoft)
       }
 
       // the prototype's bottom-left index badge
@@ -905,7 +875,7 @@ export struct LivePhotoSlide {
  */
 @ComponentV2
 export struct ImageViewer {
-  private sheetMaterial: SystemUiMaterial = SheetStyle.dialogMaterial();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.dialogMaterial();
   @Require @Param panels: PreviewOverlayState;
   @Param foreground: boolean = true;
   /** 可以左右滑的那一批图；只有一张时就是普通大图。 */
@@ -1005,6 +975,12 @@ export struct ImageViewer {
         onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
         onClose: (): void => { this.panels.tools = false; } })
     }
+  }
+
+  private detailsMaterialAllowed(): boolean {
+    const slide: ViewerSlide | undefined = this.current();
+    return slide !== undefined && slide.downloaded && slide.localPath.length > 0
+      && !slide.animated && slide.motionPath.length === 0;
   }
 
   build() {
@@ -1139,8 +1115,8 @@ export struct ImageViewer {
       scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,
       showClose: false,
-      backgroundColor: Color.Transparent,
-      systemMaterial: this.sheetMaterial,
+      backgroundColor: this.detailsMaterialAllowed() ? SheetStyle.background() : Palette.card,
+      systemMaterial: this.detailsMaterialAllowed() ? this.sheetMaterial : undefined,
       onDisappear: (): void => { this.panels.tools = false; }
     })
   }

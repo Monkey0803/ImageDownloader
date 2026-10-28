@@ -6,6 +6,7 @@ import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, formatBytes, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { SheetStyle } from '../../theme/SheetStyle';
+import { TransparentGlass } from '../../theme/TransparentGlass';
 import { Glyph } from '../Icons';
 import { ArchiveCard, ShotTile } from '../Cards';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
@@ -28,7 +29,7 @@ export struct LibraryScreen {
   @Param active: boolean = false;
   @Local private tagDialogOpen: boolean = false;
   @Local private sheet: string = '';
-  private sheetMaterial: SystemUiMaterial = SheetStyle.material();
+  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -121,15 +122,15 @@ export struct LibraryScreen {
   @Builder
   private extractContent() {
     Column({ space: Space.s16 }) {
-      Text('解压压缩包').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+      Text('解压压缩包').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
       if (this.library.extractTarget.length === 0) {
-        Text('选择解压位置').fontSize(Font.body).fontColor(Palette.fontSecondary)
+        Text('选择解压位置').fontSize(Font.body).fontColor(TransparentGlass.secondary())
         PillButton({ label: '加入应用图库', variant: 'primary',
           onAction: (): void => { this.library.chooseExtractTarget('gallery'); } })
         PillButton({ label: '保存到系统目录', variant: 'ghost',
           onAction: (): void => { this.library.chooseExtractTarget('folder'); } })
       } else if (this.library.extractEncrypted && !this.library.extractBusy) {
-        Text('此压缩包需要密码').fontSize(Font.body).fontColor(Palette.fontSecondary)
+        Text('此压缩包需要密码').fontSize(Font.body).fontColor(TransparentGlass.secondary())
         TextInput({ placeholder: '输入 ZIP 密码', text: this.library.extractPassword })
           .type(InputType.Password)
           .onChange((value: string): void => { this.library.extractPassword = value; })
@@ -137,7 +138,7 @@ export struct LibraryScreen {
         PillButton({ label: '开始解压', variant: 'primary',
           onAction: (): void => { this.library.submitExtract(); } })
       } else {
-        Text('正在解压，请稍候…').fontSize(Font.body).fontColor(Palette.fontSecondary)
+        Text('正在解压，请稍候…').fontSize(Font.body).fontColor(TransparentGlass.secondary())
       }
       if (!this.library.extractBusy) {
         PillButton({ label: '取消', variant: 'ghost',
@@ -163,9 +164,9 @@ export struct LibraryScreen {
       Column({ space: Space.s12 }) {
         Row({ space: Space.s8 }) {
           Text(this.sheet === 'filter' ? '筛选与排序' : '查找与整理')
-            .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+            .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
             .layoutWeight(1)
-          IconButton({ glyph: 'close', plain: true, diameter: 36,
+          IconButton({ glyph: 'close', plain: true, diameter: 36, tone: TransparentGlass.foreground(),
             accessibilityLabel: '关闭面板', onAction: (): void => { this.sheet = ''; } })
         }.width('100%')
         List() {
@@ -189,7 +190,7 @@ export struct LibraryScreen {
     if (this.library.selecting) {
       Row({ space: Space.s8 }) {
         Text('已选 ' + this.library.visibleSelectedCount.toString())
-          .fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
+          .fontSize(Font.aux).fontColor(TransparentGlass.secondary()).layoutWeight(1)
         PillButton({ label: '全选', variant: 'ghost', small: true,
           onAction: (): void => { this.library.selectVisible(); } })
         PillButton({ label: '清空', variant: 'ghost', small: true,
@@ -332,7 +333,7 @@ export struct LibraryScreen {
           // —— 本机不支持沉浸式材质时它同样会退回不透明胶囊。
           LibrarySegment({
             selected: this.library.segment,
-            materialOff: this.settings.materialType === 'none',
+            materialOff: !this.settings.lightEffect || this.settings.materialType === 'none',
             onSelect: (value: string): void => {
               this.library.setSegment(value);
             }
@@ -389,7 +390,7 @@ export struct LibraryScreen {
       scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,
       showClose: false,
-      backgroundColor: Color.Transparent,
+      backgroundColor: SheetStyle.background(),
       systemMaterial: this.sheetMaterial,
       onWillDismiss: (action: DismissSheetAction): void => {
         if (!this.library.extractBusy) { action.dismiss(); }

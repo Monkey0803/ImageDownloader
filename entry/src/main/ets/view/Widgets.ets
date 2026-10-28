@@ -9,6 +9,7 @@ import {
   CapsuleSegmentButtonV2, ColorMetrics, LengthMetrics, SegmentButtonV2ItemOptions, SegmentButtonV2Items, uiMaterial
 } from '@kit.ArkUI';
 import { MaterialSupport } from '../service/MaterialSupport';
+import { TransparentGlass } from '../theme/TransparentGlass';
 import { LIBRARY_IMAGES, LIBRARY_ZIPS, TAB_TASKS } from '../model/Navigation';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
@@ -262,60 +263,65 @@ export struct TabBar {
   @Event onSelect: (index: number) => void = () => {
   };
 
+  @Param immersiveEnabled: boolean = true;
+
+  @Builder
+  private tabItem(item: TabItem, index: number) {
+    Column({ space: Space.s2 }) {
+      Stack({ alignContent: Alignment.TopEnd }) {
+        Glyph({ glyph: item.glyph, glyphSize: 23,
+          glyphWeight: this.active === index ? 2 : 1.7,
+          glyphTone: TransparentGlass.foreground(this.immersiveEnabled) })
+        if (index === TAB_TASKS && this.badge > 0) {
+          Text(this.badge > 99 ? '99' : this.badge.toString())
+            .fontSize(9).lineHeight(15).fontWeight(FontWeight.Bold)
+            .fontColor(Palette.white).textAlign(TextAlign.Center)
+            .constraintSize({ minWidth: 15 }).height(15)
+            .padding({ left: 4, right: 4 }).borderRadius(Radius.full)
+            .backgroundColor(Palette.warning).offset({ x: 10, y: -8 })
+        }
+      }.width(26).height(26)
+      Text(item.label).fontSize(Font.tab).lineHeight(14)
+        .fontWeight(this.active === index ? FontWeight.Bold : FontWeight.Medium)
+        .fontColor(TransparentGlass.foreground(this.immersiveEnabled))
+      Row().width(12).height(2).borderRadius(Radius.full)
+        .backgroundColor(this.active === index ? TransparentGlass.foreground(this.immersiveEnabled) : Color.Transparent)
+    }
+    .layoutWeight(1).height(Layout.tabBarHeight).justifyContent(FlexAlign.Center)
+    .onClick((): void => { this.onSelect(index); })
+    .accessibilityText(item.label)
+    .accessibilitySelected(this.active === index)
+  }
+
+  @Builder
+  private tabItems() {
+    Row() {
+      ForEach(TABS, (item: TabItem, index: number) => {
+        this.tabItem(item, index)
+      }, (item: TabItem): string => item.key)
+    }
+    .width('100%').height(Layout.tabBarHeight)
+    .padding({ left: Space.s12, right: Space.s12 })
+    .borderRadius(Radius.full)
+    .backgroundColor(TransparentGlass.background(this.immersiveEnabled))
+    .systemMaterial(TransparentGlass.material(this.immersiveEnabled))
+  }
+
   build() {
     Column() {
-      Row() {
-        ForEach(TABS, (item: TabItem, index: number) => {
-          Column({ space: Space.s2 }) {
-            Stack({ alignContent: Alignment.TopEnd }) {
-              Glyph({
-                glyph: item.glyph,
-                glyphSize: 23,
-                glyphWeight: this.active === index ? 2 : 1.7,
-                glyphTone: this.active === index ? Palette.brand : Palette.fontPrimary
-              })
-              if (index === TAB_TASKS && this.badge > 0) {
-                Text(this.badge > 99 ? '99' : this.badge.toString())
-                  .fontSize(9)
-                  .lineHeight(15)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(Palette.white)
-                  .textAlign(TextAlign.Center)
-                  .constraintSize({ minWidth: 15 })
-                  .height(15)
-                  .padding({ left: 4, right: 4 })
-                  .borderRadius(Radius.full)
-                  .backgroundColor(Palette.warning)
-                  .offset({ x: 10, y: -8 })
-              }
-            }
-            .width(26)
-            .height(26)
-
-            Text(item.label)
-              .fontSize(Font.tab)
-              .lineHeight(14)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(this.active === index ? Palette.brand : Palette.fontPrimary)
-          }
-          .layoutWeight(1)
-          .height(48)
-          .justifyContent(FlexAlign.Center)
-          .onClick(() => {
-            this.onSelect(index);
-          })
-        }, (item: TabItem) => item.key)
+      // Index 保留四页状态；单个自定义 TabBar builder 在原生底栏作用域内承载四个导航按钮。
+      Tabs({ barPosition: BarPosition.End }) {
+        TabContent() {}.tabBar(this.tabItems())
       }
-      // The pill hugs the kit's fixed bar width instead of spanning the screen;
-      // the maxWidth keeps it inside the page padding on very narrow devices.
+      .vertical(false)
+      .scrollable(false)
+      .animationDuration(0)
+      .barMode(BarMode.Fixed)
+      .barHeight(Layout.tabBarHeight)
+      .barBackgroundColor(Color.Transparent)
       .width('100%')
       .constraintSize({ maxWidth: Layout.tabBarWidth })
       .height(Layout.tabBarHeight)
-      .padding({ left: Space.s12, right: Space.s12 })
-      .borderRadius(Radius.full)
-      .backgroundColor(Palette.glass)
-      .backdropBlur(30)
-      .shadow(Shadow.float())
     }
     .width('100%')
     .padding({ top: Layout.tabBarTopPad, left: Layout.pagePad, right: Layout.pagePad, bottom: SCREEN_INSETS.safeBottom })
@@ -568,6 +574,7 @@ export struct LibrarySegment {
     this.materialCache = this.hasMaterial()
       ? new uiMaterial.ImmersiveMaterial({
         style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+        materialColor: '#33FFFFFF',
         colorInvert: true,
         interactive: true,
         lightEffect: { color: $r('sys.color.interactive_click') }
@@ -580,15 +587,9 @@ export struct LibrarySegment {
     return this.selected === 'zips' ? 1 : 0;
   }
 
-  /**
-   * 未选中项的字色：设计稿的次级灰，**开不开材质都一样**。
-   *
-   * 材质档原来借用 `sys.color.font_primary`（文档给「自动反色」用的特殊资源），真机上就是
-   * 纯黑，比设计稿的次级灰重一档。既然选中项已经改成固定色、不再走自动反色，这里也一并
-   * 回到设计稿 —— 两个档位只有背景板不同，字色一致。
-   */
+  /** 材质背景上的未选中项使用系统前景资源，支持智能反色。 */
   private itemFontColor(): ColorMetrics {
-    return ColorMetrics.resourceColor(Palette.fontSecondary);
+    return ColorMetrics.resourceColor(this.hasMaterial() ? $r('sys.color.font_primary') : Palette.fontSecondary);
   }
 
   /**
@@ -1140,7 +1141,7 @@ export struct RenameDialog {
     Column({ space: Space.s10 }) {
       Text(this.heading)
         .fontSize(18).lineHeight(24).fontWeight(FontWeight.Bold)
-        .fontColor(Palette.fontPrimary).width('100%')
+        .fontColor(TransparentGlass.foreground()).width('100%')
       TextInput({ text: this.draft })
         .fontSize(Font.body).fontColor(Palette.fontPrimary).caretColor(Palette.brand)
         .backgroundColor(Palette.cardSunken).borderRadius(Radius.r6).height(44)
