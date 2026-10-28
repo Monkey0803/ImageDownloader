@@ -1,4 +1,5 @@
 import { imageSuperResolution, visionBase } from '@kit.CoreVisionKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
 import { image } from '@kit.ImageKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { AnalysisToken, AssetStamp } from '../model/LibraryAsset';
@@ -7,10 +8,22 @@ import { DownloadItem } from '../model/Models';
 import { DownloadStore } from './DownloadStore';
 import { EditJournal } from './EditJournal';
 import { LibraryImageReader } from './LibraryImageReader';
+import { SuperResolutionGeometry } from './SuperResolutionGeometry';
 
 /** Creates a still PNG copy from one completed local library image. */
 export class ImageSuperResolution {
-  private static readonly MAX_INPUT_PIXELS: number = 4000000;
+  /** 同一用户不能并发调用超分，这里把并发挡在服务入口。 */
+  private static running: boolean = false;
+
+  /** 模拟器能通过 canIUse 但 Core Vision Kit 的服务不可用，提前拦掉。 */
+  static available(): boolean {
+    return deviceInfo.productModel !== 'emulator' && canIUse('SystemCapability.AI.Vision.VisionBase');
+  }
+
+  static unavailableHint(): string {
+    if (deviceInfo.productModel === 'emulator') { return '模拟器不支持图片超分，请在真机上使用'; }
+    return '此设备不支持图片超分';
+  }
 
   private static check(token: AnalysisToken): void {
     if (token.cancelled) { throw new Error('图片超分已取消'); }
@@ -42,18 +55,32 @@ export class ImageSuperResolution {
     return '超分';
   }
 
+  /** 把系统错误翻译成用户能理解的提示。 */
+  private static describe(error: Object): string {
+    const message: string = error instanceof Error ? error.message : String(error);
+    const lower: string = message.toLowerCase();
+    if (lower.includes('timed out') || lower.includes('timeout')) { return '超分服务超时，请重试'; }
+    if (lower.includes('service is abnormal')) { return '超分服务暂不可用，请稍后重试'; }
+    return message.length > 0 ? message : '超分服务暂不可用';
+  }
+
   static async createCopy(id: string, token: AnalysisToken): Promise<DownloadItem> {
-    ImageSuperResolution.check(token);
-    if (!canIUse('SystemCapability.AI.Vision.VisionBase')) {
-      throw new Error('此设备不支持图片超分');
+    if (!ImageSuperResolution.available()) { throw new Error(ImageSuperResolution.unavailableHint()); }
+    if (ImageSuperResolution.running) { throw new Error('超分服务正在处理，请稍候'); }
+    ImageSuperResolution.running = true;
+    try {
+      return await ImageSuperResolution.run(id, token);
+    } finally {
+      ImageSuperResolution.running = false;
     }
+  }
+
+  private static async run(id: string, token: AnalysisToken): Promise<DownloadItem> {
+    ImageSuperResolution.check(token);
     const stamp: AssetStamp = await ImageSuperResolution.source(id);
     const sourceSize: PreviewSize = await LibraryImageReader.info(stamp);
-    const pixels: number = sourceSize.width * sourceSize.height;
-    if (pixels <= 0 || !Number.isSafeInteger(pixels)) { throw new Error('图片尺寸无效'); }
-    if (pixels > ImageSuperResolution.MAX_INPUT_PIXELS) {
-      throw new Error('原图超过 400 万像素，暂不能超分');
-    }
+    if (sourceSize.width <= 0 || sourceSize.height <= 0) { throw new Error('图片尺寸无效'); }
+    const inputSize: PreviewSize = SuperResolutionGeometry.decodeSize(sourceSize.width, sourceSize.height);
     ImageSuperResolution.check(token);
 
     const region: EditRect = new EditRect();
@@ -65,22 +92,30 @@ export class ImageSuperResolution {
     let packer: image.ImagePacker | undefined = undefined;
     let file: fs.File | undefined = undefined;
     try {
-      input = await LibraryImageReader.decode(stamp, region, sourceSize, false);
+      input = await LibraryImageReader.decode(stamp, region, inputSize, false);
+      const inputInfo: image.ImageInfo = await input.getImageInfo();
       ImageSuperResolution.check(token);
       analyzer = await imageSuperResolution.ImageSRAnalyzer.create();
       ImageSuperResolution.check(token);
       const data: visionBase.ImageData = { pixelMap: input };
       const request: visionBase.Request = { inputData: data };
-      const response: imageSuperResolution.ISPResponse = await analyzer.process(request);
+      let response: imageSuperResolution.ISPResponse | undefined = undefined;
+      try {
+        response = await analyzer.process(request);
+      } catch (error) {
+        throw new Error(ImageSuperResolution.describe(error));
+      }
+      if (response === undefined) { throw new Error('超分服务未返回结果'); }
       output = response.pixelMap;
       ImageSuperResolution.check(token);
       if (output === undefined) { throw new Error('超分服务未返回图片'); }
       const resultInfo: image.ImageInfo = await output.getImageInfo();
-      const expectedWidth: number = sourceSize.width * 2;
-      const expectedHeight: number = sourceSize.height * 2;
-      if (resultInfo.size.width !== expectedWidth || resultInfo.size.height !== expectedHeight) {
-        throw new Error('超分结果尺寸不符合预期');
+      if (!SuperResolutionGeometry.accepts(inputInfo.size.width, inputInfo.size.height,
+        resultInfo.size.width, resultInfo.size.height)) {
+        throw new Error('超分结果尺寸异常');
       }
+      const resultWidth: number = resultInfo.size.width;
+      const resultHeight: number = resultInfo.size.height;
       await ImageSuperResolution.checkSource(id, stamp, token);
       ticket = await EditJournal.prepare(DownloadStore.context.filesDir, DownloadStore.nextId(), id);
       packer = image.createImagePacker();
@@ -93,14 +128,14 @@ export class ImageSuperResolution {
       const saved: image.ImageSource = image.createImageSource(ticket.pendingPath);
       try {
         const savedInfo: image.ImageInfo = await saved.getImageInfo();
-        if (savedInfo.size.width !== expectedWidth || savedInfo.size.height !== expectedHeight) {
+        if (savedInfo.size.width !== resultWidth || savedInfo.size.height !== resultHeight) {
           throw new Error('超分图片尺寸验证失败');
         }
       } finally { await saved.release(); }
       await ImageSuperResolution.checkSource(id, stamp, token);
       const result: EditResult = new EditResult();
-      result.path = ticket.pendingPath; result.width = expectedWidth;
-      result.height = expectedHeight; result.bytes = bytes;
+      result.path = ticket.pendingPath; result.width = resultWidth;
+      result.height = resultHeight; result.bytes = bytes;
       await EditJournal.finalize(ticket, result);
       ImageSuperResolution.check(token);
       const sourceItem: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
@@ -110,7 +145,7 @@ export class ImageSuperResolution {
         ImageSuperResolution.label(stamp, sourceItem), token, stamp);
     } catch (error) {
       if (ticket !== undefined) { await EditJournal.rollback(ticket); }
-      throw new Error(error instanceof Error ? error.message : String(error));
+      throw new Error(ImageSuperResolution.describe(error));
     } finally {
       if (file !== undefined) { try { fs.closeSync(file); } catch (closeError) {} }
       if (packer !== undefined) { try { await packer.release(); } catch (releaseError) {} }

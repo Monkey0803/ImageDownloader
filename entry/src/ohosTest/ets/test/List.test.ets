@@ -23,6 +23,7 @@ import libraryFixturesTest from './LibraryFixtures.test';
 import zipArchiveTest from './ZipArchive.test';
 import hdrDecodeTest from './HdrDecode.test';
 import livePhotoTest from './LivePhoto.test';
+import superResolutionTest from './SuperResolution.test';
 
 export default function testsuite() {
   downloadStoreTest();
@@ -49,4 +50,5 @@ export default function testsuite() {
   zipArchiveTest();
   hdrDecodeTest();
   livePhotoTest();
+  superResolutionTest();
 }

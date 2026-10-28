@@ -25,11 +25,14 @@
 - `node scripts/test-library-enhancements.cjs`：87/87。
 - `node scripts/test-batch-links.cjs`：6/6。
 - 主包 `assembleHap` 与 `ohosTest` 包构建成功。
-  发布包 1.1.0（`versionCode` 1010000）最终主包 SHA-256
+  发布包 1.1.1（`versionCode` 1010100）最终主包 SHA-256
+  `588a102d0094bdf179aff6e734f24e979868ead5efb1303ff116864926102f59`，
+  最终测试包 SHA-256 `99e2194c267017ab3cc0edfd9d22a105ba8f078e85a9a1faaa6712b3ddc128da`
+  （含图库 HDR 角标、显示开关、超分修复与版本号变更；`pack.info` 读出的版本与 `AppScope/app.json5` 一致）。
+- 1.1.0 发布包主包 SHA-256 为
   `c009739065c76ec10e08b7a5b120e196be9d648062456fbfa7fcada4e1007dd2`，
-  最终测试包 SHA-256 `d601201a370255e3f81bfb4e6a7b2af7e5c774afcb86c2a44a3bbaae6a4905f2`
-  （含图库 HDR 角标、显示开关与版本号变更；`pack.info` 读出的版本与 `AppScope/app.json5` 一致）。
-- 早前 HDR-only 包的主包 SHA-256 为
+  测试包 SHA-256 为 `d601201a370255e3f81bfb4e6a7b2af7e5c774afcb86c2a44a3bbaae6a4905f2`；
+  早前 HDR-only 包的主包 SHA-256 为
   `2df4a5701aef6f8ff81106db25d652016da5175afdddbe4fdc3f9779011ef054`，
   测试包 SHA-256 为 `0b99a15c1c0e6050ee27d72c3338dcb4fd0944b29a6a82282a8fb49ecf73f296`，
   仅作历史对照。
@@ -37,7 +40,8 @@
   **155/155 通过，0 失败、0 错误**（新增 HDR 探针 1 项）。这次运行安装的是主包
   `8aa872f32982b3bc5eed468409e96d582994c55bbd68abde440a993c237cdc12` 与测试包
   `6287ab708e1d1c12a4ac9b70dfded1162618bef72349ff2795648cee027da00f`。此后主包仅补了
-  HEIF/HDR 不透明判定；后续又加入酷安 UA 与原图升级，重装最终包后原生套件 **158/158** 通过。
+  HEIF/HDR 不透明判定；后续又加入酷安 UA 与原图升级，重装最终包后原生套件 **158/158** 通过；
+  1.1.1 最终包再跑 **160/160**（新增超分尺寸用例 2 项）。
 
 ## 真机 HDR 探测
 
@@ -73,5 +77,5 @@
   重启后仍保持。该开关只影响之后打开的预览，已打开画面保持当前解码结果；
   详情中的「动态范围」仍按源文件显示。
 - 原生 `StoreState` 往返测试覆盖 `DownloadItem.hdr` 与 `hdrEnabled` 的默认值/持久化。
-- 发布收尾：安装 1.1.0 主包与测试包后，真机原生套件 **158/158** 通过；卸载 `entry_test` 并冷启动，
+- 发布收尾：安装 1.1.1 主包与测试包后，真机原生套件 **160/160** 通过；卸载 `entry_test` 并冷启动，
   布局树为发现页（`发现` / `重扫图片` / `批量链接`），无 `Hello World`，`bm dump` 只剩生产 `entry`。

@@ -153,6 +153,11 @@ export struct PreviewTools {
   }
 
   private async superResolve(): Promise<void> {
+    if (!ImageSuperResolution.available()) {
+      this.noticeGroup = 'edit';
+      this.notice = ImageSuperResolution.unavailableHint();
+      return;
+    }
     if (this.busy || this.asset.libraryId.length === 0) { return; }
     const id: string = this.asset.libraryId;
     const item: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
@@ -345,7 +350,8 @@ export struct PreviewTools {
               PillButton({ label: this.asset.animated ? '超分首帧' :
                 this.mediaKind() === 'livephoto' ? '超分封面' : '图片超分',
                 small: true, block: true, variant: 'tonal',
-                active: !this.busy && this.asset.libraryId.length > 0 && this.localReady(),
+                active: !this.busy && this.asset.libraryId.length > 0 && this.localReady() &&
+                  ImageSuperResolution.available(),
                 onAction: (): void => { this.superResolve(); } })
             }.layoutWeight(1)
           }.width('100%')
@@ -353,6 +359,8 @@ export struct PreviewTools {
             Text('下载后可编辑并生成超分副本').fontSize(Font.caption).fontColor(Palette.fontSecondary)
           } else if (!this.localReady()) {
             Text('本地图片不可读，重新下载后可使用').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          } else if (!ImageSuperResolution.available()) {
+            Text(ImageSuperResolution.unavailableHint()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
           }
           if (this.busy && this.noticeGroup === 'edit') {
             LoadingProgress().width(28).height(28).color(Palette.brand)
