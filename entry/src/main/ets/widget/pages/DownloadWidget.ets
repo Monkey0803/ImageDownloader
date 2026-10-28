@@ -1,14 +1,12 @@
-const storage = new LocalStorage();
-
-@Entry(storage)
-@Component
+@Entry
+@ComponentV2
 struct DownloadWidget {
-  @LocalStorageProp('count') count: string = '0';
-  @LocalStorageProp('status') status: string = '暂无待处理任务';
-  @LocalStorageProp('name') name: string = '';
-  @LocalStorageProp('progress') progress: string = '';
-  @LocalStorageProp('percent') percent: string = '0';
-  @LocalStorageProp('layout') layout: string = 'wide';
+  @Local count: string = '0';
+  @Local status: string = '暂无待处理任务';
+  @Local name: string = '';
+  @Local progress: string = '';
+  @Local percent: string = '0';
+  @Local layout: string = 'wide';
 
   private openTasks(): void {
     postCardAction(this, {
