@@ -1,5 +1,11 @@
 # 图片下载管理 TODO
 
+## 2026-10-28：1.1.0 发布收尾
+
+- [x] 版本号 `1.0.0` / `1000000` 升到 `1.1.0` / `1010000`，新增 `CHANGELOG.md` 汇总 1.0.0 以来变更。
+- [x] 最终主包 SHA-256 `c009739065c76ec10e08b7a5b120e196be9d648062456fbfa7fcada4e1007dd2`，测试包 `d601201a370255e3f81bfb4e6a7b2af7e5c774afcb86c2a44a3bbaae6a4905f2`；两包 `pack.info` 均为 1.1.0 / 1010000。
+- [x] 真机 PLR-AL00 安装最终包装原生套件 158/158；卸载 `entry_test` 后冷启动为发现页，`bm dump` 仅剩生产 `entry`。
+
 ## 2026-10-28：冷启动 HelloWorld
 
 - [x] 定位为 `ohosTest` 的 `TestAbility` 测试页，不是生产页面；设备上仍有 `entry_test` 测试模块。
