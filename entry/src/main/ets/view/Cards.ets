@@ -324,12 +324,21 @@ export struct TaskCard {
       return '已暂停 · ' + formatBytes(this.task.processed) + ' / ' + formatBytes(this.task.total);
     }
     if (this.task.status === 'completed') {
-      return '已下载到应用内 · ' + formatBytes(this.task.size);
+      if (this.task.finishedAt > 0) {
+        const moment: string = formatMoment(this.task.finishedAt, Date.now());
+        return this.task.size > 0 ? formatBytes(this.task.size) + ' · ' + moment : moment;
+      }
+      return this.task.size > 0 ? formatBytes(this.task.size) : '';
     }
     if (this.task.status === 'cancelled') {
       return '已取消';
     }
     return '';
+  }
+
+  /** Delivery 的默认说明与 meta 重复，任务卡不再重复一遍。 */
+  private receiptText(): string {
+    return this.task.receipt.message === '原件保存在应用内' ? '' : this.task.receipt.message;
   }
 
   build() {
@@ -363,13 +372,13 @@ export struct TaskCard {
               .lineHeight(Font.bodyLine)
               .fontWeight(FontWeight.Medium)
               .fontColor(Palette.fontPrimary)
-              .maxLines(1)
+              .maxLines(2)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .layoutWeight(1)
             StatusChip({ status: this.task.status })
           }
           .width('100%')
-          .alignItems(VerticalAlign.Center)
+          .alignItems(VerticalAlign.Top)
 
           if (this.isActive() && this.task.total > 0) {
             ProgressBar({ value: percentOf(this.task.processed, this.task.total) })
@@ -378,8 +387,8 @@ export struct TaskCard {
           if (this.task.recoveryMessage.length > 0 && this.isActive()) {
             Text(this.task.recoveryMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
           }
-          if (this.task.status === 'completed' && this.task.receipt.message.length > 0) {
-            Text(this.task.receipt.message).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          if (this.task.status === 'completed' && this.receiptText().length > 0) {
+            Text(this.receiptText()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
             if (this.task.receipt.status === 'failed' || this.task.receipt.status === 'cancelled'
               || this.task.receipt.status === 'interrupted') {
               PillButton({ label: '重试另存', variant: 'ghost', small: true,
@@ -415,31 +424,37 @@ export struct TaskCard {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .onClick((): void => {
+          if (this.task.status === 'completed') { this.onOpen(this.task); }
+        })
 
         Row({ space: Space.s2 }) {
           if (this.task.status === 'running') {
             IconButton({
-              glyph: 'pause', glyphSize: 18, diameter: 34, plain: true,
+              glyph: 'pause', glyphSize: 18, diameter: 38, plain: true,
+              accessibilityLabel: '暂停下载',
               onAction: () => { this.onPause(this.task); }
             })
           }
           if (this.task.status === 'paused') {
             IconButton({
-              glyph: 'play', glyphSize: 18, diameter: 34, plain: true,
+              glyph: 'play', glyphSize: 18, diameter: 38, plain: true,
+              accessibilityLabel: '继续下载',
               onAction: () => { this.onResume(this.task); }
             })
           }
           if (this.isActive()) {
             IconButton({
-              glyph: 'close', glyphSize: 18, diameter: 34, plain: true,
+              glyph: 'close', glyphSize: 18, diameter: 38, plain: true,
+              accessibilityLabel: '取消下载',
               onAction: () => {
                 this.onCancel(this.task);
               }
             })
           }
           if (this.task.status === 'failed' || this.task.status === 'cancelled') {
-            IconButton({
-              glyph: 'retry', glyphSize: 18, diameter: 34, plain: true,
+            PillButton({
+              label: '重试', icon: 'retry', small: true, variant: 'tonal',
               onAction: () => {
                 this.onRetry(this.task);
               }
@@ -447,7 +462,8 @@ export struct TaskCard {
           }
           if (this.task.status === 'completed') {
             IconButton({
-              glyph: 'chevronRight', glyphSize: 18, diameter: 34, plain: true,
+              glyph: 'chevronRight', glyphSize: 18, diameter: 38, plain: true,
+              accessibilityLabel: '在图库中查看',
               onAction: () => {
                 this.onLocate(this.task);
               }

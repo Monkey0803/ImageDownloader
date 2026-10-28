@@ -93,6 +93,20 @@ export class TasksViewModel {
     return this.active.length === 0 && this.settled.length === 0 && this.batchViews.length === 0;
   }
 
+  /** 标题副标题：进行中优先；没有进行中时如实说明已结束数量。 */
+  caption(): string {
+    if (this.running > 0) {
+      return this.running.toString() + ' 个任务进行中 · 并发 ' + this.concurrency.toString();
+    }
+    if (this.settled.length > 0) {
+      return '无进行中 · 已结束 ' + this.settled.length.toString();
+    }
+    if (this.batchViews.length > 0) {
+      return '有打包任务待处理';
+    }
+    return '队列为空';
+  }
+
   setConcurrency(value: number): void {
     DownloadStore.setConcurrency(Math.round(value));
   }

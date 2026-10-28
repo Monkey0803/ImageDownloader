@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from '@ohos/hypium';
 import { BatchItem, DownloadItem } from '../../../main/ets/model/Models';
+import { BatchView } from '../../../main/ets/model/BatchView';
 import { DownloadStore } from '../../../main/ets/service/DownloadStore';
 import { TasksViewModel } from '../../../main/ets/viewmodel/TasksViewModel';
 
@@ -50,6 +51,22 @@ export default function tasksViewModelTest() {
       expect(model.batchViews[0].done).assertEqual(1);
       expect(model.running).assertEqual(4);
       expect(model.isEmpty()).assertFalse();
+    });
+
+    it('captions_settled_records_instead_of_claiming_an_empty_queue', 0, () => {
+      const model: TasksViewModel = new TasksViewModel();
+      expect(model.caption()).assertEqual('队列为空');
+
+      model.settled = [task('done', 'completed'), task('failed', 'failed')];
+      expect(model.caption()).assertEqual('无进行中 · 已结束 2');
+
+      model.settled = [];
+      model.running = 1;
+      expect(model.caption()).assertEqual('1 个任务进行中 · 并发 3');
+
+      model.running = 0;
+      model.batchViews = [new BatchView()];
+      expect(model.caption()).assertEqual('有打包任务待处理');
     });
   });
 }
