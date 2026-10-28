@@ -107,6 +107,19 @@ export class MediaFormat {
     return '';
   }
 
+  /**
+   * 酷安等站点把实况照片的静图放在普通图片地址里，文件名带 `-livepic` / `_livepic`。
+   *
+   * 网页只提供这一张静图，视频部分不在公开页面里；界面据此标注“实况静图”，
+   * 不把它误当成可播放的 `.livp` 包，也不承诺动态内容。
+   */
+  static isLivepicStill(nameOrUrl: string): boolean {
+    if (MediaFormat.mediaKindOf(nameOrUrl) !== 'image') {
+      return false;
+    }
+    return /(^|[-_])livepic(?:[-_.@]|$)/i.test(MediaFormat.leafOf(nameOrUrl));
+  }
+
   /** 头部字节是否是 ZIP（`PK`）：实况照片包必须是 ZIP，否则只当普通文件保留。 */
   static isZipSignature(bytes: Uint8Array): boolean {
     return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;

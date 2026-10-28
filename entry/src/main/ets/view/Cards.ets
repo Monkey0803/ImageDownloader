@@ -54,6 +54,9 @@ export struct SelectTile {
     if (this.picture.kind === 'livephoto') {
       return '实况';
     }
+    if (MediaFormat.isLivepicStill(this.picture.url)) {
+      return '实况静图';
+    }
     const extension: string = MediaFormat.extensionOf(this.picture.url);
     return MediaFormat.isAnimatedExt(extension) ? extension.toUpperCase() : '';
   }
@@ -174,6 +177,9 @@ export struct ShotTile {
   private badge(): string {
     if (this.image.kind === 'livephoto') {
       return '实况';
+    }
+    if (MediaFormat.isLivepicStill(this.image.url)) {
+      return '实况静图';
     }
     return this.image.animated ? '动图' : '';
   }

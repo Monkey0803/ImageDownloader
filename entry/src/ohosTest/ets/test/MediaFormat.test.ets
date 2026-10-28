@@ -65,6 +65,21 @@ export default function mediaFormatTest() {
     });
   });
 
+  describe('MediaFormat.isLivepicStill', () => {
+    it('marks_only_the_still_image_of_a_livepic_post', 0, () => {
+      expect(MediaFormat.isLivepicStill(
+        'https://image.coolapk.com/feed/2026/1010/10/a-livepic@1440x2560.jpg')).assertTrue();
+      expect(MediaFormat.isLivepicStill(
+        'https://image.coolapk.com/feed/2026/1027/03/a-livepic-uhdr@2494x3325.jpg')).assertTrue();
+      expect(MediaFormat.isLivepicStill('https://a.com/livepic.jpg')).assertTrue();
+      expect(MediaFormat.isLivepicStill('https://a.com/a_livepic.webp')).assertTrue();
+      expect(MediaFormat.isLivepicStill('https://a.com/livepicture.jpg')).assertFalse();
+      expect(MediaFormat.isLivepicStill('https://a.com/notlivepic.jpg')).assertFalse();
+      expect(MediaFormat.isLivepicStill('https://a.com/a.livp')).assertFalse();
+      expect(MediaFormat.isLivepicStill('https://a.com/a-livepic.mp4')).assertFalse();
+    });
+  });
+
   describe('MediaFormat.keepsExtension', () => {
     it('keeps_images_and_live_photo_packages', 0, () => {
       expect(MediaFormat.keepsExtension('png')).assertTrue();

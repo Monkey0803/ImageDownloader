@@ -1,5 +1,6 @@
 import { PreviewAsset } from '../model/PreviewAsset';
 import { ImageMetadata, ImageTools } from '../service/ImageTools';
+import { MediaFormat } from '../service/MediaFormat';
 import { DownloadStore } from '../service/DownloadStore';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { LibraryAnalysis } from '../service/LibraryAnalysis';
@@ -290,6 +291,10 @@ export struct PreviewTools {
           this.metadataRow('动态范围', 'range')
           this.metadataRow('文件大小', 'bytes')
           this.metadataRow('下载时间', 'downloadedAt')
+          if (MediaFormat.isLivepicStill(this.asset.url)) {
+            Text('实况照片：网页只提供静图，动态部分不可用')
+              .fontSize(Font.caption).fontColor(Palette.fontTertiary).width('100%')
+          }
         }.width('100%').alignItems(HorizontalAlign.Start)
         if (this.asset.url.length > 0 || this.asset.sourcePage.length > 0) {
           Column({ space: Space.s12 }) {
