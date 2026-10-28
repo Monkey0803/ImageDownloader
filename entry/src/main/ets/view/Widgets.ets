@@ -36,10 +36,10 @@ export interface TabItem {
  * 免得重排之后徽标挂到别的页签上）。
  */
 export const TABS: TabItem[] = [
-  { key: 'discover', label: '发现', glyph: 'scan' },
-  { key: 'tasks', label: '任务', glyph: 'download' },
+  { key: 'discover', label: '发现', glyph: 'compass' },
+  { key: 'tasks', label: '任务', glyph: 'list' },
   { key: 'library', label: '图库', glyph: 'image' },
-  { key: 'settings', label: '设置', glyph: 'sliders' }
+  { key: 'settings', label: '设置', glyph: 'settings' }
 ];
 
 /**
@@ -268,26 +268,28 @@ export struct TabBar {
   @Builder
   private tabItem(item: TabItem, index: number) {
     Column({ space: Space.s2 }) {
-      Stack({ alignContent: Alignment.TopEnd }) {
+      Stack({ alignContent: Alignment.Center }) {
         Glyph({ glyph: item.glyph, glyphSize: 23,
           glyphWeight: this.active === index ? 2 : 1.7,
-          glyphTone: TransparentGlass.foreground(this.immersiveEnabled) })
+          glyphTone: this.active === index ? Palette.tabSelected : TransparentGlass.foreground(this.immersiveEnabled) })
         if (index === TAB_TASKS && this.badge > 0) {
-          Text(this.badge > 99 ? '99' : this.badge.toString())
-            .fontSize(9).lineHeight(15).fontWeight(FontWeight.Bold)
-            .fontColor(Palette.white).textAlign(TextAlign.Center)
-            .constraintSize({ minWidth: 15 }).height(15)
-            .padding({ left: 4, right: 4 }).borderRadius(Radius.full)
-            .backgroundColor(Palette.warning).offset({ x: 10, y: -8 })
+          // Anchor the badge independently so the icon stays centered over its label.
+          Stack({ alignContent: Alignment.TopEnd }) {
+            Text(this.badge > 99 ? '99' : this.badge.toString())
+              .fontSize(9).lineHeight(15).fontWeight(FontWeight.Bold)
+              .fontColor(Palette.white).textAlign(TextAlign.Center)
+              .constraintSize({ minWidth: 15 }).height(15)
+              .padding({ left: 4, right: 4 }).borderRadius(Radius.full)
+              .backgroundColor(Palette.warning).offset({ x: 10, y: -8 })
+          }.width(26).height(26)
         }
       }.width(26).height(26)
       Text(item.label).fontSize(Font.tab).lineHeight(14)
         .fontWeight(this.active === index ? FontWeight.Bold : FontWeight.Medium)
-        .fontColor(TransparentGlass.foreground(this.immersiveEnabled))
-      Row().width(12).height(2).borderRadius(Radius.full)
-        .backgroundColor(this.active === index ? TransparentGlass.foreground(this.immersiveEnabled) : Color.Transparent)
+        .fontColor(this.active === index ? Palette.tabSelected : TransparentGlass.foreground(this.immersiveEnabled))
     }
     .layoutWeight(1).height(Layout.tabBarHeight).justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
     .onClick((): void => { this.onSelect(index); })
     .accessibilityText(item.label)
     .accessibilitySelected(this.active === index)

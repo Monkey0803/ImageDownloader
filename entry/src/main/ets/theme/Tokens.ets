@@ -10,6 +10,8 @@
 /** Theme-aware colours. Each name mirrors a CSS custom property. */
 export class Palette {
   static readonly brand: Resource = $r('app.color.brand');
+  /** Selected tab foreground; the dark variant stays readable on translucent glass. */
+  static readonly tabSelected: Resource = $r('app.color.tab_selected');
   static readonly brandSoft: Resource = $r('app.color.brand_soft');
   static readonly brandFaint: Resource = $r('app.color.brand_faint');
   static readonly confirm: Resource = $r('app.color.confirm');

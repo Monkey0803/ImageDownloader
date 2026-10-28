@@ -87,16 +87,17 @@ ${entries.join(',\n')}
 /**
  * Glyph name → system HMSymbol.
  *
- * Every name here is one the official HarmonyOS Symbol dictionary publishes
- * (\`designs/harmonyos-mobile/assets/hmsymbol-map.json\`, 404 names) — the design
- * kit's \`components/controls/IconMap.jsx\` fixes the canonical symbol for each UI
- * intent (分享=share, 导出=arrow_up_and_rectangle_on_rectangle,
- * 重命名=square_and_pencil, 下载=arrow_down_circle …). Staying inside that
- * dictionary is what lets the HTML prototype draw the identical glyph from the
- * HMSymbol font; anything missing here keeps the prototype's path icon, so no
- * icon can ever disappear.
+ * Names are validated against the HarmonyOS SDK system resource table.
+ * The prototype mirrors published codepoints from
+ * \`designs/harmonyos-mobile/assets/hmsymbol-map.json\`; newer SDK symbols such
+ * as compass_circle keep a matching line-path fallback in the prototype.
+ * Canonical intents include 分享=share, 导出=arrow_up_and_rectangle_on_rectangle,
+ * 重命名=square_and_pencil, 下载=arrow_down_circle.
  */
 const SYMBOL_RES: Record<string, Resource> = {
+  'compass': $r('sys.symbol.compass_circle'),
+  'list': $r('sys.symbol.list_bullet'),
+  'settings': $r('sys.symbol.gearshape'),
   'search': $r('sys.symbol.magnifyingglass'),
   'refresh': $r('sys.symbol.arrow_clockwise'),
   'check': $r('sys.symbol.checkmark'),
@@ -113,6 +114,7 @@ const SYMBOL_RES: Record<string, Resource> = {
   'chevronRight': $r('sys.symbol.chevron_right'),
   'grid': $r('sys.symbol.square_grid_2x2'),
   'chevronDown': $r('sys.symbol.chevron_down'),
+  'chevronUp': $r('sys.symbol.chevron_up'),
   'play': $r('sys.symbol.play_fill'),
   'pause': $r('sys.symbol.pause_round_triangle_fill'),
   'retry': $r('sys.symbol.arrow_counterclockwise'),
@@ -129,9 +131,19 @@ const SYMBOL_RES: Record<string, Resource> = {
   'inbox': $r('sys.symbol.arrow_down_circle'),
   'sparkle': $r('sys.symbol.rays'),
   'eye': $r('sys.symbol.eye'),
+  'info': $r('sys.symbol.info_circle'),
+  'bookmark': $r('sys.symbol.bookmark'),
+  'bookmarkFill': $r('sys.symbol.bookmark_fill'),
+  'copy': $r('sys.symbol.rectangle_on_rectangle'),
   // 只在符号层存在的两个名字：地址栏的「粘贴」与「前往」。
   'paste': $r('sys.symbol.text_clipboard'),
-  'arrowRight': $r('sys.symbol.arrow_right')
+  'arrowRight': $r('sys.symbol.arrow_right'),
+  'crop': $r('sys.symbol.crop_rotate'),
+  'brush': $r('sys.symbol.paintbrush'),
+  'rectangle': $r('sys.symbol.rectangle'),
+  'rotateLeft': $r('sys.symbol.rotate_left'),
+  'undo': $r('sys.symbol.undo'),
+  'palette': $r('sys.symbol.paintpalette')
 };
 
 /** Path data for a named glyph, falling back to a dot for unknown names. */
@@ -171,19 +183,18 @@ function symbolWeight(glyphWeight: number): FontWeight {
  * which keeps the stroke proportional to the glyph exactly the way the
  * prototype's SVG did.
  */
-@Component
+@ComponentV2
 export struct Glyph {
   // Prefixed member names: size, name and friends are universal component
   // attributes, and a struct member may not shadow one.
   //
-  // All four are @Prop. ArkUI V1 does not refresh an undecorated child member
-  // when the parent re-renders, and callers do swap icons at runtime (设置页
-  // 「主题」行的 sun ↔ moon、任务卡片的 clock → checkCircle…): without @Prop the
-  // glyph keeps whatever it was first built with.
-  @Prop glyph: string = 'dot';
-  @Prop glyphSize: number = 24;
-  @Prop glyphTone: ResourceColor = $r('app.color.font_primary');
-  @Prop glyphWeight: number = 1.7;
+  // All four are @Param. 它们会在运行时被调用方改（设置页「主题」行的 sun ↔ moon、
+  // 任务卡片的 clock → checkCircle…），所以必须是装饰成员 —— V2 里裸成员**根本传不进来**
+  // （实测报 10905324：The 'regular' property ... cannot be initialized here）。
+  @Param glyph: string = 'dot';
+  @Param glyphSize: number = 24;
+  @Param glyphTone: ResourceColor = $r('app.color.font_primary');
+  @Param glyphWeight: number = 1.7;
 
   private density: number = display.getDefaultDisplaySync().densityPixels;
 

@@ -1,5 +1,8 @@
 import { Glyph } from './Icons';
 
+/** Apply once per control bar so nested content does not compound the opacity. */
+export const PREVIEW_CHROME_BACKGROUND: string = '#99000000';
+
 /** Controls on the dark image canvas use explicit contrast, independent of the app theme. */
 @ComponentV2
 export struct PreviewButton {

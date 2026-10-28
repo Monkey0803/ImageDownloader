@@ -15,6 +15,9 @@ import { PreviewGeometry, PreviewPosition, PreviewSize } from '../util/PreviewGe
 import { Thumb } from './Thumb';
 import { PreviewButton } from './PreviewChrome';
 
+const PREVIEW_FIRST_FRAME_TIMEOUT_MS: number = 15000;
+const PREVIEW_SOURCE_UNAVAILABLE: string = '图片源不可用，请检查文件或网络后重试';
+
 /** Retain the last decoded frame while upgrading detail; never decode multiple revisions concurrently. */
 @ComponentV2
 export struct LocalPreviewImage {
@@ -183,31 +186,71 @@ export struct AnimatedPreviewImage {
   private playback: AnimationPlayback | undefined = undefined;
   private generation: number = 0;
   private alive: boolean = false;
+  private firstFrameTimer: number = -1;
+  @Local private loadAttempt: number = 0;
+  @Local private failureMessage: string = PREVIEW_SOURCE_UNAVAILABLE;
 
   aboutToAppear(): void { this.alive = true; this.sourceIdentity = this.localPath + this.src; this.start(); }
   aboutToDisappear(): void { this.alive = false; this.stop(); }
 
   private stop(): void {
+    this.clearFirstFrameTimer();
     this.generation++;
     this.animationFrame = undefined;
     this.playback?.stop();
     this.playback = undefined;
   }
 
+  private clearFirstFrameTimer(): void {
+    if (this.firstFrameTimer >= 0) {
+      clearTimeout(this.firstFrameTimer);
+      this.firstFrameTimer = -1;
+    }
+  }
+
+  private acceptsLoad(token: number): boolean {
+    return this.alive && this.active && token === this.generation && !this.failed;
+  }
+
+  private failLoad(token: number, message: string): void {
+    if (!this.acceptsLoad(token)) { return; }
+    this.stop();
+    this.loaded = false;
+    this.failureMessage = message;
+    this.failed = true;
+  }
+
   private start(reset: boolean = true): void {
     this.stop();
     this.loaded = false;
     this.failed = false;
+    this.failureMessage = PREVIEW_SOURCE_UNAVAILABLE;
     if (reset) { this.paused = false; this.frameIndex = 0; }
     this.exporting = false;
     this.notice = '';
-    if (!this.active || !this.alive || this.localPath.length === 0) { return; }
+    if (!this.active || !this.alive) { return; }
     const token: number = this.generation;
+    this.loadAttempt = token;
+    if (this.localPath.length === 0 && this.src.trim().length === 0) {
+      this.failLoad(token, PREVIEW_SOURCE_UNAVAILABLE);
+      return;
+    }
+    this.firstFrameTimer = setTimeout((): void => {
+      if (!this.acceptsLoad(token) || this.loaded) { return; }
+      this.firstFrameTimer = -1;
+      this.failLoad(token, '图片加载超时，请重试');
+    }, PREVIEW_FIRST_FRAME_TIMEOUT_MS);
+    if (this.localPath.length === 0) { return; }
     const session: AnimationPlayback = new AnimationPlayback();
     this.playback = session;
     if (this.paused) { session.pause(); }
     session.run(this.localPath, (frame: image.PixelMap, info: AnimationFrameInfo): void => {
-      if (!this.alive || token !== this.generation) { return; }
+      if (!this.acceptsLoad(token)) { return; }
+      if (info.width <= 0 || info.height <= 0) {
+        this.failLoad(token, PREVIEW_SOURCE_UNAVAILABLE);
+        return;
+      }
+      this.clearFirstFrameTimer();
       this.animationFrame = frame;
       this.frameIndex = info.index;
       this.frameCount = info.count;
@@ -216,10 +259,7 @@ export struct AnimatedPreviewImage {
       this.transparent = info.transparent;
       this.loaded = true;
     }, (): void => {
-      if (!this.alive || token !== this.generation) { return; }
-      this.animationFrame = undefined;
-      this.failed = true;
-      this.loaded = false;
+      this.failLoad(token, PREVIEW_SOURCE_UNAVAILABLE);
     }, this.frameIndex);
   }
 
@@ -266,7 +306,27 @@ export struct AnimatedPreviewImage {
       { width: this.viewportWidth, height: this.viewportHeight });
   }
 
-  build() {
+  @Builder
+  private remoteImage(attempt: number, source: string) {
+    // API 26 reloadKey retries the unchanged source URL.
+    Image(source, undefined, attempt.toString()).width('100%').height('100%').objectFit(ImageFit.Contain)
+      .translate({ y: this.pullDistance * 0.65 })
+      .onComplete((event): void => {
+        if (!this.acceptsLoad(attempt) || source !== this.src) { return; }
+        if (event !== undefined && event.loadingStatus === 1 && event.width > 0 && event.height > 0) {
+          this.clearFirstFrameTimer();
+          this.imageWidth = event.width;
+          this.imageHeight = event.height;
+          this.loaded = true;
+        }
+      })
+      .onError((): void => {
+        if (source === this.src) { this.failLoad(attempt, PREVIEW_SOURCE_UNAVAILABLE); }
+      })
+  }
+
+  @Builder
+  private animationCanvas() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.loaded && ((this.backgroundMode === 'auto' && this.transparent) || this.backgroundMode === 'checker')) {
         PreviewCheckerboard().width(this.fitted().width).height(this.fitted().height)
@@ -274,26 +334,17 @@ export struct AnimatedPreviewImage {
       if (this.active && this.animationFrame !== undefined) {
         Image(this.animationFrame).width('100%').height('100%').objectFit(ImageFit.Contain)
           .translate({ y: this.pullDistance * 0.65 })
-          .onClick(this.onTapImage)
       } else if (this.active && !this.failed && this.localPath.length === 0) {
-        Image(this.src).width('100%').height('100%').objectFit(ImageFit.Contain)
-          .translate({ y: this.pullDistance * 0.65 })
-          .onClick(this.onTapImage)
-          .onComplete((event): void => {
-            if (event !== undefined && event.width > 0 && event.height > 0) {
-              this.imageWidth = event.width;
-              this.imageHeight = event.height;
-              this.loaded = true;
-            }
-          })
-          .onError((): void => { this.failed = true; this.loaded = false; })
+        ForEach([this.loadAttempt], (attempt: number) => {
+          this.remoteImage(attempt, this.src)
+        }, (attempt: number): string => attempt.toString())
       }
       if (this.active && !this.loaded && !this.failed) {
         LoadingProgress().width(28).height(28).color(Palette.white).hitTestBehavior(HitTestMode.None)
       }
       if (this.failed) {
         Column({ space: Space.s8 }) {
-          Text('图片无法加载，请检查文件或网络后重试').fontSize(Font.aux).fontColor(Palette.white)
+          Text(this.failureMessage).fontSize(Font.aux).fontColor(Palette.white)
           PreviewButton({ label: '重试', variant: 'tonal', small: true,
             onAction: (): void => { this.start(); } })
         }.padding(Space.s12).borderRadius(Radius.r8).backgroundColor('#CC222222')
@@ -301,17 +352,30 @@ export struct AnimatedPreviewImage {
     }.width('100%').height('100%')
     .backgroundColor(this.backgroundMode === 'white' ? '#FFFFFF' : '#000000')
     .onGestureJudgeBegin((info: GestureInfo, event: BaseGestureEvent): GestureJudgeResult => {
-      return this.active && this.allowDismiss ? GestureJudgeResult.CONTINUE : GestureJudgeResult.REJECT;
+      if (!this.active || (info.type === GestureControl.GestureType.PAN_GESTURE && !this.allowDismiss)) {
+        return GestureJudgeResult.REJECT;
+      }
+      return GestureJudgeResult.CONTINUE;
     })
-    .gesture(PanGesture({ fingers: 1, direction: PanDirection.Vertical })
+    .gesture(GestureGroup(GestureMode.Exclusive,
+      PanGesture({ fingers: 1, direction: PanDirection.Vertical })
       .onActionUpdate((event: GestureEvent): void => { this.pullDistance = Math.max(0, event.offsetY); })
       .onActionEnd((event: GestureEvent): void => {
         const close: boolean = this.active && this.allowDismiss
           && PreviewMotion.dismiss(this.pullDistance, event.velocityY, this.viewportHeight);
         this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, (): void => { this.pullDistance = 0; });
         if (close) { this.onDismiss(); }
-      }).onActionCancel((): void => { this.pullDistance = 0; }))
-    .overlay(this.animationControls(), { align: Alignment.Bottom })
+      }).onActionCancel((): void => { this.pullDistance = 0; }),
+      TapGesture({ count: 1 }).onAction((): void => { if (this.active) { this.onTapImage(); } })
+    ))
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      this.animationCanvas()
+      // Controls are siblings of the gesture canvas, so buttons cannot toggle the bars.
+      this.animationControls()
+    }.width('100%').height('100%')
     .onSizeChange((oldValue: SizeOptions, next: SizeOptions): void => {
       this.viewportWidth = Number(next.width);
       this.viewportHeight = Number(next.height);
@@ -323,6 +387,7 @@ export struct AnimatedPreviewImage {
       Column({ space: Space.s8 }) {
         if (this.notice.length > 0) {
           Text(this.notice).fontSize(Font.aux).fontColor(Palette.white).backgroundColor('#DD333333').padding(Space.s8)
+            .hitTestBehavior(HitTestMode.None)
         }
         Row({ space: Space.s8 }) {
           if (this.frameCount > 1) {
@@ -331,8 +396,9 @@ export struct AnimatedPreviewImage {
           }
           PreviewButton({ label: this.exporting ? '正在导出…' : '保存当前帧', small: true, variant: 'tonal',
             active: !this.exporting, onAction: (): void => { this.saveFrame(); } })
-        }
+        }.hitTestBehavior(HitTestMode.None)
       }.margin({ bottom: this.controlsBottom + 8 })
+        .hitTestBehavior(HitTestMode.None)
     }
   }
 

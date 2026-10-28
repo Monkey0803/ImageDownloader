@@ -27,6 +27,7 @@ import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { PreviewTools } from './PreviewTools';
 import { PreviewCompare } from './PreviewCompare';
+import { PREVIEW_CHROME_BACKGROUND } from './PreviewChrome';
 export { Thumb } from './Thumb';
 export { AnimatedPreviewImage, ZoomablePreviewImage, LocalPreviewImage } from './ImageSurface';
 export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
@@ -1058,7 +1059,7 @@ export struct ImageViewer {
           .alignItems(VerticalAlign.Center)
           .padding({ left: Space.s16, right: Space.s16,
             top: SCREEN_INSETS.safeTop + Space.s16, bottom: Space.s8 })
-          .backgroundColor('#99000000')
+          .backgroundColor(PREVIEW_CHROME_BACKGROUND)
           if (this.panels.navigation) {
             PreviewStrip({ items: this.thumbnails(), currentIndex: this.index,
               onJump: (next: number): void => { this.panels.navigation = false; this.onIndexChange(next); },
@@ -1075,7 +1076,6 @@ export struct ImageViewer {
               .textAlign(TextAlign.Center)
               .width('100%')
               .padding({ left: Space.s24, right: Space.s24, top: Space.s10 })
-              .backgroundColor('#99000000')
           }
 
           if (this.actionable) {
@@ -1095,11 +1095,10 @@ export struct ImageViewer {
             .width('100%')
             .justifyContent(FlexAlign.SpaceAround)
             .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
-            .backgroundColor('#99000000')
           } else {
             Column().height(SCREEN_INSETS.safeBottom + Space.s16)
           }
-          }.width('100%').backgroundColor('#E61C1C1E')
+          }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
             .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
               this.actionDockHeight = Number(newSize.height);
             })

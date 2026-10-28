@@ -12,6 +12,8 @@
 
 /** Glyph name → HarmonyOS Symbol codepoint (PUA; drawn with the HMSymbol font). */
 const HMSYMBOL = {
+  list: 0xF0069,
+  settings: 0xF0020,
   search: 0xF0029,
   refresh: 0xF00C7,
   check: 0xF0013,
@@ -57,8 +59,12 @@ const HMSYMBOL = {
 };
 
 const ICONS = {
+  compass: (<><circle cx="12" cy="12" r="9" /><path d="M16 8 14 14 8 16 10 10Z" /></>),
+  list: (<><path d="M9 6h11 M9 12h11 M9 18h11" /><circle cx="4" cy="6" r="0.7" /><circle cx="4" cy="12" r="0.7" /><circle cx="4" cy="18" r="0.7" /></>),
+  settings: (<><path d="M10 2h4l0.7 2.8 2.5 1.4 2.7 -0.8 2 3.4 -2 2.1v2.2l2 2.1 -2 3.4 -2.7 -0.8 -2.5 1.4L14 22h-4l-0.7 -2.8 -2.5 -1.4 -2.7 0.8 -2 -3.4 2 -2.1v-2.2l-2 -2.1 2 -3.4 2.7 0.8 2.5 -1.4Z" /><circle cx="12" cy="12" r="3.5" /></>),
   search: (<><circle cx="11" cy="11" r="7" /><path d="M16.6 16.6 21 21" /></>),
   globe: (<><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c2.6 3 2.6 15 0 18" /><path d="M12 3c-2.6 3-2.6 15 0 18" /></>),
+  wifi: (<><path d="M2.5 8.5a14 14 0 0 1 19 0 M5.5 12a9.5 9.5 0 0 1 13 0 M8.8 15.5a5 5 0 0 1 6.4 0 M12 19.5h.01" /></>),
   refresh: (<><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" /><path d="M20.5 4.6V10H15" /></>),
   check: (<path d="M5 12.6 10 17.5 19 6.8" />),
   close: (<><path d="M6 6 18 18" /><path d="M18 6 6 18" /></>),

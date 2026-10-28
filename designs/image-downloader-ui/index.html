@@ -20,6 +20,7 @@
 :root {
   /* brand + semantics */
   --brand: rgba(10, 89, 247, 1);
+  --tab-selected: var(--brand);
   --brand-soft: rgba(10, 89, 247, 0.2);
   --brand-faint: rgba(10, 89, 247, 0.098);
   --confirm: rgba(100, 187, 92, 1);
@@ -113,6 +114,7 @@
 
 [data-theme="dark"] {
   --brand: rgba(49, 122, 247, 1);
+  --tab-selected: #B7D0FC;
   --brand-soft: rgba(49, 122, 247, 0.24);
   --brand-faint: rgba(49, 122, 247, 0.12);
   --confirm: rgba(91, 168, 84, 1);
@@ -598,7 +600,7 @@ ul { margin: 0; padding: 0; list-style: none; }
   -webkit-tap-highlight-color: transparent;
   appearance: none;
 }
-.tabbar__tab--active { color: var(--brand); }
+.tabbar__tab--active { color: var(--tab-selected); }
 .tabbar__tab:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: var(--r-4); }
 .tabbar__label {
   font-size: 10px;

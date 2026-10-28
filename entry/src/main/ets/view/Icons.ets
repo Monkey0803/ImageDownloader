@@ -13,6 +13,9 @@ import { display } from '@kit.ArkUI';
  */
 
 const ICON_PATHS: Record<string, string> = {
+  'compass': 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z M16 8 14 14 8 16 10 10Z',
+  'list': 'M9 6h11 M9 12h11 M9 18h11 M3.3 6a0.7 0.7 0 1 0 1.4 0a0.7 0.7 0 1 0 -1.4 0Z M3.3 12a0.7 0.7 0 1 0 1.4 0a0.7 0.7 0 1 0 -1.4 0Z M3.3 18a0.7 0.7 0 1 0 1.4 0a0.7 0.7 0 1 0 -1.4 0Z',
+  'settings': 'M10 2h4l0.7 2.8 2.5 1.4 2.7 -0.8 2 3.4 -2 2.1v2.2l2 2.1 -2 3.4 -2.7 -0.8 -2.5 1.4L14 22h-4l-0.7 -2.8 -2.5 -1.4 -2.7 0.8 -2 -3.4 2 -2.1v-2.2l-2 -2.1 2 -3.4 2.7 0.8 2.5 -1.4Z M8.5 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0Z',
   'search': 'M4 11a7 7 0 1 0 14 0a7 7 0 1 0 -14 0Z M16.6 16.6 21 21',
   'globe': 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z M3 12h18 M12 3c2.6 3 2.6 15 0 18 M12 3c-2.6 3-2.6 15 0 18',
   'wifi': 'M2.5 8.5a14 14 0 0 1 19 0 M5.5 12a9.5 9.5 0 0 1 13 0 M8.8 15.5a5 5 0 0 1 6.4 0 M12 19.5h0.01',
@@ -57,16 +60,17 @@ const ICON_PATHS: Record<string, string> = {
 /**
  * Glyph name → system HMSymbol.
  *
- * Every name here is one the official HarmonyOS Symbol dictionary publishes
- * (`designs/harmonyos-mobile/assets/hmsymbol-map.json`, 404 names) — the design
- * kit's `components/controls/IconMap.jsx` fixes the canonical symbol for each UI
- * intent (分享=share, 导出=arrow_up_and_rectangle_on_rectangle,
- * 重命名=square_and_pencil, 下载=arrow_down_circle …). Staying inside that
- * dictionary is what lets the HTML prototype draw the identical glyph from the
- * HMSymbol font; anything missing here keeps the prototype's path icon, so no
- * icon can ever disappear.
+ * Names are validated against the HarmonyOS SDK system resource table.
+ * The prototype mirrors published codepoints from
+ * `designs/harmonyos-mobile/assets/hmsymbol-map.json`; newer SDK symbols such
+ * as compass_circle keep a matching line-path fallback in the prototype.
+ * Canonical intents include 分享=share, 导出=arrow_up_and_rectangle_on_rectangle,
+ * 重命名=square_and_pencil, 下载=arrow_down_circle.
  */
 const SYMBOL_RES: Record<string, Resource> = {
+  'compass': $r('sys.symbol.compass_circle'),
+  'list': $r('sys.symbol.list_bullet'),
+  'settings': $r('sys.symbol.gearshape'),
   'search': $r('sys.symbol.magnifyingglass'),
   'refresh': $r('sys.symbol.arrow_clockwise'),
   'check': $r('sys.symbol.checkmark'),

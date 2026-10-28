@@ -235,7 +235,7 @@ struct Viewer {
       return '';
     }
     if (this.completed) {
-      return '应用内的文件已经不在了，只能看远程原图。';
+      return '应用内文件已不存在，远程预览需要原地址仍可访问';
     }
     if (item !== undefined && (item.status === 'failed' || item.status === 'cancelled')) {
       return '这次下载没有成功，只能看远程原图；重新下载后才能分享、导出或存相册。';

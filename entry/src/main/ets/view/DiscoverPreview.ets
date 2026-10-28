@@ -1,4 +1,4 @@
-import { PreviewButton } from './PreviewChrome';
+import { PREVIEW_CHROME_BACKGROUND, PreviewButton } from './PreviewChrome';
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { DownloadItem } from '../model/Models';
@@ -291,13 +291,13 @@ export struct DiscoverPreview {
           }
           .width('100%').padding({ left: Space.s16, right: Space.s16,
             top: SCREEN_INSETS.safeTop + Space.s12, bottom: Space.s12 })
-          .backgroundColor('#99000000')
+          .backgroundColor(PREVIEW_CHROME_BACKGROUND)
           Row({ space: Space.s8 }) {
             PreviewButton({ label: '全部 ' + this.ids.length.toString(), small: true,
               variant: !this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(false); } })
             PreviewButton({ label: '已选 ' + this.selectedIds().length.toString(), small: true,
               variant: this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(true); } })
-          }.width('100%').justifyContent(FlexAlign.Center).padding(Space.s8).backgroundColor('#99000000')
+          }.width('100%').justifyContent(FlexAlign.Center).padding(Space.s8).backgroundColor(PREVIEW_CHROME_BACKGROUND)
           if (this.panels.navigation) {
             PreviewStrip({ items: this.thumbnails(), currentIndex: this.currentIndex,
               onJump: (next: number): void => { this.panels.navigation = false; this.pageChanged(next); },
@@ -340,10 +340,10 @@ export struct DiscoverPreview {
                   + this.selectedIds().length.toString(), small: true, variant: 'tonal',
                   onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
               }
-            }.width('100%').justifyContent(FlexAlign.Center).backgroundColor('#99000000')
+            }.width('100%').justifyContent(FlexAlign.Center)
           }
-          Row().height(SCREEN_INSETS.safeBottom + Space.s16).width('100%').backgroundColor('#99000000')
-          }.width('100%').padding({ top: 8 }).backgroundColor('#E61C1C1E')
+          Row().height(SCREEN_INSETS.safeBottom + Space.s16).width('100%')
+          }.width('100%').padding({ top: 8 }).backgroundColor(PREVIEW_CHROME_BACKGROUND)
             .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
               this.actionDockHeight = Number(newSize.height);
             })

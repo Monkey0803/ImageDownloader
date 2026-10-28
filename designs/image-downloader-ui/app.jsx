@@ -3,10 +3,10 @@
    ============================================================ */
 
 const TAB_ITEMS = [
-  { key: 'discover', label: '发现', icon: 'scan' },
-  { key: 'tasks',    label: '任务', icon: 'download' },
+  { key: 'discover', label: '发现', icon: 'compass' },
+  { key: 'tasks',    label: '任务', icon: 'list' },
   { key: 'library',  label: '图库', icon: 'image' },
-  { key: 'settings', label: '设置', icon: 'sliders' },
+  { key: 'settings', label: '设置', icon: 'settings' },
 ];
 
 /* HarmonyOS ships one brand emphasis colour; the theme is the only
