@@ -85,7 +85,9 @@ export class BatchLinks {
     const firstLine: Map<string, number> = new Map<string, number>();
     const lines: string[] = text.split(/\r?\n/);
     for (let index: number = 0; index < lines.length; index++) {
-      const raw: string = lines[index].trim();
+      // 微博 / 聊天软件复制出来的链接会把换行编码进地址里（如 `.../RoKcM1STr%0A`），
+      // 原样加载会打开一个不存在的页面，所以先去掉行尾这类编码空白再判定。
+      const raw: string = BatchLinks.stripTrailingEncodedSpace(lines[index]);
       if (raw.length === 0) { continue; }
       const row: BatchLinkRow = new BatchLinkRow();
       row.line = index + 1;
@@ -231,6 +233,21 @@ export class BatchLinks {
 
   private static isHttpUrl(value: string): boolean {
     return /^https?:\/\/[^/?#\s]+(?:[/?#][^\s]*)?$/i.test(value);
+  }
+
+  /**
+   * 去掉行尾编码过的空白：`%0A` / `%0D`（换行）、`%09`（制表符）、`%20`（空格）。
+   *
+   * 分享文本里的「换行」常常被编码进 URL 尾部，例如微博的
+   * `https://weibo.com/5571216925/RoKcM1STr%0A`。这类行在解析时会拿不到正文 id，
+   * 加载的也是一个不存在的地址；先行清掉能保证复制粘贴与逐行输入结果一致。
+   */
+  private static stripTrailingEncodedSpace(value: string): string {
+    let text: string = value.trim();
+    while (/(?:%0[aAdD]|%09|%20)$/.test(text)) {
+      text = text.replace(/(?:%0[aAdD]|%09|%20)$/, '').trim();
+    }
+    return text;
   }
 
   private static invalidUrlReason(value: string): string {

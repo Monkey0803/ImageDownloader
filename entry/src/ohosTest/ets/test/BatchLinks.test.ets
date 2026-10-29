@@ -144,6 +144,17 @@ export default function batchLinksTest() {
       expect(failed.detail).assertEqual('连接失败，仍可导入');
     });
 
+    it('strips_encoded_line_breaks_copied_with_the_link', 0, () => {
+      const report: BatchLinkReport = BatchLinks.parse('https://weibo.com/5571216925/RoKcM1STr%0A\n'
+        + 'https://weibo.com/2453184077/RoKvs3RRL%0D%0A\n');
+      expect(rowOf(report, 1).url).assertEqual('https://weibo.com/5571216925/RoKcM1STr');
+      expect(rowOf(report, 2).url).assertEqual('https://weibo.com/2453184077/RoKvs3RRL');
+      expect(report.rows.length).assertEqual(2);
+      expect(report.pages).assertEqual(2);
+      expect(report.urls.join(',')).assertEqual('https://weibo.com/5571216925/RoKcM1STr,'
+        + 'https://weibo.com/2453184077/RoKvs3RRL');
+    });
+
     it('keeps_duplicate_and_invalid_rows_out_of_the_import_list', 0, () => {
       const report: BatchLinkReport = BatchLinks.parse('https://a.example/noext\n'
         + 'https://a.example/noext\nhttps://a.example/noext?sign=1\n'
