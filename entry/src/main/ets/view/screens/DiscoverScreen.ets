@@ -1,5 +1,5 @@
 import { PictureSelectionButton } from '../Widgets';
-import { BatchFlowHost } from '../BatchPagePanel';
+import { BatchFlowHost, BATCH_PAGE_NAME } from '../BatchPagePanel';
 import { PictureItem } from '../../model/Models';
 import { TransparentGlass } from '../../theme/TransparentGlass';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
@@ -42,6 +42,8 @@ export struct DiscoverScreen {
   @Event onShowResults: () => void = (): void => {};
   @Event onOpenPreview: (uid: string) => void = (uid: string): void => {};
   @Local private filtersOpen: boolean = false;
+  /** 批量页的导航栈放在入口这一层：push 发生在点击回调里，走 HDS 默认转场动画。 */
+  @Local private batchPages: NavPathStack = new NavPathStack();
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -135,7 +137,10 @@ export struct DiscoverScreen {
       })
       IconButton({ glyph: 'list', glyphSize: 18, plain: true,
         accessibilityLabel: '批量链接',
-        onAction: (): void => { this.discover.setBatchPanel(true); }
+        onAction: (): void => {
+          if (this.batchPages.size() === 0) { this.batchPages.pushPath({ name: BATCH_PAGE_NAME }); }
+          this.discover.setBatchPanel(true);
+        }
       }).id('batch-link-entry')
     }
     .width('100%')
@@ -410,7 +415,7 @@ export struct DiscoverScreen {
       .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.Visible : Visibility.None)
 
-      BatchFlowHost({ discover: this.discover })
+      BatchFlowHost({ discover: this.discover, pages: this.batchPages })
 
     }
     .width('100%')

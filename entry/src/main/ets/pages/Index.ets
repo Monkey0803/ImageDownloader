@@ -354,7 +354,7 @@ struct Index {
 
   /** 当前页签自己的「滚远了没有」；设置页没有列表，永远 false。 */
   private topVisible(): boolean {
-    if (this.currentTab === TAB_DISCOVER && !this.browserOpen) {
+    if (this.currentTab === TAB_DISCOVER && !this.browserOpen && !this.discover.batchOpen) {
       return this.discover.scrolled;
     }
     if (this.currentTab === TAB_TASKS) {
@@ -472,7 +472,7 @@ struct Index {
         })
       }
 
-      if (this.currentTab === TAB_DISCOVER && !this.browserOpen
+      if (this.currentTab === TAB_DISCOVER && !this.browserOpen && !this.discover.batchOpen
         && (this.discover.selectedTotal > 0 || this.device.gripChipVisible())) {
         Column({ space: Space.s8 }) {
           if (this.device.gripChipVisible()) {
@@ -495,7 +495,8 @@ struct Index {
         PrivacyVeil({ device: this.device })
       }
 
-      if (this.browserOpen || this.currentTab !== TAB_DISCOVER) {
+      // 批量页是压在页签上的二级页，进去后整页全屏，不保留底部页签栏。
+      if ((this.browserOpen || this.currentTab !== TAB_DISCOVER) && !this.discover.batchOpen) {
         TabBar({
           active: this.currentTab,
           // 网页可能含视频/动画，浏览首页底栏用不透明背景，避免固定叠加材质滤镜。

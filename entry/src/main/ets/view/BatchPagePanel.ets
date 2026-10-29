@@ -8,33 +8,33 @@ import { PillButton, PictureSelectionButton, Segmented, MODE_OPTIONS } from './W
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS, ScreenMetrics } from '../theme/Metrics';
 
-const BATCH_PAGE: string = 'batch';
+export const BATCH_PAGE_NAME: string = 'batch';
 
 /**
  * 批量链接页：编辑、审核、网页处理都在同一个 HDS 页面里完成。
  *
- * 页面跟着 `batchOpen` 压栈/出栈；Web 随页面存在而挂载，审核阶段的解析直接用同一块 Web，
- * 「打开网页处理」只是把工作区让开、把 Web 露出来，不重建组件（控制器一旦解绑 17100001）。
+ * 页面跟着 `batchOpen` 出栈；入栈由发现页的入口按钮直接 push（走 HDS 默认转场动画）。
+ * Web 随页面存在而挂载，审核阶段的解析直接用同一块 Web，「打开网页处理」只是把工作区
+ * 让开、把 Web 露出来，不重建组件（控制器一旦解绑 17100001）。
  */
 @ComponentV2
 export struct BatchFlowHost {
   @Require @Param discover: DiscoverViewModel;
-  @Local private pages: NavPathStack = new NavPathStack();
+  /** 栈由发现页持有：入栈发生在入口点击里，走 HDS 导航默认转场动画。 */
+  @Require @Param pages: NavPathStack;
   @Local private preview: PictureItem | undefined = undefined;
   @Local private previewReferer: string = '';
 
   @Monitor('discover.batchOpen')
   private onBatchOpenChanged(monitor: IMonitor): void {
-    if (this.discover.batchOpen) {
-      if (this.pages.size() === 0) { this.pages.pushPath({ name: BATCH_PAGE }); }
-    } else if (this.pages.size() > 0) {
-      this.pages.clear();
+    if (!this.discover.batchOpen && this.pages.size() > 0) {
+      this.pages.pop();
     }
   }
 
   @Builder
   private pageMap(name: string) {
-    if (name === BATCH_PAGE) {
+    if (name === BATCH_PAGE_NAME) {
       HdsNavDestination() {
         this.batchPage()
       }
@@ -161,9 +161,11 @@ export struct BatchFlowHost {
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
+      // 内容不足一屏时 Scroll 会把内容居中（顶部留出大块空白），撑到一屏高让它从顶部开始。
+      .constraintSize({ minHeight: ScreenMetrics.height() })
       .padding({
         left: Space.s16, right: Space.s16, top: Space.s12,
-        bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
+        bottom: SCREEN_INSETS.safeBottom + Space.s12
       })
     }
     .width('100%').height('100%')
@@ -260,7 +262,7 @@ export struct BatchFlowHost {
       .width('100%')
       .padding({
         left: Space.s16, right: Space.s16, top: Space.s8,
-        bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
+        bottom: SCREEN_INSETS.safeBottom + Space.s12
       })
     }
     .width('100%').height('100%')
@@ -354,8 +356,6 @@ export struct BatchFlowHost {
     .mode(NavigationMode.Stack)
     .width('100%')
     .height('100%')
-    // 栈为空时 HDS 容器仍然占满整层：关页后必须整层退出渲染与命中，否则会盖住发现页。
-    .opacity(this.discover.batchOpen ? 1 : 0)
     .hitTestBehavior(this.discover.batchOpen ? HitTestMode.Default : HitTestMode.None)
   }
 }
