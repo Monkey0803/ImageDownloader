@@ -1,10 +1,13 @@
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
+import { HdsNavDestination, HdsNavigation } from '@kit.UIDesignKit';
 import { BatchPageGroup } from '../service/BatchPageGroups';
 import { PictureItem } from '../model/Models';
 import { Thumb } from './Thumb';
 import { PillButton, PictureSelectionButton } from './Widgets';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
+
+const BATCH_WEB_PAGE: string = 'batch-web';
 
 @ComponentV2
 export struct BatchPagePanel {
@@ -118,29 +121,65 @@ export struct BatchPagePanel {
   }
 }
 
-/** Kept mounted at a real viewport size so dynamic pages and lazy images render normally. */
+/** 批量网页处理页：进入审核时压栈、退出审核时出栈，处理态只是把这一页显示出来。 */
 @ComponentV2
 export struct BatchBrowserHost {
   @Require @Param discover: DiscoverViewModel;
+  @Local private pages: NavPathStack = new NavPathStack();
+
+  /**
+   * Web 必须在审核阶段就挂载：解析要往里注入脚本，微博换票也靠它自己跑。
+   * 所以栈跟着 `batchStage` 走，而不是跟着「打开网页处理」这个动作走。
+   */
+  @Monitor('discover.batchStage')
+  private onBatchStageChanged(monitor: IMonitor): void {
+    if (this.discover.batchStage === 'review') {
+      if (this.pages.size() === 0) { this.pages.pushPath({ name: BATCH_WEB_PAGE }); }
+    } else if (this.pages.size() > 0) {
+      this.pages.clear();
+    }
+  }
+
+  @Builder
+  private pageMap(name: string) {
+    if (name === BATCH_WEB_PAGE) {
+      HdsNavDestination() {
+        Web({ src: 'about:blank', controller: this.discover.batchBrowser().controller() })
+          .javaScriptAccess(true).domStorageAccess(true).width('100%').height('100%')
+          .onControllerAttached((): void => { this.discover.batchBrowser().ready(); })
+          .onPageBegin((event): void => { this.discover.batchBrowser().pageBegan(event.url); })
+          .onPageEnd((event): void => { this.discover.batchBrowser().pageEnded(event.url); })
+          .onErrorReceive((event: OnErrorReceiveEvent): void => {
+            if (event.request.isMainFrame()) { this.discover.batchBrowser().pageFailed(); }
+          })
+      }
+      .titleBar({
+        avoidLayoutSafeArea: true,
+        enableComponentSafeArea: true,
+        content: { title: { mainTitle: '网页处理', subTitle: '登录或验证后返回重试' } }
+      })
+      .onBackPressed((): boolean => {
+        if (this.discover.batchHandling) { this.discover.finishBatchHandling(); return true; }
+        // 审核中返回等同「返回修改」；stage 变回 edit 会把这一页出栈。
+        this.discover.cancelBatchReview();
+        return true;
+      })
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Palette.bg)
+    }
+  }
 
   build() {
-    Column({ space: Space.s8 }) {
-      if (this.discover.batchHandling) {
-        Text('在网页中完成登录或验证，返回后重试对应链接')
-          .fontSize(Font.aux).fontColor(Palette.fontPrimary).width('100%')
-        PillButton({ label: '返回批量结果', variant: 'tonal',
-          onAction: (): void => { this.discover.finishBatchHandling(); } })
-      }
-      Web({ src: 'about:blank', controller: this.discover.batchBrowser().controller() })
-        .javaScriptAccess(true).domStorageAccess(true).width('100%').layoutWeight(1)
-        .onControllerAttached((): void => { this.discover.batchBrowser().ready(); })
-        .onPageBegin((event): void => { this.discover.batchBrowser().pageBegan(event.url); })
-        .onPageEnd((event): void => { this.discover.batchBrowser().pageEnded(event.url); })
-        .onErrorReceive((event: OnErrorReceiveEvent): void => {
-          if (event.request.isMainFrame()) { this.discover.batchBrowser().pageFailed(); }
-        })
-    }.width('100%').height('100%').backgroundColor(Palette.bg)
-    .padding({ top: SCREEN_INSETS.safeTop, bottom: SCREEN_INSETS.safeBottom, left: 12, right: 12 })
+    HdsNavigation(this.pages) {
+      Column() {}
+    }
+    .navDestination(this.pageMap)
+    .hideNavBar(true)
+    .mode(NavigationMode.Stack)
+    .width('100%')
+    .height('100%')
+    .padding({ bottom: SCREEN_INSETS.safeBottom })
     .opacity(this.discover.batchHandling ? 1 : 0)
     .hitTestBehavior(this.discover.batchHandling ? HitTestMode.Default : HitTestMode.None)
     .zIndex(this.discover.batchHandling ? 20 : -1)

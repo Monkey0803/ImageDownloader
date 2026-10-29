@@ -522,6 +522,8 @@ export class DiscoverViewModel {
     this.batchReview = BatchLinks.merge(BatchLinks.parse(this.batchText), this.batchChecks);
     this.batchReviewZip = zipMode;
     this.batchGroups = BatchPageGroups.create(this.batchReview);
+    // 审核页每次压栈都是新建的 Web 组件实例，旧控制器已随上一页解绑，这里换一个解析器。
+    this.batchResolver = new BatchPageResolver();
     this.batchStage = 'review';
     await this.resolveBatchPages(this.batchGroups);
   }
