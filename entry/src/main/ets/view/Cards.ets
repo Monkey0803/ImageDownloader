@@ -22,7 +22,7 @@ import { Glyph } from './Icons';
 import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { Thumb } from './Thumb';
-import { AnimatedPreviewImage, ZoomablePreviewImage } from './ImageSurface';
+import { AnimatedPreviewImage, AnimationDockActions, AnimationToolbarAction, ZoomablePreviewImage } from './ImageSurface';
 import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { PreviewTools } from './PreviewTools';
@@ -960,12 +960,12 @@ export struct ImageViewer {
         glyphWeight: 1.7
       })
       Text(label)
-        .fontSize(11)
+        .fontSize(11).minFontSize(9).maxFontSize(11).maxLines(1)
         .fontColor(danger ? '#F2826E' : '#E6FFFFFF')
     }
     .padding({ top: Space.s6, bottom: Space.s6 })
     }
-    .layoutWeight(1).height(52).backgroundColor(Color.Transparent)
+    .layoutWeight(1).height(52).padding({ left: 2, right: 2 }).backgroundColor(Color.Transparent)
     .accessibilityText(label).borderRadius(Radius.r6)
     .onClick(() => {
       act();
@@ -981,6 +981,56 @@ export struct ImageViewer {
         onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
         onClose: (): void => { this.panels.tools = false; } })
     }
+  }
+
+  private animationDocked(): boolean {
+    const slide: ViewerSlide | undefined = this.current();
+    return slide !== undefined && slide.animated
+      && !(slide.stillPath.length > 0 && slide.motionPath.length > 0);
+  }
+
+  @Builder
+  private actionDock(actions: AnimationDockActions) {
+    Column() {
+      if (actions.notice.length > 0 || this.hint.length > 0) {
+        Text(actions.notice.length > 0 ? actions.notice : this.hint)
+          .fontSize(Font.aux)
+          .lineHeight(Font.auxLine)
+          .fontColor('#B3FFFFFF')
+          .textAlign(TextAlign.Center)
+          .width('100%')
+          .padding({ left: Space.s24, right: Space.s24, top: Space.s10 })
+      }
+      if (this.actionable) {
+        Row() {
+          if (this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
+            this.action('scan', '适合屏幕', false, (): void => { this.requestFit('screen'); })
+            this.action('image', '原始像素', false, (): void => { this.requestFit('native'); })
+          }
+          if (this.renameAllowed) {
+            this.action('pencil', '重命名', false, this.onRename)
+          }
+          if (actions.available) {
+            if (actions.canPause) {
+              AnimationToolbarAction({ actions: actions }).layoutWeight(1)
+            }
+            AnimationToolbarAction({ actions: actions, frameAction: true }).layoutWeight(1)
+          }
+          this.action('download', '存相册', false, this.onSaveToGallery)
+          this.action('share', '分享', false, this.onShare)
+          this.action('export', '导出', false, this.onExport)
+          this.action('trash', '删除', true, this.onDelete)
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.SpaceAround)
+        .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
+      } else {
+        Column().height(SCREEN_INSETS.safeBottom + Space.s16)
+      }
+    }.width('100%')
+      .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
+        this.actionDockHeight = Number(newSize.height);
+      })
   }
 
   private detailsMaterialAllowed(): boolean {
@@ -1007,7 +1057,9 @@ export struct ImageViewer {
                 onZoomChange: (value: boolean): void => { this.zoomed = value; } })
             } else {
               AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
-                allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose })
+                allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
+                dockedControls: slide.animated,
+                bottomActions: (actions: AnimationDockActions): void => { this.actionDock(actions); } })
                 .width('100%').height('100%')
             }
           }
@@ -1067,41 +1119,11 @@ export struct ImageViewer {
           }
           Column().layoutWeight(1).hitTestBehavior(HitTestMode.None)
 
-          Column() {
-          if (this.hint.length > 0) {
-            Text(this.hint)
-              .fontSize(Font.aux)
-              .lineHeight(Font.auxLine)
-              .fontColor('#B3FFFFFF')
-              .textAlign(TextAlign.Center)
-              .width('100%')
-              .padding({ left: Space.s24, right: Space.s24, top: Space.s10 })
+          if (!this.animationDocked()) {
+            Column() {
+              this.actionDock(new AnimationDockActions())
+            }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
           }
-
-          if (this.actionable) {
-            Row() {
-              if (this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
-                this.action('scan', '适合屏幕', false, (): void => { this.requestFit('screen'); })
-                this.action('image', '原始像素', false, (): void => { this.requestFit('native'); })
-              }
-              if (this.renameAllowed) {
-                this.action('pencil', '重命名', false, this.onRename)
-              }
-              this.action('download', '存相册', false, this.onSaveToGallery)
-              this.action('share', '分享', false, this.onShare)
-              this.action('export', '导出', false, this.onExport)
-              this.action('trash', '删除', true, this.onDelete)
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.SpaceAround)
-            .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
-          } else {
-            Column().height(SCREEN_INSETS.safeBottom + Space.s16)
-          }
-          }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
-            .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
-              this.actionDockHeight = Number(newSize.height);
-            })
         }
         .width('100%').height('100%')
         .hitTestBehavior(HitTestMode.None)

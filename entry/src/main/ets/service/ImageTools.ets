@@ -4,9 +4,11 @@ import { common } from '@kit.AbilityKit';
 import { textRecognition } from '@kit.CoreVisionKit';
 import { detectBarcode, scanBarcode } from '@kit.ScanKit';
 import { Clipboard } from './Clipboard';
-import { ActionOutcome, exportFile } from './FileActions';
+import { ActionOutcome, exportFile, saveImageToGallery } from './FileActions';
 import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
 import { RecognizedLine } from '../model/LibraryAsset';
+
+export type FrameSaveDestination = 'album' | 'folder';
 
 export class ImageMetadata {
   width: number = 0;
@@ -152,11 +154,17 @@ export class ImageTools {
     } finally { ImageTools.remove(png); }
   }
 
-  static async saveFrame(context: common.UIAbilityContext, path: string, name: string, index: number): Promise<ActionOutcome> {
+  static async saveFrame(context: common.UIAbilityContext, path: string, name: string, index: number,
+    destination: FrameSaveDestination = 'folder'): Promise<ActionOutcome> {
     const png: string = await ImageTools.png(path, context.cacheDir, index);
     try {
       const base: string = name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_');
-      return await exportFile(context, png, base + '-第' + (index + 1).toString() + '帧.png');
+      const filename: string = base + '-第' + (index + 1).toString() + '帧.png';
+      const outcome: ActionOutcome = destination === 'album'
+        ? await saveImageToGallery(context, png, filename) : await exportFile(context, png, filename);
+      if (outcome.cancelled === true) { return { ok: false, cancelled: true, message: '' }; }
+      if (!outcome.ok) { return outcome; }
+      return { ok: true, message: destination === 'album' ? '已保存当前帧到相册' : '已保存当前帧到文件夹' };
     } finally { ImageTools.remove(png); }
   }
 }

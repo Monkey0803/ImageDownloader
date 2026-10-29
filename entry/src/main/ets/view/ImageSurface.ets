@@ -4,16 +4,18 @@ import { PreviewReadingState } from '../model/PreviewReadingState';
 import { PreviewReadingStore } from '../service/PreviewReadingStore';
 import { PreviewRegionImage } from './PreviewRegionImage';
 import { AnimationPlayback, AnimationFrameInfo } from '../service/AnimationPlayback';
-import { ImageTools } from '../service/ImageTools';
+import { FrameSaveDestination, ImageTools } from '../service/ImageTools';
 import { ActionOutcome } from '../service/FileActions';
 import { DownloadStore } from '../service/DownloadStore';
 import { image } from '@kit.ImageKit';
-import { display } from '@kit.ArkUI';
+import { display, promptAction } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { PreviewGeometry, PreviewPosition, PreviewSize } from '../util/PreviewGeometry';
 import { Thumb } from './Thumb';
-import { PreviewButton } from './PreviewChrome';
+import { PREVIEW_CHROME_BACKGROUND, PreviewButton } from './PreviewChrome';
+import { Glyph } from './Icons';
 
 const PREVIEW_FIRST_FRAME_TIMEOUT_MS: number = 15000;
 const PREVIEW_SOURCE_UNAVAILABLE: string = '图片源不可用，请检查文件或网络后重试';
@@ -162,6 +164,47 @@ export struct LocalPreviewImage {
   }
 }
 
+/** Reactive animation actions supplied to the host's shared toolbar. */
+@ObservedV2
+export class AnimationDockActions {
+  @Trace available: boolean = false;
+  @Trace canPause: boolean = false;
+  @Trace paused: boolean = false;
+  @Trace exporting: boolean = false;
+  @Trace choosingDestination: boolean = false;
+  @Trace notice: string = '';
+  onToggle: () => void = (): void => {};
+  onSave: () => void = (): void => {};
+}
+
+/** Read reactive state inside each button so labels and enabled state update in place. */
+@ComponentV2
+export struct AnimationToolbarAction {
+  @Require @Param actions: AnimationDockActions;
+  @Param frameAction: boolean = false;
+
+  private actionLabel(): string {
+    return this.frameAction ? (this.actions.exporting ? '正在保存…' : '保存当前帧')
+      : (this.actions.paused ? '继续' : '暂停');
+  }
+
+  build() {
+    Button({ type: ButtonType.Normal }) {
+      Column({ space: Space.s6 }) {
+        Glyph({ glyph: this.frameAction ? 'image' : (this.actions.paused ? 'play' : 'pause'),
+          glyphSize: 21, glyphTone: '#E6FFFFFF', glyphWeight: 1.7 })
+        Text(this.actionLabel()).fontSize(11).minFontSize(9).maxFontSize(11).maxLines(1)
+          .fontColor('#E6FFFFFF')
+      }.padding({ top: Space.s6, bottom: Space.s6 })
+    }.width('100%').height(52).padding({ left: 2, right: 2 }).backgroundColor(Color.Transparent)
+      .borderRadius(Radius.r6).accessibilityText(this.actionLabel())
+      .enabled(!this.frameAction || (!this.actions.exporting && !this.actions.choosingDestination))
+      .onClick((): void => {
+        if (this.frameAction) { this.actions.onSave(); } else { this.actions.onToggle(); }
+      })
+  }
+}
+
 /** Native animation playback with a transparency backdrop and a recoverable loading state. */
 @ComponentV2
 export struct AnimatedPreviewImage {
@@ -172,8 +215,14 @@ export struct AnimatedPreviewImage {
   @Param name: string = '图片';
   @Param controlsVisible: boolean = true;
   @Param controlsBottom: number = 80;
+  @Param dockedControls: boolean = false;
+  @BuilderParam bottomActions: (actions: AnimationDockActions) => void = this.emptyBottomActions;
+
+  @Builder
+  private emptyBottomActions(actions: AnimationDockActions) {}
   @Param allowDismiss: boolean = false;
   @Event onDismiss: () => void = (): void => {};
+  @Local private dockState: AnimationDockActions = new AnimationDockActions();
   @Local private pullDistance: number = 0;
   private sourceIdentity: string = '';
   @Local private animationFrame: image.PixelMap | undefined = undefined;
@@ -181,6 +230,7 @@ export struct AnimatedPreviewImage {
   @Local private frameIndex: number = 0;
   @Local private frameCount: number = 1;
   @Local private exporting: boolean = false;
+  @Local private choosingDestination: boolean = false;
   @Local private notice: string = '';
   @Local private transparent: boolean = false;
   private playback: AnimationPlayback | undefined = undefined;
@@ -189,9 +239,17 @@ export struct AnimatedPreviewImage {
   private firstFrameTimer: number = -1;
   @Local private loadAttempt: number = 0;
   @Local private failureMessage: string = PREVIEW_SOURCE_UNAVAILABLE;
+  // System pickers may background playback without ending the save request.
+  private saveGeneration: number = 0;
 
-  aboutToAppear(): void { this.alive = true; this.sourceIdentity = this.localPath + this.src; this.start(); }
-  aboutToDisappear(): void { this.alive = false; this.stop(); }
+  aboutToAppear(): void {
+    this.dockState.onToggle = (): void => { this.togglePlayback(); };
+    this.dockState.onSave = (): void => { this.saveFrame(); };
+    this.alive = true;
+    this.sourceIdentity = this.localPath + this.src;
+    this.start();
+  }
+  aboutToDisappear(): void { this.alive = false; this.saveGeneration++; this.stop(); }
 
   private stop(): void {
     this.clearFirstFrameTimer();
@@ -225,9 +283,14 @@ export struct AnimatedPreviewImage {
     this.loaded = false;
     this.failed = false;
     this.failureMessage = PREVIEW_SOURCE_UNAVAILABLE;
-    if (reset) { this.paused = false; this.frameIndex = 0; }
-    this.exporting = false;
-    this.notice = '';
+    if (reset) {
+      this.saveGeneration++;
+      this.paused = false;
+      this.frameIndex = 0;
+      this.exporting = false;
+      this.choosingDestination = false;
+      this.notice = '';
+    }
     if (!this.active || !this.alive) { return; }
     const token: number = this.generation;
     this.loadAttempt = token;
@@ -269,19 +332,44 @@ export struct AnimatedPreviewImage {
   }
 
   private async saveFrame(): Promise<void> {
-    if (this.exporting || !this.loaded || this.localPath.length === 0) { return; }
+    if (this.exporting || this.choosingDestination || !this.active || !this.alive
+      || !this.loaded || this.localPath.length === 0) { return; }
     this.paused = true;
     this.playback?.pause();
-    this.exporting = true;
-    const token: number = this.generation;
+    this.notice = '';
+    const token: number = this.saveGeneration;
     const index: number = this.frameIndex;
+    const path: string = this.localPath;
+    const name: string = this.name;
+    let destination: FrameSaveDestination = 'folder';
+    this.choosingDestination = true;
     try {
-      const outcome: ActionOutcome = await ImageTools.saveFrame(DownloadStore.context, this.localPath, this.name, index);
-      if (this.alive && token === this.generation) { this.notice = outcome.message; }
+      const choice: promptAction.ActionMenuSuccessResponse = await this.getUIContext().getPromptAction().showActionMenu({
+        title: '保存当前帧',
+        buttons: [{ text: '保存到相册', color: Palette.fontPrimary }, { text: '保存到文件夹', color: Palette.fontPrimary }]
+      });
+      if (!this.alive || token !== this.saveGeneration) { return; }
+      if (choice.index !== 0 && choice.index !== 1) { return; }
+      destination = choice.index === 0 ? 'album' : 'folder';
     } catch (error) {
-      if (this.alive && token === this.generation) { this.notice = '当前帧导出失败，可重试'; }
+      const failure: BusinessError = error as BusinessError;
+      const message: string = (failure.message ?? '').toLowerCase();
+      if (this.alive && token === this.saveGeneration && !message.includes('cancel') && !message.includes('取消')) {
+        this.notice = '无法打开保存选项，可重试';
+      }
+      return;
     } finally {
-      if (this.alive && token === this.generation) { this.exporting = false; }
+      if (this.alive && token === this.saveGeneration) { this.choosingDestination = false; }
+    }
+    if (!this.alive || token !== this.saveGeneration) { return; }
+    this.exporting = true;
+    try {
+      const outcome: ActionOutcome = await ImageTools.saveFrame(DownloadStore.context, path, name, index, destination);
+      if (this.alive && token === this.saveGeneration) { this.notice = outcome.message; }
+    } catch (error) {
+      if (this.alive && token === this.saveGeneration) { this.notice = '当前帧保存失败，可重试'; }
+    } finally {
+      if (this.alive && token === this.saveGeneration) { this.exporting = false; }
     }
   }
   @Param active: boolean = true;
@@ -373,14 +461,33 @@ export struct AnimatedPreviewImage {
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       this.animationCanvas()
-      // Controls are siblings of the gesture canvas, so buttons cannot toggle the bars.
-      this.animationControls()
+      // Keep the dock outside the image's tap and dismiss gestures.
+      if (this.dockedControls) {
+        if (this.controlsVisible && this.active) {
+          Column() {
+            this.bottomActions(this.dockState)
+          }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
+            .hitTestBehavior(HitTestMode.None)
+        }
+      } else {
+        this.animationControls()
+      }
     }.width('100%').height('100%')
     .onSizeChange((oldValue: SizeOptions, next: SizeOptions): void => {
       this.viewportWidth = Number(next.width);
       this.viewportHeight = Number(next.height);
     })
   }
+  @Monitor('loaded', 'frameCount', 'paused', 'exporting', 'choosingDestination', 'notice', 'localPath')
+  private updateDockActions(monitor: IMonitor): void {
+    this.dockState.available = this.loaded && this.localPath.length > 0;
+    this.dockState.canPause = this.frameCount > 1;
+    this.dockState.paused = this.paused;
+    this.dockState.exporting = this.exporting;
+    this.dockState.choosingDestination = this.choosingDestination;
+    this.dockState.notice = this.notice;
+  }
+
   @Builder
   private animationControls() {
     if (this.controlsVisible && this.active && this.loaded && this.localPath.length > 0) {
@@ -394,8 +501,8 @@ export struct AnimatedPreviewImage {
             PreviewButton({ label: this.paused ? '继续' : '暂停', small: true, variant: 'tonal',
               icon: this.paused ? 'play' : 'pause', onAction: (): void => { this.togglePlayback(); } })
           }
-          PreviewButton({ label: this.exporting ? '正在导出…' : '保存当前帧', small: true, variant: 'tonal',
-            active: !this.exporting, onAction: (): void => { this.saveFrame(); } })
+          PreviewButton({ label: this.exporting ? '正在保存…' : '保存当前帧', small: true, variant: 'tonal',
+            active: !this.exporting && !this.choosingDestination, onAction: (): void => { this.saveFrame(); } })
         }.hitTestBehavior(HitTestMode.None)
       }.margin({ bottom: this.controlsBottom + 8 })
         .hitTestBehavior(HitTestMode.None)

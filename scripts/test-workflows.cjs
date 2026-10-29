@@ -949,6 +949,7 @@ function imageToolsHarness(config = {}) {
     getImageInfo: async () => ({ size: { width: 2000, height: 1000 }, mimeType: 'image/png', isHdr: config.hdr === true }),
     createPixelMap: async (options) => {
       events.push(['decode', options]);
+      if (config.decodeFail) throw new Error('decode failure');
       return { release: async () => events.push('frame.release') };
     },
     release: async () => events.push('source.release')
@@ -987,7 +988,13 @@ function imageToolsHarness(config = {}) {
     } } },
     [path.join(source, 'service/Clipboard.ets')]: { Clipboard: { writeText: async (value) => events.push(['copy', value]) } },
     [path.join(source, 'service/FileActions.ets')]: { exportFile: async (_context, path, name) => {
-      assert.ok(files.has(path)); events.push(['export', name]); return { ok: false, message: '' };
+      assert.ok(files.has(path)); events.push(['export', name]);
+      if (config.saveError) throw new Error('destination failure');
+      return config.saveOutcome ?? { ok: false, message: '' };
+    }, saveImageToGallery: async (_context, path, name) => {
+      assert.ok(files.has(path)); events.push(['album', name]);
+      if (config.saveError) throw new Error('destination failure');
+      return config.saveOutcome ?? { ok: false, message: '' };
     } }
   };
   const ImageTools = loader(mocks)(path.join(source, 'service/ImageTools.ets')).ImageTools;
@@ -1078,6 +1085,52 @@ test('QR errors, empty codec output and cancelled frame export leave no temporar
   assert.equal(h.events.find((value) => Array.isArray(value) && value[0] === 'decode')[1].index, 7);
   assert.deepEqual(h.events.find((value) => Array.isArray(value) && value[0] === 'export'), ['export', 'clip-第8帧.png']);
   assert.equal(h.files.size, 0);
+});
+
+test('frame saving selects album or folder and preserves the requested frame and PNG filename', async () => {
+  for (const [destination, event, message] of [
+    [undefined, 'export', '已保存当前帧到文件夹'],
+    ['folder', 'export', '已保存当前帧到文件夹'],
+    ['album', 'album', '已保存当前帧到相册']
+  ]) {
+    const h = imageToolsHarness({ saveOutcome: { ok: true, message: 'saved' } });
+    const result = await h.ImageTools.saveFrame({ cacheDir: '/cache' }, '/animation', 'clip:test.webp', 2, destination);
+    assert.equal(result.ok, true);
+    assert.equal(result.message, message);
+    assert.equal(h.events.find((value) => Array.isArray(value) && value[0] === 'decode')[1].index, 2);
+    assert.deepEqual(h.events.filter((value) => Array.isArray(value) && ['export', 'album'].includes(value[0])),
+      [[event, 'clip_test-第3帧.png']]);
+    assert.equal(h.files.size, 0);
+    assert.equal(h.descriptors.size, 0);
+  }
+});
+
+test('frame saving cancels silently and cleans up on destination failure for both destinations', async () => {
+  for (const destination of ['album', 'folder']) {
+    for (const saveOutcome of [
+      { ok: false, cancelled: true, message: '已取消保存到系统相册' },
+      { ok: false, message: '' },
+      { ok: false, message: 'destination unavailable' }
+    ]) {
+      const h = imageToolsHarness({ saveOutcome });
+      const result = await h.ImageTools.saveFrame({ cacheDir: '/cache' }, '/animation', 'clip.gif', 1, destination);
+      assert.equal(result.ok, false);
+      assert.equal(result.message, saveOutcome.cancelled ? '' : saveOutcome.message);
+      if (saveOutcome.cancelled) assert.equal(result.cancelled, true);
+      assert.equal(h.files.size, 0);
+      assert.equal(h.descriptors.size, 0);
+      for (const released of ['frame.release', 'source.release', 'packer.release']) assert.ok(h.events.includes(released));
+    }
+    for (const config of [{ saveError: true }, { decodeFail: true }, { emptyOutput: true }]) {
+      const h = imageToolsHarness(config);
+      await assert.rejects(h.ImageTools.saveFrame({ cacheDir: '/cache' }, '/animation', 'clip.gif', 1, destination));
+      assert.equal(h.files.size, 0);
+      assert.equal(h.descriptors.size, 0);
+      assert.ok(h.events.includes('source.release'));
+      assert.ok(h.events.includes('packer.release'));
+      if (!config.decodeFail) assert.ok(h.events.includes('frame.release'));
+    }
+  }
 });
 
 function animationHarness(gate) {
