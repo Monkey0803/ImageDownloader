@@ -146,6 +146,13 @@ struct Index {
       this.discover.finishBatchHandling();
       return true;
     }
+    // 页级 onBackPress 优先于 NavDestination.onBackPressed，所以这里要先把批量页的返回
+    // 语义接住：审核态 = 返回修改，编辑态 = 关闭批量页。
+    if (this.discover.batchOpen) {
+      if (this.discover.batchStage === 'review') { this.discover.cancelBatchReview(); }
+      else { this.discover.setBatchPanel(false); }
+      return true;
+    }
     if (this.previewOpen) {
       if (this.previewPanels.dismissTop()) { return true; }
       this.closeDiscoverPreview();

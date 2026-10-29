@@ -453,7 +453,7 @@ export class DiscoverViewModel {
   async pasteBatch(): Promise<void> {
     try {
       this.setBatchText(await Clipboard.readText(this.ui.context()));
-      this.batchOpen = true;
+      this.setBatchPanel(true);
     } catch (error) {
       this.ui.say('读取剪贴板失败：' + String((error as BusinessError).message));
     }
@@ -471,7 +471,11 @@ export class DiscoverViewModel {
   }
 
   setBatchPanel(open: boolean): void {
-    if (!open) {
+    if (open) {
+      // 批量页每次打开都会新建一块 Web 组件；控制器已随上一页解绑，必须换一个新的解析器。
+      // 页面已经打开时（例如页内「粘贴多条」）不能换，否则新控制器与已挂载的 Web 对不上。
+      if (!this.batchOpen) { this.batchResolver = new BatchPageResolver(); }
+    } else {
       this.cancelBatchPages(); this.batchGroups = [];
       this.cancelBatchProbe();
       this.batchStage = 'edit';
@@ -522,8 +526,6 @@ export class DiscoverViewModel {
     this.batchReview = BatchLinks.merge(BatchLinks.parse(this.batchText), this.batchChecks);
     this.batchReviewZip = zipMode;
     this.batchGroups = BatchPageGroups.create(this.batchReview);
-    // 审核页每次压栈都是新建的 Web 组件实例，旧控制器已随上一页解绑，这里换一个解析器。
-    this.batchResolver = new BatchPageResolver();
     this.batchStage = 'review';
     await this.resolveBatchPages(this.batchGroups);
   }
