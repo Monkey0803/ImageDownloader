@@ -88,15 +88,40 @@ export class BatchPageResolver {
         }, 20000);
         const collect = async (): Promise<void> => {
           let stable: number = 0;
+          // 换票/跳转后的地址才是真正要采的页面，所以在采集过程中跟着 location 走。
+          let scanUrl: string = finalUrl;
+          let pending: boolean = false;
           const images: Map<string, ScanImage> = new Map<string, ScanImage>();
           for (let round: number = 0; round < 12 && valid(); round++) {
             if (round > 0) { await wait(); }
             if (!valid()) { return; }
-            const raw: webview.JsMessageExt = await this.browser.runJavaScriptExt(
-              BatchPageProtocol.script(group.inputUrl, quality));
-            if (!valid()) { return; }
-            const step: BatchPageStep = BatchPageProtocol.parse(raw.getString());
-            if (step.url !== finalUrl) { throw new Error('网页发生跳转，请打开网页处理后重试'); }
+            let step: BatchPageStep;
+            try {
+              const raw: webview.JsMessageExt = await this.browser.runJavaScriptExt(
+                BatchPageProtocol.script(group.inputUrl, quality));
+              if (!valid()) { return; }
+              step = BatchPageProtocol.parse(raw.getString());
+            } catch (error) {
+              if (!valid()) { return; }
+              // 页面正在跳转时脚本会被打断，下一轮再看，不要把它当成终态。
+              stable = 0;
+              continue;
+            }
+            if (step.pending) {
+              // 中间页还在跳，等它落到正文；期间已经采到的图片不属于目标页。
+              pending = true; stable = 0;
+              images.clear();
+              last.url = step.url; last.title = step.title; last.images = [];
+              continue;
+            }
+            pending = false;
+            if (step.url !== scanUrl) {
+              if (!new RegExp('^https?://').test(step.url)) {
+                throw new Error('网页发生跳转，请打开网页处理后重试');
+              }
+              scanUrl = step.url;
+              images.clear(); stable = 0;
+            }
             if (step.error.length > 0) { throw new Error(step.error); }
             const before: number = images.size;
             for (const image of step.images) { images.set(image.url, image); }
@@ -111,6 +136,9 @@ export class BatchPageResolver {
               return;
             }
           }
+          if (!valid()) { return; }
+          if (pending) { throw new Error('需要登录或验证，请打开网页处理后重试'); }
+          throw new Error('网页采集超时，未发现图片，可打开网页查看后重试');
         };
         collect().catch((error: Error): void => { if (valid()) { finish(undefined, error.message); } });
       };

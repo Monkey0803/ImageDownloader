@@ -4,6 +4,8 @@ export interface BatchPageStep extends ScanData {
   bottom: boolean;
   direct: boolean;
   scopeFound: boolean;
+  /** 中间跳转页（例如微博的 Sina Visitor System）：还在换票，等它落到正文再判断。 */
+  pending: boolean;
   error: string;
 }
 
@@ -22,10 +24,15 @@ export class BatchPageProtocol {
     const generic: string = ScanProtocol.script(strategy.order(), strategy.arbitrate());
     return `(() => {
       const out = { url: location.href, title: document.title || '', images: [], bottom: false,
-        direct: false, scopeFound: true, error: '' };
+        direct: false, scopeFound: true, pending: false, error: '' };
       const body = (document.body ? document.body.innerText : '').slice(0, 1800);
+      // 微博未登录时的 Sina Visitor System 是换票中间页：它自己写 Cookie 后跳回正文，
+      // 单页扫描靠反复重扫能穿过去，批量这里也必须等，不能把中间页当最终结果判死。
+      if (/\\/visitor\\/visitor/i.test(location.href) || /Sina Visitor System/i.test(out.title)) {
+        out.pending = true; return JSON.stringify(out);
+      }
       if (/passport\\.weibo\\.|visitor\\.passport\\.|(?:^|\\/)(?:login|captcha|verify)(?:\\/|$)/i.test(location.href)
-        || /Sina Visitor System|系统安全验证|安全验证|请先登录|登录后查看/i.test(out.title)
+        || /系统安全验证|安全验证|请先登录|登录后查看/i.test(out.title)
         || (/系统安全验证|访问频次过高/.test(body) && document.images.length === 0)) {
         out.error = '需要登录或验证，请打开网页处理后重试'; return JSON.stringify(out);
       }
@@ -115,7 +122,7 @@ export class BatchPageProtocol {
     step.title = scan.title; step.url = scan.url;
     step.error = typeof step.error === 'string' ? step.error : '';
     step.bottom = step.bottom === true; step.direct = step.direct === true;
-    step.scopeFound = step.scopeFound === true;
+    step.scopeFound = step.scopeFound === true; step.pending = step.pending === true;
     return step;
   }
 }
