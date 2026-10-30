@@ -20,14 +20,13 @@ import {
 } from '../theme/Tokens';
 import { Glyph } from './Icons';
 import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
-import { SCREEN_INSETS } from '../theme/Metrics';
 import { Thumb } from './Thumb';
 import { AnimatedPreviewImage, AnimationDockActions, AnimationToolbarAction, ZoomablePreviewImage } from './ImageSurface';
 import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { PreviewTools } from './PreviewTools';
 import { PreviewCompare } from './PreviewCompare';
-import { PREVIEW_CHROME_BACKGROUND } from './PreviewChrome';
+import { PreviewChrome } from './PreviewChrome';
 export { Thumb } from './Thumb';
 export { AnimatedPreviewImage, ZoomablePreviewImage, LocalPreviewImage } from './ImageSurface';
 export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
@@ -1023,13 +1022,14 @@ export struct ImageViewer {
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceAround)
-        .padding({ top: Space.s10, bottom: SCREEN_INSETS.safeBottom + Space.s16 })
+        .padding({ top: Space.s10, bottom: Space.s24 })
       } else {
-        Column().height(SCREEN_INSETS.safeBottom + Space.s16)
+        Column().height(Space.s24)
       }
     }.width('100%')
       .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
-        this.actionDockHeight = Number(newSize.height);
+        // 底部渐变层额外留了 24vp 渐隐头，缩放控件要一起让开。
+        this.actionDockHeight = Number(newSize.height) + Space.s24;
       })
   }
 
@@ -1081,37 +1081,42 @@ export struct ImageViewer {
 
       if (this.controlsShown) {
         Column() {
-          Row({ space: Space.s4 }) {
-            Text(this.current()?.name ?? '')
-              .fontSize(Font.body)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(Palette.white)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .layoutWeight(1)
-            if (this.slideCounter().length > 0) {
-              Text(this.slideCounter())
-                .fontSize(Font.aux)
-                .lineHeight(Font.auxLine)
-                .fontColor('#B3FFFFFF')
-                .margin({ right: Space.s4 })
-                .padding(Space.s8).constraintSize({ minHeight: 40 })
-                .accessibilityText('打开缩略图导航，' + this.slideCounter())
-                .onClick((): void => { this.panels.navigation = !this.panels.navigation; })
+          Column() {
+            Row({ space: Space.s4 }) {
+              Text(this.current()?.name ?? '')
+                .fontSize(Font.body)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(Palette.white)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .layoutWeight(1)
+              if (this.slideCounter().length > 0) {
+                Text(this.slideCounter())
+                  .fontSize(Font.aux)
+                  .lineHeight(Font.auxLine)
+                  .fontColor('#B3FFFFFF')
+                  .margin({ right: Space.s4 })
+                  .padding(Space.s8).constraintSize({ minHeight: 40 })
+                  .accessibilityText('打开缩略图导航，' + this.slideCounter())
+                  .onClick((): void => { this.panels.navigation = !this.panels.navigation; })
+              }
+              IconButton({ glyph: 'info', tone: Palette.white, plain: true, diameter: 40,
+                accessibilityLabel: '图片详情与工具', onAction: (): void => { this.panels.tools = true; } })
+              IconButton({
+                glyph: 'close', glyphSize: 20, diameter: 40, plain: true, tone: Palette.white,
+                accessibilityLabel: '关闭图片预览',
+                onAction: () => { this.onClose(); }
+              })
             }
-            IconButton({ glyph: 'info', tone: Palette.white, plain: true, diameter: 40,
-              accessibilityLabel: '图片详情与工具', onAction: (): void => { this.panels.tools = true; } })
-            IconButton({
-              glyph: 'close', glyphSize: 20, diameter: 40, plain: true, tone: Palette.white,
-              accessibilityLabel: '关闭图片预览',
-              onAction: () => { this.onClose(); }
-            })
+            .width('100%')
+            .alignItems(VerticalAlign.Center)
+            .padding({ left: Space.s16, right: Space.s16,
+              top: Space.s16, bottom: Space.s8 })
           }
           .width('100%')
-          .alignItems(VerticalAlign.Center)
-          .padding({ left: Space.s16, right: Space.s16,
-            top: SCREEN_INSETS.safeTop + Space.s16, bottom: Space.s8 })
-          .backgroundColor(PREVIEW_CHROME_BACKGROUND)
+          .padding({ bottom: Space.s24 })
+          .linearGradient(PreviewChrome.topGradient())
+          .hitTestBehavior(HitTestMode.None)
           if (this.panels.navigation) {
             PreviewStrip({ items: this.thumbnails(), currentIndex: this.index,
               onJump: (next: number): void => { this.panels.navigation = false; this.onIndexChange(next); },
@@ -1122,7 +1127,10 @@ export struct ImageViewer {
           if (!this.animationDocked()) {
             Column() {
               this.actionDock(new AnimationDockActions())
-            }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
+            }.width('100%')
+              .padding({ top: Space.s24 })
+              .linearGradient(PreviewChrome.bottomGradient())
+              .hitTestBehavior(HitTestMode.None)
           }
         }
         .width('100%').height('100%')

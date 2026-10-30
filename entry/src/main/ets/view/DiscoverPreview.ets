@@ -1,9 +1,10 @@
-import { PREVIEW_CHROME_BACKGROUND, PreviewButton } from './PreviewChrome';
+import { PreviewChrome, PreviewButton } from './PreviewChrome';
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { DownloadItem } from '../model/Models';
 import { DownloadStore } from '../service/DownloadStore';
 import { PreviewOrientation } from '../service/PreviewOrientation';
+import { SystemBars } from '../service/SystemBars';
 import { fileUri } from '@kit.CoreFileKit';
 import { PreviewTools } from './PreviewTools';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
@@ -13,7 +14,6 @@ import { PictureItem } from '../model/Models';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SheetStyle } from '../theme/SheetStyle';
-import { SCREEN_INSETS } from '../theme/Metrics';
 import { AnimatedPreviewImage, PreviewStrip, PreviewThumbnail, ZoomablePreviewImage } from './Cards';
 import { IconButton, PictureSelectionButton } from './Widgets';
 
@@ -94,13 +94,17 @@ export struct DiscoverPreview {
 
   aboutToAppear(): void {
     this.orientation.enter(DownloadStore.context);
+    SystemBars.enter('discover-preview', DownloadStore.context);
     this.browseIds = this.ids.slice();
     const at: number = this.browseIds.indexOf(this.startId);
     this.currentIndex = at >= 0 ? at : 0;
     this.inspectCurrent();
   }
 
-  aboutToDisappear(): void { this.orientation.leave(); }
+  aboutToDisappear(): void {
+    this.orientation.leave();
+    SystemBars.leave('discover-preview', DownloadStore.context);
+  }
 
   private current(): PictureItem | undefined {
     const uid: string = this.browseIds[this.currentIndex] ?? '';
@@ -275,29 +279,34 @@ export struct DiscoverPreview {
 
       if (this.controlsShown) {
         Column() {
-          Row({ space: Space.s8 }) {
-            Text(this.current()?.name ?? '')
-              .fontSize(Font.body).fontColor(Palette.white).maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
-            Text((this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString() + ' / ' + this.browseIds.length.toString())
-              .fontSize(Font.aux).fontColor(Palette.white).padding(Space.s8).constraintSize({ minHeight: 40 })
-              .accessibilityText('打开缩略图导航')
-              .onClick((): void => { if (this.browseIds.length > 0) { this.panels.navigation = !this.panels.navigation; } })
-            IconButton({ glyph: 'info', glyphSize: 20, diameter: 40, plain: true,
-              tone: Palette.white, accessibilityLabel: '图片详情',
-              onAction: (): void => { this.panels.tools = !this.panels.tools; } })
-            IconButton({ glyph: 'close', glyphSize: 20, diameter: 40, plain: true,
-              tone: Palette.white, accessibilityLabel: '关闭图片预览', onAction: this.onClose })
+          Column() {
+            Row({ space: Space.s8 }) {
+              Text(this.current()?.name ?? '')
+                .fontSize(Font.body).fontColor(Palette.white).maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
+              Text((this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString() + ' / ' + this.browseIds.length.toString())
+                .fontSize(Font.aux).fontColor(Palette.white).padding(Space.s8).constraintSize({ minHeight: 40 })
+                .accessibilityText('打开缩略图导航')
+                .onClick((): void => { if (this.browseIds.length > 0) { this.panels.navigation = !this.panels.navigation; } })
+              IconButton({ glyph: 'info', glyphSize: 20, diameter: 40, plain: true,
+                tone: Palette.white, accessibilityLabel: '图片详情',
+                onAction: (): void => { this.panels.tools = !this.panels.tools; } })
+              IconButton({ glyph: 'close', glyphSize: 20, diameter: 40, plain: true,
+                tone: Palette.white, accessibilityLabel: '关闭图片预览', onAction: this.onClose })
+            }
+            .width('100%').padding({ left: Space.s16, right: Space.s16,
+              top: Space.s16, bottom: Space.s12 })
+            Row({ space: Space.s8 }) {
+              PreviewButton({ label: '全部 ' + this.ids.length.toString(), small: true,
+                variant: !this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(false); } })
+              PreviewButton({ label: '已选 ' + this.selectedIds().length.toString(), small: true,
+                variant: this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(true); } })
+            }.width('100%').justifyContent(FlexAlign.Center).padding(Space.s8)
           }
-          .width('100%').padding({ left: Space.s16, right: Space.s16,
-            top: SCREEN_INSETS.safeTop + Space.s12, bottom: Space.s12 })
-          .backgroundColor(PREVIEW_CHROME_BACKGROUND)
-          Row({ space: Space.s8 }) {
-            PreviewButton({ label: '全部 ' + this.ids.length.toString(), small: true,
-              variant: !this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(false); } })
-            PreviewButton({ label: '已选 ' + this.selectedIds().length.toString(), small: true,
-              variant: this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(true); } })
-          }.width('100%').justifyContent(FlexAlign.Center).padding(Space.s8).backgroundColor(PREVIEW_CHROME_BACKGROUND)
+          .width('100%')
+          .padding({ bottom: Space.s24 })
+          .linearGradient(PreviewChrome.topGradient())
+          .hitTestBehavior(HitTestMode.None)
           if (this.panels.navigation) {
             PreviewStrip({ items: this.thumbnails(), currentIndex: this.currentIndex,
               onJump: (next: number): void => { this.panels.navigation = false; this.pageChanged(next); },
@@ -320,30 +329,32 @@ export struct DiscoverPreview {
           .padding({ left: Space.s24, right: Space.s24 })
           .hitTestBehavior(HitTestMode.None)
           Column() {
-          if (this.current() !== undefined) {
-            Row({ space: Space.s12 }) {
-              PreviewButton({ label: this.discover.previewFromLocal ? '已下载'
-                : this.discover.previewDownloadQueued ? '已加入任务' : '下载当前',
-                icon: 'download', small: true, variant: 'tonal',
-                active: !this.discover.previewFromLocal && !this.discover.previewDownloadQueued,
-                onAction: (): void => { this.discover.downloadInspected(); } })
-              PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
-                onAction: (): void => {
-                  const item: PictureItem | undefined = this.current();
-                  if (item !== undefined) {
-                    this.discover.togglePicture(item.uid);
-                    if (this.selectedOnly) { this.refreshRange(); }
-                  }
-                } })
-              if (this.selectedIds().length > 0) {
-                PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
-                  + this.selectedIds().length.toString(), small: true, variant: 'tonal',
-                  onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
-              }
-            }.width('100%').justifyContent(FlexAlign.Center)
-          }
-          Row().height(SCREEN_INSETS.safeBottom + Space.s16).width('100%')
-          }.width('100%').padding({ top: 8 }).backgroundColor(PREVIEW_CHROME_BACKGROUND)
+            if (this.current() !== undefined) {
+              Row({ space: Space.s12 }) {
+                PreviewButton({ label: this.discover.previewFromLocal ? '已下载'
+                  : this.discover.previewDownloadQueued ? '已加入任务' : '下载当前',
+                  icon: 'download', small: true, variant: 'tonal',
+                  active: !this.discover.previewFromLocal && !this.discover.previewDownloadQueued,
+                  onAction: (): void => { this.discover.downloadInspected(); } })
+                PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
+                  onAction: (): void => {
+                    const item: PictureItem | undefined = this.current();
+                    if (item !== undefined) {
+                      this.discover.togglePicture(item.uid);
+                      if (this.selectedOnly) { this.refreshRange(); }
+                    }
+                  } })
+                if (this.selectedIds().length > 0) {
+                  PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
+                    + this.selectedIds().length.toString(), small: true, variant: 'tonal',
+                    onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
+                }
+              }.width('100%').justifyContent(FlexAlign.Center)
+            }
+            Row().height(Space.s24).width('100%')
+          }.width('100%').padding({ top: Space.s24 })
+            .linearGradient(PreviewChrome.bottomGradient())
+            .hitTestBehavior(HitTestMode.None)
             .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
               this.actionDockHeight = Number(newSize.height);
             })

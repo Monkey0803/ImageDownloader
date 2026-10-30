@@ -3,10 +3,10 @@ import { AuthenticatedPreview, PreviewResult } from '../service/AuthenticatedPre
 import { DownloadStore } from '../service/DownloadStore';
 import { ImageTools } from '../service/ImageTools';
 import { Font, Palette, Space } from '../theme/Tokens';
-import { SCREEN_INSETS } from '../theme/Metrics';
 import { ZoomablePreviewImage } from './ImageSurface';
 import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { IconButton, PillButton } from './Widgets';
+import { PreviewChrome } from './PreviewChrome';
 
 @ComponentV2
 struct ComparisonPane {
@@ -110,13 +110,19 @@ export struct PreviewCompare {
 
   build() {
     Column() {
-      Row({ space: Space.s8 }) {
-        Text('双图对比').fontSize(Font.body).fontColor(Palette.white).layoutWeight(1)
-        PillButton({ label: '更换参考图', small: true, variant: 'tonal', active: this.candidates().length > 0,
-          onAction: (): void => { this.pickerShown = !this.pickerShown; } })
-        IconButton({ glyph: 'close', tone: Palette.white, plain: true, diameter: 36,
-          accessibilityLabel: '退出双图对比', onAction: this.onClose })
-      }.width('100%').padding(Space.s12)
+      Column() {
+        Row({ space: Space.s8 }) {
+          Text('双图对比').fontSize(Font.body).fontColor(Palette.white).layoutWeight(1)
+          PillButton({ label: '更换参考图', small: true, variant: 'tonal', active: this.candidates().length > 0,
+            onAction: (): void => { this.pickerShown = !this.pickerShown; } })
+          IconButton({ glyph: 'close', tone: Palette.white, plain: true, diameter: 36,
+            accessibilityLabel: '退出双图对比', onAction: this.onClose })
+        }.width('100%').padding(Space.s12)
+      }
+      .width('100%')
+      .padding({ top: Space.s16, bottom: Space.s24 })
+      .linearGradient(PreviewChrome.topGradient())
+      .hitTestBehavior(HitTestMode.None)
       if (this.pickerShown && this.candidates().length > 0) {
         PreviewStrip({ items: this.thumbnails(), currentIndex: Math.max(0,
           this.candidates().findIndex((asset: PreviewAsset): boolean => asset.id === this.referenceId)),
@@ -140,10 +146,15 @@ export struct PreviewCompare {
           Column() { this.referencePane() }.layoutWeight(1).width('100%')
         }.width('100%').layoutWeight(1)
       }
-      Text('两张图片可独立双击、捏合和拖动；动图对比显示首帧')
-        .fontSize(Font.aux).fontColor('#BBFFFFFF').padding(Space.s8).textAlign(TextAlign.Center)
+      Column() {
+        Text('两张图片可独立双击、捏合和拖动；动图对比显示首帧')
+          .fontSize(Font.aux).fontColor('#BBFFFFFF').padding(Space.s8).textAlign(TextAlign.Center)
+      }
+      .width('100%')
+      .padding({ top: Space.s24, bottom: Space.s24 })
+      .linearGradient(PreviewChrome.bottomGradient())
+      .hitTestBehavior(HitTestMode.None)
     }.width('100%').height('100%').backgroundColor('#000000')
-      .padding({ top: SCREEN_INSETS.safeTop, bottom: SCREEN_INSETS.safeBottom })
       .onSizeChange((oldSize: SizeOptions, next: SizeOptions): void => { this.landscape = Number(next.width) > Number(next.height); })
       .hitTestBehavior(HitTestMode.Default)
       .onClick((): void => {})

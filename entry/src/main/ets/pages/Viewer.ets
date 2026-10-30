@@ -4,6 +4,7 @@ import { common } from '@kit.AbilityKit';
 import { fileUri } from '@kit.CoreFileKit';
 import { DownloadItem } from '../model/Models';
 import { DownloadStore } from '../service/DownloadStore';
+import { SystemBars } from '../service/SystemBars';
 import { PreviewOrientation } from '../service/PreviewOrientation';
 import {
   ActionOutcome, exportFile, shareFile, shareLivePhoto
@@ -124,11 +125,13 @@ struct Viewer {
 
   onPageShow(): void {
     this.visible = true;
+    SystemBars.enter('viewer', this.context());
     this.flushNotice();
   }
 
   onPageHide(): void {
     this.visible = false;
+    SystemBars.leave('viewer', this.context());
   }
 
   /** 当前这一张的 id；列表为空时是空串。 */

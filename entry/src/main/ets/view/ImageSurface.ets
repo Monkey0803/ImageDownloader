@@ -14,7 +14,7 @@ import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { PreviewGeometry, PreviewPosition, PreviewSize } from '../util/PreviewGeometry';
 import { Thumb } from './Thumb';
-import { PREVIEW_CHROME_BACKGROUND, PreviewButton } from './PreviewChrome';
+import { PreviewChrome, PreviewButton } from './PreviewChrome';
 import { Glyph } from './Icons';
 
 const PREVIEW_FIRST_FRAME_TIMEOUT_MS: number = 15000;
@@ -30,7 +30,7 @@ export struct LocalPreviewImage {
   @Param renderZoom: number = 1;
   @Param renderX: number = 0;
   @Param renderY: number = 0;
-  @Event onMetadata: (width: number, height: number, transparent: boolean, hdr: boolean) => void = () => {};
+  @Event onMetadata: (width: number, height: number, transparent: boolean, isHdr: boolean) => void = () => {};
   @Local private frame: image.PixelMap | undefined = undefined;
   @Local private problem: string = '';
   @Local private loading: boolean = false;
@@ -466,7 +466,8 @@ export struct AnimatedPreviewImage {
         if (this.controlsVisible && this.active) {
           Column() {
             this.bottomActions(this.dockState)
-          }.width('100%').backgroundColor(PREVIEW_CHROME_BACKGROUND)
+          }.width('100%').padding({ top: Space.s24 })
+            .linearGradient(PreviewChrome.bottomGradient())
             .hitTestBehavior(HitTestMode.None)
         }
       } else {
@@ -750,11 +751,11 @@ export struct ZoomablePreviewImage {
         LocalPreviewImage({ path: this.path, fallbackUri: this.fallbackUri,
           label: this.label, active: this.active,
           renderZoom: this.zoomFactor, renderX: this.dragX, renderY: this.dragY,
-          onMetadata: (width: number, height: number, transparent: boolean, hdr: boolean): void => {
+          onMetadata: (width: number, height: number, transparent: boolean, isHdr: boolean): void => {
             this.imageWidth = width;
             this.imageHeight = height;
             this.transparent = transparent;
-            this.hdr = hdr;
+            this.hdr = isHdr;
             this.restoreReading();
             this.apply(this.fitMode === 'native' ? this.nativeScale()
               : this.fitMode === 'width' ? this.widthScale() : this.zoomFactor, { x: this.dragX, y: this.dragY });
