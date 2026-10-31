@@ -26,7 +26,7 @@ import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { PreviewAsset, ViewerSlide } from '../model/PreviewAsset';
 import { PreviewTools } from './PreviewTools';
 import { PreviewCompare } from './PreviewCompare';
-import { PreviewChrome } from './PreviewChrome';
+import { PreviewChrome, PreviewHeader } from './PreviewChrome';
 export { Thumb } from './Thumb';
 export { AnimatedPreviewImage, ZoomablePreviewImage, LocalPreviewImage } from './ImageSurface';
 export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
@@ -1072,36 +1072,12 @@ export struct ImageViewer {
       if (this.controlsShown) {
         Column() {
           Column() {
-            Row({ space: Space.s4 }) {
-              Text(this.current()?.name ?? '')
-                .fontSize(Font.body)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(Palette.white)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .layoutWeight(1)
-              if (this.slideCounter().length > 0) {
-                Text(this.slideCounter())
-                  .fontSize(Font.aux)
-                  .lineHeight(Font.auxLine)
-                  .fontColor('#B3FFFFFF')
-                  .margin({ right: Space.s4 })
-                  .padding(Space.s8).constraintSize({ minHeight: 40 })
-                  .accessibilityText('打开缩略图导航，' + this.slideCounter())
-                  .onClick((): void => { this.panels.navigation = !this.panels.navigation; })
-              }
-              IconButton({ glyph: 'info', tone: Palette.white, plain: true, diameter: 40,
-                accessibilityLabel: '图片详情与工具', onAction: (): void => { this.panels.tools = true; } })
-              IconButton({
-                glyph: 'close', glyphSize: 20, diameter: 40, plain: true, tone: Palette.white,
-                accessibilityLabel: '关闭图片预览',
-                onAction: () => { this.onClose(); }
-              })
-            }
-            .width('100%')
-            .alignItems(VerticalAlign.Center)
-            .padding({ left: Space.s16, right: Space.s16,
-              top: Space.s16, bottom: Space.s8 })
+            PreviewHeader({ title: this.current()?.name ?? '', counter: this.slideCounter(),
+              showCounter: this.slideCounter().length > 0, emphasized: true,
+              detailsLabel: '图片详情与工具',
+              onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
+              onDetails: (): void => { this.panels.tools = true; },
+              onClose: (): void => { this.onClose(); } })
           }
           .width('100%')
           .padding({ bottom: Space.s24 })

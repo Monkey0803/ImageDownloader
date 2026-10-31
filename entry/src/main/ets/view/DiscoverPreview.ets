@@ -1,4 +1,4 @@
-import { PreviewChrome, PreviewButton } from './PreviewChrome';
+import { PreviewChrome, PreviewButton, PreviewHeader } from './PreviewChrome';
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { common } from '@kit.AbilityKit';
@@ -255,22 +255,13 @@ export struct DiscoverPreview {
       if (this.controlsShown) {
         Column() {
           Column() {
-            Row({ space: Space.s8 }) {
-              Text(this.current()?.name ?? '')
-                .fontSize(Font.body).fontColor(Palette.white).maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
-              Text((this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString() + ' / ' + this.browseIds.length.toString())
-                .fontSize(Font.aux).fontColor(Palette.white).padding(Space.s8).constraintSize({ minHeight: 40 })
-                .accessibilityText('打开缩略图导航')
-                .onClick((): void => { if (this.browseIds.length > 0) { this.panels.navigation = !this.panels.navigation; } })
-              IconButton({ glyph: 'info', glyphSize: 20, diameter: 40, plain: true,
-                tone: Palette.white, accessibilityLabel: '图片详情',
-                onAction: (): void => { this.panels.tools = !this.panels.tools; } })
-              IconButton({ glyph: 'close', glyphSize: 20, diameter: 40, plain: true,
-                tone: Palette.white, accessibilityLabel: '关闭图片预览', onAction: this.onClose })
-            }
-            .width('100%').padding({ left: Space.s16, right: Space.s16,
-              top: Space.s16, bottom: Space.s12 })
+            PreviewHeader({ title: this.current()?.name ?? '',
+              counter: (this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString()
+                + ' / ' + this.browseIds.length.toString(),
+              counterActive: this.browseIds.length > 0,
+              onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
+              onDetails: (): void => { this.panels.tools = !this.panels.tools; },
+              onClose: this.onClose })
             Row({ space: Space.s8 }) {
               PreviewButton({ label: '全部 ' + this.ids.length.toString(), small: true,
                 variant: !this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(false); } })
