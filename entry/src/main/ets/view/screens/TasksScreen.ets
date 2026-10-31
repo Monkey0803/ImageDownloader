@@ -1,10 +1,11 @@
 import { DownloadItem } from '../../model/Models';
 import { BatchView } from '../../model/BatchView';
+import { CollectionSummary } from '../../service/CollectionGroups';
 import { TasksViewModel } from '../../viewmodel/TasksViewModel';
 import { Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { BatchCard, TaskCard } from '../Cards';
-import { EmptyState, SectionHead, TitleBar } from '../Widgets';
+import { EmptyState, SectionHead, SettingSelect, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -16,6 +17,12 @@ import { SCREEN_INSETS } from '../../theme/Metrics';
 @ComponentV2
 export struct TasksScreen {
   @Require @Param tasks: TasksViewModel;
+
+  private collectionOptions(): SelectOption[] {
+    const options: SelectOption[] = [{ value: '全部来源' }];
+    for (const group of this.tasks.collections) { options.push({ value: group.name }); }
+    return options;
+  }
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
@@ -39,6 +46,27 @@ export struct TasksScreen {
     Stack({ alignContent: Alignment.TopStart }) {
       Scroll(this.tasks.scrollController()) {
         Column({ space: Space.s16 }) {
+          if (this.tasks.collections.length > 0) {
+            Column({ space: Space.s6 }) {
+              SettingSelect({
+                options: this.collectionOptions(),
+                selectedIndex: this.tasks.collectionFilter === '*' ? 0
+                  : this.tasks.collections.findIndex((group: CollectionSummary): boolean =>
+                    group.id === this.tasks.collectionFilter) + 1,
+                label: this.tasks.selectedCollection()?.name ?? '全部来源',
+                onPick: (index: number): void => {
+                  this.tasks.setCollectionFilter(index === 0 ? '*' : this.tasks.collections[index - 1].id);
+                }
+              })
+              if (this.tasks.selectedCollection() !== undefined) {
+                Text('累计加入 ' + this.tasks.selectedCollection()!.added.toString() + ' · 跳过 '
+                  + this.tasks.selectedCollection()!.skipped.toString() + ' · 完成 '
+                  + this.tasks.selectedCollection()!.completed.toString() + ' · 失败 '
+                  + this.tasks.selectedCollection()!.failed.toString())
+                  .fontSize(12).fontColor(Palette.fontSecondary)
+              }
+            }.width('100%').alignItems(HorizontalAlign.Start)
+          }
           if (this.tasks.batchViews.length > 0) {
             Column({ space: Space.s10 }) {
               SectionHead({ heading: '打包任务', meta: 'ZIP' })
@@ -104,8 +132,9 @@ export struct TasksScreen {
             Column() {
               EmptyState({
                 glyph: 'inbox',
-                heading: '还没有下载任务',
-                body: '回到「发现」，扫描网页并选择要保存的图片。'
+                heading: this.tasks.collectionFilter === '*' ? '还没有下载任务' : '此来源没有待处理任务',
+                body: this.tasks.collectionFilter === '*' ? '回到「发现」，扫描网页并选择要保存的图片。'
+                  : '已完成的素材可在「图库」按来源查看。'
               })
             }
             .width('100%')

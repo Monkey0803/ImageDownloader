@@ -1,4 +1,4 @@
-import { BatchItem, DownloadItem, orBoolean, orNumber, orString, SavedState, ZipItem } from '../model/Models';
+import { BatchItem, CollectionRecord, DownloadItem, orBoolean, orNumber, orString, SavedState, ZipItem } from '../model/Models';
 import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
 import { ReceiptWire } from '../model/SaveReceipt';
 
@@ -47,6 +47,9 @@ class DownloadWire {
   userNamed: boolean = false;
   path: string = '';
   sourcePage: string = '';
+  collectionId: string = '';
+  collectionName: string = '';
+  collectionFolder: string = '';
   batchId: string = '';
   taskId: string = '';
   status: string = 'queued';
@@ -72,6 +75,9 @@ class ZipWire {
   name: string = '';
   path: string = '';
   batchId: string = '';
+  collectionId: string = '';
+  collectionName: string = '';
+  collectionFolder: string = '';
   imported: boolean = false;
   imageCount: number = 0;
   failedCount: number = 0;
@@ -84,6 +90,9 @@ class BatchWire {
   id: string = '';
   name: string = '';
   sourcePage: string = '';
+  collectionId: string = '';
+  collectionName: string = '';
+  collectionFolder: string = '';
   status: string = 'downloading';
   error: string = '';
 }
@@ -92,6 +101,7 @@ class StateWire {
   downloads: DownloadWire[] = [];
   zips: ZipWire[] = [];
   batches: BatchWire[] = [];
+  collections: CollectionRecord[] = [];
   concurrency: number = 3;
   wifiOnly: boolean = false;
   themeMode: string = 'system';
@@ -129,6 +139,9 @@ export class StoreState {
       out.userNamed = item.userNamed;
       out.path = item.path;
       out.sourcePage = item.sourcePage;
+      out.collectionId = item.collectionId;
+      out.collectionName = item.collectionName;
+      out.collectionFolder = item.collectionFolder;
       out.batchId = item.batchId;
       out.taskId = item.taskId;
       out.status = item.status;
@@ -155,6 +168,9 @@ export class StoreState {
       out.name = zip.name;
       out.path = zip.path;
       out.batchId = zip.batchId;
+      out.collectionId = zip.collectionId;
+      out.collectionName = zip.collectionName;
+      out.collectionFolder = zip.collectionFolder;
       out.imported = zip.imported;
       out.imageCount = zip.imageCount;
       out.failedCount = zip.failedCount;
@@ -168,8 +184,16 @@ export class StoreState {
       out.id = batch.id;
       out.name = batch.name;
       out.sourcePage = batch.sourcePage;
+      out.collectionId = batch.collectionId;
+      out.collectionName = batch.collectionName;
+      out.collectionFolder = batch.collectionFolder;
       out.status = batch.status;
       out.error = batch.error;
+      return out;
+    });
+    wire.collections = state.collections.map((entry: CollectionRecord): CollectionRecord => {
+      const out: CollectionRecord = new CollectionRecord();
+      out.id = entry.id; out.name = entry.name; out.added = entry.added; out.skipped = entry.skipped;
       return out;
     });
     wire.concurrency = state.concurrency;
@@ -221,6 +245,9 @@ export class StoreState {
       item.userNamed = orBoolean(entry.userNamed, false);
       item.path = orString(entry.path, '');
       item.sourcePage = orString(entry.sourcePage, '');
+      item.collectionId = orString(entry.collectionId, '');
+      item.collectionName = orString(entry.collectionName, '');
+      item.collectionFolder = orString(entry.collectionFolder, '');
       item.batchId = orString(entry.batchId, '');
       item.taskId = orString(entry.taskId, '');
       item.status = orString(entry.status, 'queued');
@@ -248,6 +275,9 @@ export class StoreState {
       zip.name = orString(entry.name, '');
       zip.path = orString(entry.path, '');
       zip.batchId = orString(entry.batchId, '');
+      zip.collectionId = orString(entry.collectionId, '');
+      zip.collectionName = orString(entry.collectionName, '');
+      zip.collectionFolder = orString(entry.collectionFolder, '');
       zip.imported = orBoolean(entry.imported, false);
       zip.imageCount = orNumber(entry.imageCount, 0);
       zip.failedCount = orNumber(entry.failedCount, 0);
@@ -263,10 +293,21 @@ export class StoreState {
       batch.id = orString(entry.id, '');
       batch.name = orString(entry.name, '');
       batch.sourcePage = orString(entry.sourcePage, '');
+      batch.collectionId = orString(entry.collectionId, '');
+      batch.collectionName = orString(entry.collectionName, '');
+      batch.collectionFolder = orString(entry.collectionFolder, '');
       batch.status = orString(entry.status, 'downloading');
       batch.error = orString(entry.error, '');
       return batch;
     });
+    safe.collections = (state.collections ?? []).filter((entry: CollectionRecord): boolean =>
+      entry !== null && typeof entry.id === 'string' && entry.id.length > 0)
+      .map((entry: CollectionRecord): CollectionRecord => {
+        const out: CollectionRecord = new CollectionRecord();
+        out.id = entry.id; out.name = orString(entry.name, '网页素材');
+        out.added = orNumber(entry.added, 0); out.skipped = orNumber(entry.skipped, 0);
+        return out;
+      });
 
     safe.concurrency = Math.max(1, Math.min(10, orNumber(state.concurrency, 3)));
     safe.wifiOnly = orBoolean(state.wifiOnly, false);

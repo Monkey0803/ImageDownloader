@@ -70,6 +70,7 @@ export struct LibraryScreen {
 
   private activeOptionCount(): number {
     let count: number = this.library.sortOrder === 'newest' ? 0 : 1;
+    if (this.library.collectionFilter !== '*') { count++; }
     if (this.library.isZips()) { return count; }
     if (this.library.formatFilter.length > 0) { count++; }
     if (this.library.sourceQuery.length > 0) { count++; }
@@ -82,6 +83,7 @@ export struct LibraryScreen {
 
   private hasImageFilter(): boolean {
     return this.library.query.length > 0 || this.library.sourceQuery.length > 0
+      || this.library.collectionFilter !== '*'
       || this.library.formatFilter.length > 0 || this.library.favoritesOnly
       || this.library.tagFilter.length > 0;
   }

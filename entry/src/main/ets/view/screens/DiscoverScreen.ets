@@ -18,6 +18,12 @@ const FILTER_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '
 const FILTER_OPTIONS: SelectOption[] = FILTER_LABELS.map((label: string): SelectOption => ({ value: label }));
 const QUICK_IDS: string[] = ['', 'large', 'landscape', 'portrait'];
 const QUICK_LABELS: string[] = ['全部', '大图', '横图', '竖图'];
+const SORT_IDS: string[] = ['page', 'name', 'size'];
+const SORT_LABELS: string[] = ['页面顺序', '名称', '尺寸'];
+const SORT_OPTIONS: SelectOption[] = SORT_LABELS.map((label: string): SelectOption => ({ value: label }));
+const NAME_IDS: string[] = ['original', 'numbered'];
+const NAME_LABELS: string[] = ['原文件名', '网页标题＋序号'];
+const NAME_OPTIONS: SelectOption[] = NAME_LABELS.map((label: string): SelectOption => ({ value: label }));
 
 /**
  * 「发现」页：浏览扫描为首页；结果页按需进入，两者都持续挂载以保留网页与滚动位置。
@@ -277,6 +283,12 @@ export struct DiscoverScreen {
   @Builder
   private filterPanel() {
     Column({ space: Space.s8 }) {
+      Row({ space: Space.s8 }) {
+        Text('排序').fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
+        SettingSelect({ options: SORT_OPTIONS, selectedIndex: SORT_IDS.indexOf(this.discover.sortOrder),
+          label: SORT_LABELS[SORT_IDS.indexOf(this.discover.sortOrder)],
+          onPick: (index: number): void => { this.discover.sortOrder = SORT_IDS[index]; } })
+      }.width('100%')
       PillButton({ label: this.discover.onlyNew ? '只看未下载 ✓' : '只看未下载', small: true,
         variant: this.discover.onlyNew ? 'primary' : 'ghost',
         onAction: (): void => { this.discover.onlyNew = !this.discover.onlyNew; } })
@@ -367,6 +379,19 @@ export struct DiscoverScreen {
               .fontSize(Font.aux).fontColor(Palette.fontPrimary)
               .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
               .onChange((value: string): void => { this.discover.filterText = value; })
+            if (this.discover.selectedTotal > 0) {
+              Row({ space: Space.s8 }) {
+                Text('文件命名').fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
+                SettingSelect({ options: NAME_OPTIONS, selectedIndex: NAME_IDS.indexOf(this.discover.nameMode),
+                  label: NAME_LABELS[NAME_IDS.indexOf(this.discover.nameMode)],
+                  onPick: (index: number): void => { this.discover.nameMode = NAME_IDS[index]; } })
+              }.width('100%')
+              if (this.discover.eligibleSelectedCount() > 0) {
+                Text('预计文件名：' + this.discover.namePreview().slice(0, 3).join('、')
+                  + (this.discover.eligibleSelectedCount() > 3 ? '…' : ''))
+                  .fontSize(Font.caption).fontColor(Palette.fontTertiary).maxLines(2).width('100%')
+              }
+            }
             if (this.filtersOpen) {
               this.filterPanel()
             }

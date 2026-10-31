@@ -1,5 +1,6 @@
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
+import { CollectionSummary } from '../service/CollectionGroups';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { PillButton, SettingSelect } from './Widgets';
 
@@ -16,6 +17,12 @@ const SEARCH_LABELS: string[] = ['全部', '文件名', '图片文字', '标签'
 @ComponentV2
 export struct LibraryFilterSheet {
   @Require @Param library: LibraryViewModel;
+
+  private collectionOptions(): SelectOption[] {
+    const options: SelectOption[] = [{ value: '全部来源' }];
+    for (const group of this.library.collections) { options.push({ value: group.name }); }
+    return options;
+  }
 
   private sortFieldIndex(): number {
     if (this.library.sortOrder === 'name' || this.library.sortOrder === 'nameDesc') { return 1; }
@@ -58,6 +65,21 @@ export struct LibraryFilterSheet {
         })
         PillButton({ label: this.sortDirectionLabel(), small: true, variant: 'ghost',
           onAction: (): void => { this.toggleSortDirection(); } })
+      }.width('100%')
+
+      Row({ space: Space.s8 }) {
+        Text('来源分组').fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
+        SettingSelect({
+          options: this.collectionOptions(),
+          selectedIndex: this.library.collectionFilter === '*' ? 0
+            : this.library.collections.findIndex((group: CollectionSummary): boolean =>
+              group.id === this.library.collectionFilter) + 1,
+          label: this.library.collections.find((group: CollectionSummary): boolean =>
+            group.id === this.library.collectionFilter)?.name ?? '全部来源',
+          onPick: (index: number): void => {
+            this.library.collectionFilter = index === 0 ? '*' : this.library.collections[index - 1].id;
+          }
+        })
       }.width('100%')
 
       if (!this.library.isZips()) {

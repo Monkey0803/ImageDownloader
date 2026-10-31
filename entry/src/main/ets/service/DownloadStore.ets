@@ -5,7 +5,7 @@ import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
 import { image } from '@kit.ImageKit';
 import {
-  BatchItem, DownloadItem, orNumber, PictureItem, SavedState, ZipItem
+  BatchItem, CollectionRecord, DownloadItem, orNumber, PictureItem, SavedState, ZipItem
 } from '../model/Models';
 import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../model/SettingsOptions';
 import { StoreState } from './StoreState';
@@ -26,6 +26,7 @@ import { LIBRARY_CATALOG } from './LibraryCatalog';
 import { WebIdentity } from './WebIdentity';
 import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
 import { AdmissionPlan, AdmissionResult, DownloadAdmission } from './DownloadAdmission';
+import { CollectionNames } from './CollectionNames';
 
 interface ProgressSample {
   bytes: number;
@@ -37,6 +38,7 @@ export class DownloadStore {
   static downloads: DownloadItem[] = [];
   static zips: ZipItem[] = [];
   static batches: BatchItem[] = [];
+  static collections: CollectionRecord[] = [];
   static concurrency: number = 3;
   static wifiOnly: boolean = false;
   /** 'system' | 'light' | 'dark' — see applyTheme(). */
@@ -262,6 +264,7 @@ export class DownloadStore {
     DownloadStore.downloads = safe.downloads;
     DownloadStore.zips = safe.zips;
     DownloadStore.batches = safe.batches;
+    DownloadStore.collections = safe.collections;
     DownloadStore.concurrency = safe.concurrency;
     DownloadStore.wifiOnly = safe.wifiOnly;
     DownloadStore.themeMode = safe.themeMode;
@@ -350,6 +353,7 @@ export class DownloadStore {
     state.downloads = DownloadStore.downloads;
     state.zips = DownloadStore.zips;
     state.batches = DownloadStore.batches;
+    state.collections = DownloadStore.collections;
     state.concurrency = DownloadStore.concurrency;
     state.wifiOnly = DownloadStore.wifiOnly;
     state.themeMode = DownloadStore.themeMode;
@@ -466,6 +470,9 @@ export class DownloadStore {
     item.name = DownloadStore.uniqueName(Naming.editedName(source.name, label, extension),
       DownloadStore.context.filesDir + '/edits');
     item.path = ticket.finalPath; item.sourcePage = source.sourcePage;
+    item.collectionId = source.collectionId;
+    item.collectionName = source.collectionName;
+    item.collectionFolder = source.collectionFolder;
     item.url = ''; item.kind = 'image'; item.animated = false;
     item.status = 'completed'; item.size = result.bytes;
     item.processed = result.bytes; item.total = result.bytes;
@@ -568,11 +575,19 @@ export class DownloadStore {
    * 批次号为空的那几条就是实况照片（与「单独下载的图片」同一种记录形态）。
    */
   static add(items: PictureItem[], pageUrl: string, title: string, zipMode: boolean,
-    allowCompleted: boolean = false): AdmissionResult {
+    allowCompleted: boolean = false, nameMode: string = 'original'): AdmissionResult {
     const plan: AdmissionPlan = DownloadAdmission.plan(items, DownloadStore.downloads,
       (path: string): boolean => DownloadStore.exists(path), allowCompleted);
     const selected: PictureItem[] = plan.items;
     if (selected.length === 0) { return plan.result; }
+    const collectionId: string = CollectionNames.id(pageUrl, Date.now().toString());
+    const prior: DownloadItem | undefined = DownloadStore.downloads.find((item: DownloadItem): boolean =>
+      item.collectionId === collectionId && item.collectionFolder.length > 0);
+    const priorZip: ZipItem | undefined = DownloadStore.zips.find((item: ZipItem): boolean =>
+      item.collectionId === collectionId && item.collectionFolder.length > 0);
+    const collectionName: string = prior?.collectionName ?? priorZip?.collectionName ?? CollectionNames.label(title);
+    const collectionFolder: string = prior?.collectionFolder ?? priorZip?.collectionFolder
+      ?? CollectionNames.folder(title, collectionId);
     const packable: number = selected.filter((item: PictureItem): boolean =>
       item.kind !== 'livephoto').length;
     let batchId: string = '';
@@ -583,6 +598,9 @@ export class DownloadStore {
       const titleName: string = Naming.clean(title, '网页图片_' + Date.now().toString());
       batch.name = titleName.toLowerCase().endsWith('.zip') ? titleName : titleName + '.zip';
       batch.sourcePage = pageUrl;
+      batch.collectionId = collectionId;
+      batch.collectionName = collectionName;
+      batch.collectionFolder = collectionFolder;
       DownloadStore.batches.unshift(batch);
       DownloadStore.ensureDirectory(DownloadStore.context.filesDir + '/staging/' + batchId);
     }
@@ -600,11 +618,13 @@ export class DownloadStore {
       const item: DownloadItem = new DownloadItem();
       item.id = DownloadStore.nextId();
       item.url = source.url;
-      const suggested: string = Naming.suggested(source.url, source.description, i + 1);
-      item.name = source.userNamed ? Naming.withExtension(source.name, suggested.substring(suggested.lastIndexOf('.') + 1)) : Naming.clean(source.name, suggested);
-      item.userNamed = source.userNamed;
+      item.name = CollectionNames.filename(source, title, i + 1, nameMode);
+      item.userNamed = source.userNamed || nameMode === 'numbered';
       // 批量直链没有共同网页；逐张用自身 URL 作 Referer，与地址栏直链行为一致。
       item.sourcePage = pageUrl.length > 0 ? pageUrl : source.url;
+      item.collectionId = collectionId;
+      item.collectionName = collectionName;
+      item.collectionFolder = collectionFolder;
       item.createdAt = Date.now();
       item.kind = source.kind === 'livephoto' ? 'livephoto' : 'image';
       // 微博这类站点的实况照片是「静图 + 单独的视频」：记下动态地址，下载完再打包成 .livp。
@@ -613,15 +633,50 @@ export class DownloadStore {
       const packed: boolean = batchId.length > 0 && item.kind !== 'livephoto';
       item.batchId = packed ? batchId : '';
       const dir: string = item.kind === 'livephoto'
-        ? filesDir + '/livephotos'
-        : (packed ? filesDir + '/staging/' + batchId : filesDir + '/images');
+        ? filesDir + '/livephotos/' + collectionFolder
+        : (packed ? filesDir + '/staging/' + batchId : filesDir + '/images/' + collectionFolder);
+      DownloadStore.ensureDirectory(dir);
       item.name = DownloadStore.uniqueNameIn(item.name, dir, taken);
       item.path = dir + '/' + item.name;
       DownloadStore.downloads.unshift(item);
     }
+    let collection: CollectionRecord | undefined = DownloadStore.collections.find((entry: CollectionRecord): boolean =>
+      entry.id === collectionId);
+    if (collection === undefined) {
+      collection = new CollectionRecord();
+      collection.id = collectionId; collection.name = collectionName;
+      DownloadStore.collections.push(collection);
+    }
+    collection.added += plan.result.added;
+    collection.skipped += plan.result.skipped();
     DownloadStore.notify();
     DownloadStore.pump();
     return plan.result;
+  }
+
+  /** Names shown before enqueue use the same admission, naming and collision logic as add(). */
+  static previewNames(items: PictureItem[], pageUrl: string, title: string, zipMode: boolean,
+    nameMode: string, limit: number = 3): string[] {
+    const selected: PictureItem[] = DownloadAdmission.plan(items, DownloadStore.downloads,
+      (path: string): boolean => DownloadStore.exists(path)).items;
+    const collectionId: string = CollectionNames.id(pageUrl, 'preview');
+    const prior: DownloadItem | undefined = DownloadStore.downloads.find((item: DownloadItem): boolean =>
+      item.collectionId === collectionId && item.collectionFolder.length > 0);
+    const priorZip: ZipItem | undefined = DownloadStore.zips.find((item: ZipItem): boolean =>
+      item.collectionId === collectionId && item.collectionFolder.length > 0);
+    const folder: string = prior?.collectionFolder ?? priorZip?.collectionFolder
+      ?? CollectionNames.folder(title, collectionId);
+    const taken: Set<string> = new Set<string>();
+    for (const item of DownloadStore.downloads) { taken.add(item.path); }
+    const names: string[] = [];
+    for (let index: number = 0; index < selected.length && index < limit; index++) {
+      const picture: PictureItem = selected[index];
+      const packed: boolean = zipMode && picture.kind !== 'livephoto';
+      const dir: string = DownloadStore.context.filesDir + (packed ? '/staging/preview'
+        : picture.kind === 'livephoto' ? '/livephotos/' + folder : '/images/' + folder);
+      names.push(DownloadStore.uniqueNameIn(CollectionNames.filename(picture, title, index + 1, nameMode), dir, taken));
+    }
+    return names;
   }
 
   static setConcurrency(value: number): void {
@@ -772,10 +827,12 @@ export class DownloadStore {
       }
       // 实况照片还有一整个解包目录（静图 + 视频），以及缓存里的首帧。
       LivePhoto.removeTree(DownloadStore.livePhotoDir(item.id));
+      DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);
     }
     const retainedZips: ZipItem[] = [];
     for (const zip of DownloadStore.zips) {
       if (!DownloadStore.removeFileChecked(zip.path)) { retainedZips.push(zip); }
+      else { DownloadStore.removeEmptyCollectionDir(zip.path, zip.collectionFolder); }
     }
     for (const batch of DownloadStore.batches) {
       if (batch.status === 'downloading' || batch.status === 'packing') {
@@ -786,6 +843,7 @@ export class DownloadStore {
     DownloadStore.downloads = retained;
     DownloadStore.zips = retainedZips;
     DownloadStore.batches = [];
+    DownloadStore.pruneCollections();
     StillFrames.clear();
     DownloadStore.notify();
     return retained.every((item: DownloadItem): boolean => item.origin === 'edited') && retainedZips.length === 0;
@@ -858,6 +916,22 @@ export class DownloadStore {
       }
     } catch (error) {
     }
+  }
+
+  private static removeEmptyCollectionDir(path: string, folder: string): void {
+    if (folder.length === 0) { return; }
+    const directory: string = path.substring(0, path.lastIndexOf('/'));
+    if (directory.endsWith('/' + folder)) { DownloadStore.removeDirectory(directory); }
+  }
+
+  private static pruneCollections(): void {
+    const live: Set<string> = new Set<string>();
+    for (const item of DownloadStore.downloads) {
+      if (item.origin === 'download' && item.collectionId.length > 0) { live.add(item.collectionId); }
+    }
+    for (const zip of DownloadStore.zips) { if (zip.collectionId.length > 0) { live.add(zip.collectionId); } }
+    for (const batch of DownloadStore.batches) { if (batch.collectionId.length > 0) { live.add(batch.collectionId); } }
+    DownloadStore.collections = DownloadStore.collections.filter((item: CollectionRecord): boolean => live.has(item.id));
   }
 
   /**
@@ -1527,10 +1601,11 @@ export class DownloadStore {
   static dismissBatch(batchId: string): void {
     const batch: BatchItem | undefined = DownloadStore.batches.find((entry: BatchItem): boolean => entry.id === batchId);
     if (batch === undefined) { return; }
-    const imagesDir: string = DownloadStore.context.filesDir + '/images';
-    DownloadStore.ensureDirectory(imagesDir);
     for (const item of DownloadStore.downloads) {
       if (item.batchId !== batchId) { continue; }
+      const imagesDir: string = DownloadStore.context.filesDir + '/images'
+        + (item.collectionFolder.length > 0 ? '/' + item.collectionFolder : '');
+      DownloadStore.ensureDirectory(imagesDir);
       item.batchId = '';
       const name: string = DownloadStore.uniqueName(item.name, imagesDir);
       const target: string = imagesDir + '/' + name;
@@ -1557,7 +1632,8 @@ export class DownloadStore {
     // 可能已启动本进程的压缩；这里再把 packing 改回 downloading 会并发压同一路径。
     for (const batch of DownloadStore.batches) {
       if (batch.status !== 'packing') { continue; }
-      const partialPath: string = DownloadStore.context.filesDir + '/archives/' + batch.name;
+      const partialPath: string = DownloadStore.context.filesDir + '/archives/'
+        + (batch.collectionFolder.length > 0 ? batch.collectionFolder + '/' : '') + batch.name;
       DownloadStore.removeFile(partialPath + '.' + batch.id + '.partial.zip');
       DownloadStore.removeFile(partialPath + '.partial.zip');
       if (!DownloadStore.zips.some((item: ZipItem): boolean => item.path === partialPath)) {
@@ -1737,7 +1813,9 @@ export class DownloadStore {
   }
 
   static async pack(batch: BatchItem, members: DownloadItem[], failedCount: number): Promise<void> {
-    const archivesDir: string = DownloadStore.context.filesDir + '/archives';
+    const archivesDir: string = DownloadStore.context.filesDir + '/archives'
+      + (batch.collectionFolder.length > 0 ? '/' + batch.collectionFolder : '');
+    DownloadStore.ensureDirectory(archivesDir);
     const name: string = DownloadStore.uniqueName(batch.name, archivesDir);
     const path: string = archivesDir + '/' + name;
     // zlib 会为不以 .zip 结尾的输出路径自行追加扩展名；临时名也必须以 .zip 结尾。
@@ -1751,6 +1829,9 @@ export class DownloadStore {
       const archive: ZipItem = new ZipItem();
       archive.id = DownloadStore.nextId(); archive.name = name; archive.path = path;
       archive.batchId = batch.id; archive.imageCount = members.length;
+      archive.collectionId = batch.collectionId;
+      archive.collectionName = batch.collectionName;
+      archive.collectionFolder = batch.collectionFolder;
       archive.failedCount = failedCount; archive.createdAt = Date.now();
       try { archive.size = fs.statSync(path).size; } catch (error) { archive.size = 0; }
       // keep a few source URLs so the list can draw a stacked thumbnail; the
@@ -1806,7 +1887,8 @@ export class DownloadStore {
   static renameZip(item: ZipItem, raw: string): boolean {
     let name: string = Naming.clean(raw, item.name);
     if (!name.toLowerCase().endsWith('.zip')) { name += '.zip'; }
-    const destination: string = DownloadStore.context.filesDir + '/archives/' + name;
+    const directory: string = item.path.substring(0, item.path.lastIndexOf('/'));
+    const destination: string = directory + '/' + name;
     if (destination !== item.path && DownloadStore.exists(destination)) { return false; }
     if (destination !== item.path && !DownloadStore.moveFile(item.path, destination)) { return false; }
     item.name = name; item.path = destination;
@@ -1816,18 +1898,22 @@ export class DownloadStore {
 
   static deleteDownload(item: DownloadItem): boolean {
     if (!DownloadStore.removeFileChecked(item.path)) { return false; }
+    DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);
     // 实况照片的解包目录与两份缓存都要一起收掉，否则删了记录还占着空间。
     LivePhoto.removeTree(DownloadStore.livePhotoDir(item.id));
     StillFrames.forget(item.path);
     StillFrames.forget(item.stillPath);
     DownloadStore.downloads = DownloadStore.downloads.filter((entry: DownloadItem): boolean => entry.id !== item.id);
+    DownloadStore.pruneCollections();
     DownloadStore.notify();
     return true;
   }
 
   static deleteZip(item: ZipItem): boolean {
     if (!DownloadStore.removeFileChecked(item.path)) { return false; }
+    DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);
     DownloadStore.zips = DownloadStore.zips.filter((entry: ZipItem): boolean => entry.id !== item.id);
+    DownloadStore.pruneCollections();
     DownloadStore.notify();
     return true;
   }

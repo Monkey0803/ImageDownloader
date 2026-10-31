@@ -61,6 +61,9 @@ export class DownloadItem {
   @Trace userNamed: boolean = false;
   @Trace path: string = '';
   @Trace sourcePage: string = '';
+  @Trace collectionId: string = '';
+  @Trace collectionName: string = '';
+  @Trace collectionFolder: string = '';
   @Trace batchId: string = '';
   @Trace taskId: string = '';
   @Trace status: string = 'queued';
@@ -107,6 +110,9 @@ export class ZipItem {
   @Trace name: string = '';
   @Trace path: string = '';
   @Trace batchId: string = '';
+  @Trace collectionId: string = '';
+  @Trace collectionName: string = '';
+  @Trace collectionFolder: string = '';
   @Trace imported: boolean = false;
   @Trace imageCount: number = 0;
   @Trace failedCount: number = 0;
@@ -122,8 +128,19 @@ export class BatchItem {
   @Trace id: string = '';
   @Trace name: string = '';
   @Trace sourcePage: string = '';
+  @Trace collectionId: string = '';
+  @Trace collectionName: string = '';
+  @Trace collectionFolder: string = '';
   @Trace status: string = 'downloading';
   @Trace error: string = '';
+}
+
+/** Enqueue totals remain available after a ZIP replaces its member tasks. */
+export class CollectionRecord {
+  id: string = '';
+  name: string = '';
+  added: number = 0;
+  skipped: number = 0;
 }
 
 /** Everything that survives a restart. */
@@ -131,6 +148,7 @@ export class SavedState {
   downloads: DownloadItem[] = [];
   zips: ZipItem[] = [];
   batches: BatchItem[] = [];
+  collections: CollectionRecord[] = [];
   concurrency: number = 3;
   wifiOnly: boolean = false;
   /** 'system' | 'light' | 'dark' */

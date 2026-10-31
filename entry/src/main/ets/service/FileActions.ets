@@ -543,10 +543,24 @@ export async function activateFolder(uri: string): Promise<boolean> {
 }
 
 /** 把一个已落盘的文件拷进用户选的目录（同名自动加序号）。 */
-export async function copyIntoDirectory(sourcePath: string, dirUri: string, name: string): Promise<ActionOutcome> {
+export async function copyIntoDirectory(sourcePath: string, dirUri: string, name: string,
+  subfolder: string = ''): Promise<ActionOutcome> {
   if (dirUri.length === 0) {
     return { ok: false, message: '没有可用的自定义目录' };
   }
-  const directory: string = resolvedPath(dirUri);
+  let directory: string = resolvedPath(dirUri);
+  if (subfolder.length > 0) {
+    directory += '/' + Naming.clean(subfolder, '网页素材');
+    try { fs.mkdirSync(directory, true); }
+    catch (error) {
+      try {
+        if (!fs.statSync(directory).isDirectory()) {
+          return { ok: false, message: '来源文件夹路径被文件占用' };
+        }
+      } catch (statError) {
+        return { ok: false, message: '无法创建来源文件夹：' + String(error) };
+      }
+    }
+  }
   return copyInto(sourcePath, directory + '/' + uniqueChild(directory, name));
 }

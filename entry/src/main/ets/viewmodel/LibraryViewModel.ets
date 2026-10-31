@@ -11,6 +11,7 @@ import { LibraryText } from '../util/LibraryText';
 import { ContentScanResult, DuplicateFinder, DuplicateGroup } from '../service/DuplicateFinder';
 import { ScreenMetrics } from '../theme/Metrics';
 import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveService';
+import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 
 /**
  * 「图库」页的 ViewModel：图片网格 + 压缩包列表 + 搜索 + 分段 + 密度。
@@ -47,6 +48,7 @@ export class LibraryViewModel {
   @Trace similarGroups: SimilarGroup[] = [];
   @Trace similarNotice: string = '';
   @Trace sourceQuery: string = '';
+  @Trace collectionFilter: string = '*';
   @Trace formatFilter: string = '';
   @Trace sortOrder: string = 'newest';
   @Trace density: number = 2;
@@ -301,6 +303,7 @@ export class LibraryViewModel {
 
   clearFilters(): void {
     this.query = ''; this.sourceQuery = ''; this.formatFilter = '';
+    this.collectionFilter = '*';
     this.searchScope = 'all'; this.favoritesOnly = false; this.tagFilter = '';
   }
 
@@ -308,9 +311,11 @@ export class LibraryViewModel {
   resetOptions(): void {
     if (this.isZips()) {
       this.sortOrder = 'newest';
+      this.collectionFilter = '*';
       return;
     }
     this.sourceQuery = '';
+    this.collectionFilter = '*';
     this.formatFilter = '';
     this.searchScope = 'all';
     this.favoritesOnly = false;
@@ -378,12 +383,20 @@ export class LibraryViewModel {
     options.source = this.sourceQuery; options.format = this.formatFilter;
     options.order = this.sortOrder; options.favoritesOnly = this.favoritesOnly;
     options.tag = this.tagFilter;
-    return LibraryQuery.search(this.downloads, this.catalogEntries, options);
+    return LibraryQuery.search(this.downloads, this.catalogEntries, options).filter((item: DownloadItem): boolean =>
+      this.collectionFilter === '*' || item.collectionId === this.collectionFilter);
   }
 
   @Computed
   get archives(): ZipItem[] {
-    return LibraryQuery.archives(this.zips, this.query, this.sortOrder);
+    return LibraryQuery.archives(this.zips, this.query, this.sortOrder).filter((item: ZipItem): boolean =>
+      this.collectionFilter === '*' || item.collectionId === this.collectionFilter);
+  }
+
+  @Computed
+  get collections(): CollectionSummary[] {
+    return CollectionGroups.summaries(this.downloads.filter((item: DownloadItem): boolean =>
+      item.status === 'completed' && item.batchId.length === 0), this.zips, [], []);
   }
 
   @Computed
@@ -444,6 +457,8 @@ export class LibraryViewModel {
     const before: string = this.duplicateSignature(this.downloads);
     this.downloads = DownloadStore.downloads.slice();
     this.zips = DownloadStore.zips.slice();
+    if (this.collectionFilter !== '*' && !this.collections.some((group: CollectionSummary): boolean =>
+      group.id === this.collectionFilter)) { this.collectionFilter = '*'; }
     const nextCatalogSignature: string = this.downloads.filter((item: DownloadItem): boolean =>
       item.status === 'completed').map((item: DownloadItem): string =>
       item.id + ':' + item.path + ':' + item.stillPath + ':' + item.size.toString()).join('|');

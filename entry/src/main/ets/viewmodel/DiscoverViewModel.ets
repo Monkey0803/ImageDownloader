@@ -109,6 +109,8 @@ export class DiscoverViewModel {
   @Trace filterUrl: string = '';
   @Trace filterText: string = '';
   @Trace onlyNew: boolean = false;
+  @Trace sortOrder: string = 'page';
+  @Trace nameMode: string = 'original';
   @Trace downloadSnapshot: DownloadItem[] = [];
   @Trace quickFilter: string = '';
   @Trace batchOpen: boolean = false;
@@ -201,6 +203,7 @@ export class DiscoverViewModel {
       group.status === 'ready' || group.status === 'failed').length;
     return (this.batchResolving ? '正在解析 ' + done.toString() + '/' + this.batchGroups.length.toString() + ' · ' : '')
       + '已选 ' + this.batchSelectedCount.toString() + ' 张 · 可加入 ' + this.batchEligibleCount.toString() + ' 张'
+      + ' · 跳过 ' + Math.max(0, this.batchSelectedCount - this.batchEligibleCount).toString() + ' 张'
       + (this.batchReviewZip ? ' · 每个网页一个 ZIP' : ' · 单图下载');
   }
 
@@ -303,9 +306,23 @@ export class DiscoverViewModel {
   get visiblePictures(): PictureItem[] {
     const width: number = PictureFilters.minimum(this.filterWidth);
     const height: number = PictureFilters.minimum(this.filterHeight);
-    return this.pictures.filter((item: PictureItem): boolean =>
+    const result: PictureItem[] = this.pictures.filter((item: PictureItem): boolean =>
       PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl, this.quickFilter, this.filterText)
         && (!this.onlyNew || this.downloadState(item) === 'new'));
+    if (this.sortOrder === 'name') { return result.sort((a: PictureItem, b: PictureItem): number =>
+      a.name.localeCompare(b.name)); }
+    if (this.sortOrder === 'size') { return result.sort((a: PictureItem, b: PictureItem): number =>
+      (b.width * b.height) - (a.width * a.height)); }
+    return result;
+  }
+
+  namePreview(): string[] {
+    return DownloadStore.previewNames(this.pictures, this.pageUrl, this.pageTitle, this.mode === 'zip', this.nameMode);
+  }
+
+  batchNamePreview(group: BatchPageGroup): string[] {
+    return DownloadStore.previewNames(group.pictures, group.kind === 'direct' ? '' : group.pageUrl,
+      group.title, this.batchReviewZip, this.nameMode, 2);
   }
 
   syncDownloads(): void { this.downloadSnapshot = DownloadStore.downloads.slice(); }
@@ -338,12 +355,13 @@ export class DiscoverViewModel {
     this.filterText = '';
     this.onlyNew = false;
     this.quickFilter = '';
+    this.sortOrder = 'page';
   }
 
   hasFilters(): boolean {
     return this.filterFormat.length > 0 || this.filterWidth.length > 0
       || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0 || this.filterText.trim().length > 0
-      || this.onlyNew || this.quickFilter.length > 0;
+      || this.onlyNew || this.quickFilter.length > 0 || this.sortOrder !== 'page';
   }
   /**
    * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它。
@@ -630,7 +648,8 @@ export class DiscoverViewModel {
     let added: number = 0;
     let skipped: number = 0;
     for (const job of jobs) {
-      const result: AdmissionResult = DownloadStore.add(job.pictures, job.pageUrl, job.title, this.batchReviewZip);
+      const result: AdmissionResult = DownloadStore.add(job.pictures, job.pageUrl, job.title,
+        this.batchReviewZip, false, this.nameMode);
       added += result.added;
       skipped += result.skipped();
     }
@@ -882,7 +901,8 @@ export class DiscoverViewModel {
       this.ui.say('请先选择图片');
       return;
     }
-    const result: AdmissionResult = DownloadStore.add(copies, this.pageUrl, this.pageTitle, this.mode === 'zip');
+    const result: AdmissionResult = DownloadStore.add(copies, this.pageUrl, this.pageTitle,
+      this.mode === 'zip', false, this.nameMode);
     if (result.added === 0) {
       this.ui.say('所选图片已下载或正在下载，没有新增任务');
       return;
@@ -1195,7 +1215,8 @@ export class DiscoverViewModel {
     // 所以 add() 会把它们按单文件走，这里的文案要跟着说清楚。
     const liveSelected: boolean = this.pictures.some((item: PictureItem): boolean =>
       item.selected && item.kind === 'livephoto');
-    const result: AdmissionResult = DownloadStore.add(this.pictures, this.pageUrl, this.pageTitle, zipMode);
+    const result: AdmissionResult = DownloadStore.add(this.pictures, this.pageUrl, this.pageTitle,
+      zipMode, false, this.nameMode);
     if (result.added === 0) {
       this.ui.say('所选图片已下载或正在下载，没有新增任务');
       return;

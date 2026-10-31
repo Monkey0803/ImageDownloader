@@ -4,6 +4,7 @@ import { DownloadStore } from '../service/DownloadStore';
 import { fileUri } from '@kit.CoreFileKit';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
+import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 
 /**
  * 「任务」页的 ViewModel：下载队列 + 打包批次。
@@ -45,6 +46,8 @@ export class TasksViewModel {
   @Trace active: DownloadItem[] = [];
   @Trace settled: DownloadItem[] = [];
   @Trace batchViews: BatchView[] = [];
+  @Trace collectionFilter: string = '*';
+  @Trace collections: CollectionSummary[] = [];
   /** 包含批次成员和批次本身，供页签徽标使用。 */
   @Trace running: number = 0;
 
@@ -72,16 +75,21 @@ export class TasksViewModel {
   sync(): void {
     this.downloads = DownloadStore.downloads.filter((item: DownloadItem): boolean => item.origin === 'download');
     this.batches = DownloadStore.batches.slice();
+    this.collections = CollectionGroups.summaries(this.downloads, DownloadStore.zips,
+      this.batches, DownloadStore.collections);
+    if (this.collectionFilter !== '*' && !this.collections.some((group: CollectionSummary): boolean =>
+      group.id === this.collectionFilter)) { this.collectionFilter = '*'; }
     this.concurrency = DownloadStore.concurrency;
     this.active = this.downloads.filter((item: DownloadItem): boolean =>
-      item.batchId.length === 0
+      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter) && item.batchId.length === 0
         && (item.status === 'running' || item.status === 'starting'
           || item.status === 'queued' || item.status === 'waiting' || item.status === 'paused'));
     this.settled = this.downloads.filter((item: DownloadItem): boolean =>
-      item.batchId.length === 0
+      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter) && item.batchId.length === 0
         && (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
     const views: BatchView[] = [];
     for (const batch of this.batches) {
+      if (this.collectionFilter !== '*' && batch.collectionId !== this.collectionFilter) { continue; }
       const members: DownloadItem[] =
         this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
       const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
@@ -103,6 +111,12 @@ export class TasksViewModel {
       }
     }
     this.running = running;
+  }
+
+  setCollectionFilter(id: string): void { this.collectionFilter = id; this.sync(); }
+
+  selectedCollection(): CollectionSummary | undefined {
+    return this.collections.find((group: CollectionSummary): boolean => group.id === this.collectionFilter);
   }
 
   /** 只有单任务和打包批次都没有卡片时才显示空态。 */

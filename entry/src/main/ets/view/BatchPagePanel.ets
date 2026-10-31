@@ -4,11 +4,14 @@ import { BatchPageGroup } from '../service/BatchPageGroups';
 import { BatchLinkRow, BatchLinkStatus } from '../service/BatchLinks';
 import { PictureItem } from '../model/Models';
 import { Thumb } from './Thumb';
-import { PillButton, PictureSelectionButton, Segmented, MODE_OPTIONS } from './Widgets';
+import { PillButton, PictureSelectionButton, Segmented, SettingSelect, MODE_OPTIONS } from './Widgets';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS, ScreenMetrics } from '../theme/Metrics';
 
 export const BATCH_PAGE_NAME: string = 'batch';
+const NAME_IDS: string[] = ['original', 'numbered'];
+const NAME_LABELS: string[] = ['原文件名', '网页标题＋序号'];
+const NAME_OPTIONS: SelectOption[] = NAME_LABELS.map((label: string): SelectOption => ({ value: label }));
 
 /**
  * 批量链接页：编辑、审核、网页处理都在同一个 HDS 页面里完成。
@@ -247,6 +250,12 @@ export struct BatchFlowHost {
       Column({ space: Space.s4 }) {
         Text(this.discover.batchReviewSummary)
           .fontSize(Font.aux).fontColor(Palette.fontPrimary).width('100%')
+        Row({ space: Space.s8 }) {
+          Text('文件命名').fontSize(Font.caption).fontColor(Palette.fontSecondary).layoutWeight(1)
+          SettingSelect({ options: NAME_OPTIONS, selectedIndex: NAME_IDS.indexOf(this.discover.nameMode),
+            label: NAME_LABELS[NAME_IDS.indexOf(this.discover.nameMode)],
+            onPick: (index: number): void => { this.discover.nameMode = NAME_IDS[index]; } })
+        }.width('100%')
         if (this.discover.batchReviewExcluded.length > 0) {
           Text(this.discover.batchReviewExcluded)
             .fontSize(Font.caption).fontColor(Palette.fontTertiary).width('100%')
@@ -303,6 +312,10 @@ export struct BatchFlowHost {
           + '/' + group.pictures.length.toString() + ' 张' + (group.message.length > 0 ? ' · ' + group.message : ''))
         .fontSize(Font.caption).fontColor(group.status === 'failed' ? Palette.warning : Palette.fontSecondary)
         .width('100%')
+      if (group.status === 'ready' && this.discover.batchNamePreview(group).length > 0) {
+        Text('预计文件名：' + this.discover.batchNamePreview(group).slice(0, 2).join('、'))
+          .fontSize(Font.caption).fontColor(Palette.fontTertiary).maxLines(2).width('100%')
+      }
       if (group.pictures.length > 0) {
         List({ space: Space.s8 }) {
           ForEach(group.pictures, (picture: PictureItem, pictureIndex: number) => {

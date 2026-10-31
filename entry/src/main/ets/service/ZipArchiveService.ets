@@ -78,6 +78,8 @@ export class ZipArchiveService {
         created.push(path);
         const item: DownloadItem = new DownloadItem();
         item.id = DownloadStore.nextId(); item.origin = 'extracted'; item.originalId = zip.id;
+        item.collectionId = zip.collectionId; item.collectionName = zip.collectionName;
+        item.collectionFolder = zip.collectionFolder;
         item.name = name; item.path = path; item.kind = 'image'; item.status = 'completed';
         item.size = fs.statSync(path).size; item.processed = item.size; item.total = item.size;
         item.createdAt = Date.now(); item.finishedAt = item.createdAt;

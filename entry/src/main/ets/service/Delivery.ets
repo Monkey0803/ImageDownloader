@@ -89,7 +89,8 @@ export class Delivery {
       item.receipt.status = 'pending';
       item.receipt.message = '正在另存到自定义目录';
       this.changed();
-      const outcome: ActionOutcome = await copyIntoDirectory(item.path, item.receipt.folderUri, item.name);
+      const outcome: ActionOutcome = await copyIntoDirectory(item.path, item.receipt.folderUri, item.name,
+        item.collectionFolder);
       this.finish(item.receipt, outcome, '自定义目录');
       this.report(outcome, '自定义目录');
     }
@@ -105,7 +106,8 @@ export class Delivery {
     archive.receipt.status = 'pending';
     archive.receipt.message = '正在另存到自定义目录';
     this.changed();
-    const outcome: ActionOutcome = await copyIntoDirectory(archive.path, archive.receipt.folderUri, archive.name);
+    const outcome: ActionOutcome = await copyIntoDirectory(archive.path, archive.receipt.folderUri, archive.name,
+      archive.collectionFolder);
     this.finish(archive.receipt, outcome, '自定义目录');
     this.report(outcome, '自定义目录');
   }
