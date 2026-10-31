@@ -59,6 +59,7 @@ class DownloadWire {
   kind: string = 'image';
   animated: boolean = false;
   hdr: boolean = false;
+  motionUrl: string = '';
   stillPath: string = '';
   motionPath: string = '';
   auxSize: number = 0;
@@ -140,6 +141,7 @@ export class StoreState {
       out.kind = item.kind;
       out.animated = item.animated;
       out.hdr = item.hdr;
+      out.motionUrl = item.motionUrl;
       out.stillPath = item.stillPath;
       out.motionPath = item.motionPath;
       out.auxSize = item.auxSize;
@@ -231,6 +233,7 @@ export class StoreState {
       item.kind = orString(entry.kind, 'image');
       item.animated = orBoolean(entry.animated, false);
       item.hdr = orBoolean(entry.hdr, false);
+      item.motionUrl = orString(entry.motionUrl, '');
       item.stillPath = orString(entry.stillPath, '');
       item.motionPath = orString(entry.motionPath, '');
       item.auxSize = orNumber(entry.auxSize, 0);

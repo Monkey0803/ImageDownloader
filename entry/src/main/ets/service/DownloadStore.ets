@@ -12,6 +12,7 @@ import { StoreState } from './StoreState';
 import { GripSensor } from './GripSensor';
 import { AntiPeep } from './AntiPeep';
 import { Naming } from './Naming';
+import { MediaFormat } from './MediaFormat';
 import { ActionOutcome, activateFolder } from './FileActions';
 import { Delivery, DeliveryTarget } from './Delivery';
 import { LivePhoto, LivePhotoContent } from './LivePhoto';
@@ -23,6 +24,7 @@ import { AnalysisToken, AssetStamp } from '../model/LibraryAsset';
 import { EditJournal } from './EditJournal';
 import { LIBRARY_CATALOG } from './LibraryCatalog';
 import { WebIdentity } from './WebIdentity';
+import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
 
 interface ProgressSample {
   bytes: number;
@@ -601,6 +603,9 @@ export class DownloadStore {
       item.sourcePage = pageUrl.length > 0 ? pageUrl : source.url;
       item.createdAt = Date.now();
       item.kind = source.kind === 'livephoto' ? 'livephoto' : 'image';
+      // 微博这类站点的实况照片是「静图 + 单独的视频」：记下动态地址，下载完再打包成 .livp。
+      item.motionUrl = item.kind === 'livephoto' ? source.motionUrl : '';
+      if (item.motionUrl.length > 0) { item.name = Naming.withExtension(item.name, 'livp'); }
       const packed: boolean = batchId.length > 0 && item.kind !== 'livephoto';
       item.batchId = packed ? batchId : '';
       const dir: string = item.kind === 'livephoto'
@@ -1066,6 +1071,12 @@ export class DownloadStore {
       } catch (error) {
         item.size = item.total;
       }
+      // 微博这类站点的实况照片是「静图 + 独立视频」：下完静图后补下视频并打包成 .livp，
+      // 后面的解包、播放、存相册都走普通实况照片那条路。
+      if (item.kind === 'livephoto' && item.motionUrl.length > 0) {
+        await DownloadStore.packLivePhoto(item, finalPath);
+        try { item.size = fs.statSync(item.path).size; } catch (error) { item.size = item.total; }
+      }
       // 落盘之后的「内容加工」：动图标记 / 实况照片解包。投递（存相册）跟在它后面 ——
       // 实况照片要把解出来的静图与视频一起送进相册，没解完就没有可投递的东西。
       try {
@@ -1091,6 +1102,158 @@ export class DownloadStore {
       DownloadStore.delivery.deliver(item);
     } catch (error) {
       DownloadStore.fail(item, '保存下载文件失败：' + String(error));
+    }
+  }
+
+  /**
+   * 把「静图 + 独立视频」合成 `.livp`（实况照片包就是一个 ZIP）。
+   *
+   * 静图已经落在 item.path 上；先用临时名挪开，再补下动态部分，最后用 zlib 打成一个包。
+   * 任何一步失败都退回普通图片（保留静图）并留一句提示，不让一次下载因此判失败。
+   */
+  private static async packLivePhoto(item: DownloadItem, stillPath: string): Promise<void> {
+    const dir: string = stillPath.substring(0, stillPath.lastIndexOf('/'));
+    const urlExtension: string = MediaFormat.extensionOf(item.url);
+    const extension: string = urlExtension.length > 0 ? urlExtension : 'jpg';
+    const tempStill: string = dir + '/' + item.id + '.still.' + extension;
+    const tempMotion: string = dir + '/' + item.id + '.motion.mov';
+    try {
+      fs.renameSync(stillPath, tempStill);
+    } catch (error) {
+      DownloadStore.degradeLivePhoto(item, stillPath, extension, '实况照片合成失败，已保存静图');
+      return;
+    }
+    // 微博也可能把动态 GIF/WebP 作为静图地址；LIVP 封面必须是可解码的单帧图片。
+    const cover: string = await DownloadStore.livePhotoCover(tempStill, extension,
+      dir + '/' + item.id + '.still.png');
+    if (cover.length === 0) {
+      DownloadStore.degradeLivePhoto(item, tempStill, extension, '实况封面转换失败，已保存原图');
+      return;
+    }
+    const motionReady: boolean = await DownloadStore.fetchFile(item.motionUrl, tempMotion, item.sourcePage);
+    if (!motionReady) {
+      DownloadStore.removeFile(tempMotion);
+      if (cover !== tempStill) { DownloadStore.removeFile(cover); }
+      DownloadStore.degradeLivePhoto(item, tempStill, extension, '动态部分下载失败，已保存静图');
+      return;
+    }
+    // zlib 只认 `.zip` 结尾的输出名（不是 .zip 时它会在后面再补一个 .zip），
+    // 所以先压到临时 zip，再改名成用户看到的 .livp 包。
+    const packageZip: string = dir + '/' + item.id + '.package.zip';
+    DownloadStore.removeFile(packageZip);
+    try {
+      const options: zlib.Options = { level: zlib.CompressLevel.COMPRESS_LEVEL_DEFAULT_COMPRESSION };
+      await zlib.compressFiles([cover, tempMotion], packageZip, options);
+      DownloadStore.removeFile(stillPath);
+      fs.renameSync(packageZip, stillPath);
+      DownloadStore.removeFile(tempStill);
+      if (cover !== tempStill) { DownloadStore.removeFile(cover); }
+      DownloadStore.removeFile(tempMotion);
+    } catch (error) {
+      DownloadStore.removeFile(packageZip);
+      DownloadStore.removeFile(stillPath);
+      DownloadStore.removeFile(tempMotion);
+      if (cover !== tempStill) { DownloadStore.removeFile(cover); }
+      DownloadStore.degradeLivePhoto(item, tempStill, extension, '实况照片合成失败，已保存静图');
+    }
+  }
+
+  /** 动态或不支持的静图取首帧转 PNG，供 LIVP 解包和系统实况组件使用。 */
+  private static async livePhotoCover(input: string, extension: string, output: string): Promise<string> {
+    const header: Uint8Array | undefined = StillFrames.readHeader(input, 64 * 1024);
+    const gif: boolean = header !== undefined && header.length >= 3
+      && header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46;
+    const animatedWebp: boolean = header !== undefined && MediaFormat.webpLooksAnimated(header);
+    if (!gif && !animatedWebp && MediaFormat.STILL_EXTENSIONS.includes(extension)) { return input; }
+    let source: image.ImageSource | undefined = undefined;
+    let frame: image.PixelMap | undefined = undefined;
+    let packer: image.ImagePacker | undefined = undefined;
+    let file: fs.File | undefined = undefined;
+    let completed: boolean = false;
+    try {
+      source = image.createImageSource(input);
+      const info: image.ImageInfo = await source.getImageInfo();
+      const size: PreviewSize = PreviewGeometry.decodeSize({ width: info.size.width, height: info.size.height },
+        4096, 8000000);
+      frame = await source.createPixelMap({ index: 0, desiredSize: { width: size.width, height: size.height } });
+      packer = image.createImagePacker();
+      file = fs.openSync(output, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+      await packer.packToFile(frame, file.fd, { format: 'image/png', quality: 100 });
+      fs.closeSync(file); file = undefined;
+      completed = fs.statSync(output).size > 0;
+      return completed ? output : '';
+    } catch (error) {
+      return '';
+    } finally {
+      if (file !== undefined) { try { fs.closeSync(file); } catch (error) {} }
+      if (packer !== undefined) { try { await packer.release(); } catch (error) {} }
+      if (frame !== undefined) { try { await frame.release(); } catch (error) {} }
+      if (source !== undefined) { try { await source.release(); } catch (error) {} }
+      if (!completed) { DownloadStore.removeFile(output); }
+    }
+  }
+
+  /** 合成失败：把静图改回普通图片名字与类型，保留文件，只提示动态部分没拿到。 */
+  private static degradeLivePhoto(item: DownloadItem, stillPath: string, extension: string,
+    message: string): void {
+    const dir: string = stillPath.substring(0, stillPath.lastIndexOf('/'));
+    const name: string = Naming.withExtension(item.name, extension);
+    const target: string = dir + '/' + name;
+    try {
+      if (target !== stillPath) { fs.renameSync(stillPath, target); }
+    } catch (error) {
+    }
+    item.kind = 'image';
+    item.motionUrl = '';
+    item.name = name;
+    item.path = target;
+    item.note = message;
+    DownloadStore.pendingNotice = message;
+  }
+
+  /** 下载一个附属文件（实况照片的动态部分）；失败只返回 false，不抛。 */
+  private static async fetchFile(url: string, path: string, referer: string): Promise<boolean> {
+    if (!canIUse('SystemCapability.Request.FileTransferAgent')) { return false; }
+    try {
+      const headers: Record<string, string> = {};
+      headers['User-Agent'] = WebIdentity.userAgent();
+      if (referer.startsWith('http')) { headers['Referer'] = referer; }
+      try {
+        const cookie: string = webview.WebCookieManager.fetchCookieSync(url);
+        if (cookie.length > 0) { headers['Cookie'] = cookie; }
+      } catch (error) {
+      }
+      // @SuppressWarnings syscap
+      const config: request.agent.Config = {
+        action: request.agent.Action.DOWNLOAD,
+        url: url,
+        saveas: path,
+        mode: request.agent.Mode.BACKGROUND,
+        overwrite: true,
+        network: DownloadStore.wifiOnly ? request.agent.Network.WIFI : request.agent.Network.ANY,
+        metered: true,
+        gauge: false,
+        headers: headers
+      };
+      // @SuppressWarnings syscap
+      const task: request.agent.Task = await request.agent.create(DownloadStore.context, config);
+      return await new Promise<boolean>((resolve: (value: boolean) => void): void => {
+        let settled: boolean = false;
+        let timer: number = -1;
+        const done = (ok: boolean): void => {
+          if (settled) { return; }
+          settled = true;
+          if (timer >= 0) { clearTimeout(timer); }
+          try { request.agent.remove(task.tid).catch((): void => {}); } catch (error) {}
+          resolve(ok);
+        };
+        timer = setTimeout((): void => { done(false); }, 60000);
+        task.on('completed', (): void => { done(true); });
+        task.on('failed', (): void => { done(false); });
+        task.start().catch((): void => { done(false); });
+      });
+    } catch (error) {
+      return false;
     }
   }
 

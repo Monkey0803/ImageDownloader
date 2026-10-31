@@ -2,6 +2,8 @@ import downloadStoreTest from './DownloadStore.test';
 import mediaFormatTest from './MediaFormat.test';
 import imageCandidatesTest from './ImageCandidates.test';
 import pictureFiltersTest from './PictureFilters.test';
+import pictureFactoryTest from './PictureFactory.test';
+import weiboLivePhotosTest from './WeiboLivePhotos.test';
 import libraryQueryTest from './LibraryQuery.test';
 import shareInboxTest from './ShareInbox.test';
 import sizeArbiterTest from './SizeArbiter.test';
@@ -37,6 +39,8 @@ export default function testsuite() {
   mediaFormatTest();
   imageCandidatesTest();
   pictureFiltersTest();
+  pictureFactoryTest();
+  weiboLivePhotosTest();
   libraryQueryTest();
   shareInboxTest();
   sizeArbiterTest();

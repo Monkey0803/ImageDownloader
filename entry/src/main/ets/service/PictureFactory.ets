@@ -20,6 +20,8 @@ export interface ScanImage {
   width?: number;
   height?: number;
   featured?: boolean;
+  /** 实况照片的动态部分（微博等站点把静图与视频分开给）；没有就是普通图片。 */
+  motion?: string;
 }
 
 /**
@@ -70,6 +72,12 @@ export class PictureFactory {
     picture.height = image.height ?? 0;
     picture.featured = image.featured === true;
     picture.name = Naming.suggested(image.url, image.description, index);
+    if (image.motion !== undefined && image.motion.length > 0) {
+      // 静图 + 视频的实况照片：下载层会打包成 .livp，名字和类型都要提前标好。
+      picture.kind = 'livephoto';
+      picture.motionUrl = image.motion;
+      picture.name = Naming.withExtension(picture.name, 'livp');
+    }
     return picture;
   }
 
@@ -93,6 +101,11 @@ export class PictureFactory {
           old.height = image.height ?? 0;
         }
         old.featured = image.featured === true;
+        if (image.motion !== undefined && image.motion.length > 0) {
+          old.kind = 'livephoto';
+          old.motionUrl = image.motion;
+          if (!old.userNamed) { old.name = Naming.withExtension(old.name, 'livp'); }
+        }
         continue;
       }
       found.set(image.url, PictureFactory.fromScan(image, i + 1));

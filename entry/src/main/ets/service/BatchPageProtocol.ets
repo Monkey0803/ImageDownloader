@@ -82,8 +82,12 @@ export class BatchPageProtocol {
         if (text) out.title = text.slice(0, 80);
         const pics = Array.isArray(post.pics) ? post.pics
           : (post.pic_ids || []).map(key => (post.pic_infos || {})[key]).filter(Boolean);
+        // 微博的实况照片不是 .livp 包：静图在 pics 里，动态部分单独给出（post.live_photo
+        // 与 pics 同序，单条里也可能带 videoSrc）。两路都收，配成「静图 + 视频」由下载层打包。
+        const liveMotions = Array.isArray(post.live_photo) ? post.live_photo : [];
         const seen = new Set();
-        for (const pic of pics) {
+        for (let picIndex = 0; picIndex < pics.length; picIndex++) {
+          const pic = pics[picIndex];
           const candidates = [];
           const add = item => {
             const raw = typeof item === 'string' ? item : item && item.url;
@@ -98,8 +102,14 @@ export class BatchPageProtocol {
           for (const key of ['original','largest','large','url','bmiddle','thumbnail']) add(pic[key]);
           if (!candidates.length || seen.has(candidates[0].url)) continue;
           seen.add(candidates[0].url);
+          const motionRaw = typeof pic.videoSrc === 'string' && pic.videoSrc.length > 0
+            ? pic.videoSrc : (typeof liveMotions[picIndex] === 'string' ? liveMotions[picIndex] : '');
+          let motion = '';
+          if (motionRaw) {
+            try { motion = new URL(motionRaw, location.href).href; } catch (_) { motion = motionRaw; }
+          }
           out.images.push({ url: candidates[0].url, description: '', candidates,
-            width: 0, height: 0 });
+            width: 0, height: 0, motion: /^https?:\\/\\//i.test(motion) ? motion : '' });
         }
         return JSON.stringify(out);
       }

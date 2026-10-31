@@ -16,6 +16,7 @@ import { PictureFilters } from '../service/PictureFilters';
 import { PageScanner, ScanData, ScanEvents, ScanProtocol, ScanStrategies } from '../service/PageScanner';
 import { PageExpansion, ExpansionStep } from '../service/PageExpansion';
 import { ScanUpgrader } from '../service/ScanUpgrader';
+import { WeiboLivePhotos } from '../service/WeiboLivePhotos';
 import { SizeArbiter } from '../service/SizeArbiter';
 import { AuthenticatedPreview, PreviewResult } from '../service/AuthenticatedPreview';
 import { PreviewLoadProgress } from '../model/PreviewLoadProgress';
@@ -121,6 +122,7 @@ export class DiscoverViewModel {
   }
   @Trace previewFromLocal: boolean = false;
   @Trace previewLocalPath: string = '';
+  @Trace previewMotionPath: string = '';
   @Trace previewLocalAnimated: boolean = false;
   @Computed
   get batchReport(): BatchLinkReport {
@@ -648,20 +650,21 @@ export class DiscoverViewModel {
       try {
         if (displayPath.length > 0) { uri = fileUri.getUriFromPath(displayPath); }
       } catch (error) {}
-      if (picture.kind === 'livephoto' || uri.length > 0) {
+      if (uri.length > 0) {
         this.inspectionBytes = local.size;
         this.inspectionLoading = false;
         this.previewUri = uri;
         this.previewFromLocal = true;
         this.previewLocalPath = displayPath;
+        this.previewMotionPath = local.motionPath;
         this.previewLocalAnimated = local.animated;
         this.previewMessage = picture.kind === 'livephoto'
-          ? '已使用本地下载文件，可在图库播放实况照片'
+          ? local.motionPath.length > 0 ? '本地实况照片 · 点击画面可重播' : '本地实况封面'
           : local.animated ? '本地原图 · 动图播放' : '本地原图 · 放大可查看更清晰细节';
         return;
       }
     }
-    if (picture.kind === 'image') {
+    if (picture.kind === 'image' || (picture.kind === 'livephoto' && picture.motionUrl.length > 0)) {
       this.previewLoading = true;
       this.previewPhase = 'connecting';
       this.previewMessage = '正在加载预览…';
@@ -675,13 +678,17 @@ export class DiscoverViewModel {
         if (generation !== this.inspectionGeneration) { return; }
         this.previewUri = result.uri;
         this.previewLocalPath = result.path;
+        this.previewMotionPath = '';
         this.previewFailure = result.failure;
         this.previewLocalAnimated = result.animated;
         if (result.width > 0 && result.height > 0) {
           picture.width = result.width;
           picture.height = result.height;
         }
-        this.previewMessage = result.animated && result.path.length > 0 ? '动图预览 · 可暂停或保存当前帧' : result.message;
+        this.previewMessage = picture.kind === 'livephoto' && result.uri.length > 0
+          ? result.animated ? '实况预览 · 可暂停或保存当前帧'
+            : '实况静图预览 · 下载后可播放动态部分'
+          : result.animated && result.path.length > 0 ? '动图预览 · 可暂停或保存当前帧' : result.message;
         this.previewLoading = false;
         this.previewPhase = result.uri.length > 0 ? 'ready' : 'failed';
       }).catch((): void => {
@@ -692,7 +699,8 @@ export class DiscoverViewModel {
         this.previewMessage = '预览不可用，可查看来源页或下载原文件';
       });
     } else {
-      this.previewMessage = '实况照片包下载后可预览';
+      this.previewMessage = local !== undefined ? '本地实况文件缺少可用封面，可重新下载'
+        : '实况照片包下载后可预览';
     }
     SizeArbiter.measure(url, this.pageUrl).then((bytes: number): void => {
       if (generation !== this.inspectionGeneration || this.inspectedPicture?.url !== url) { return; }
@@ -731,6 +739,7 @@ export class DiscoverViewModel {
     this.previewTotal = 0;
     this.previewFromLocal = false;
     this.previewLocalPath = '';
+    this.previewMotionPath = '';
     this.previewLocalAnimated = false;
     if (preserveCache) { this.preview.cancelRequest(); } else { this.preview.cancel(); }
   }
@@ -747,21 +756,28 @@ export class DiscoverViewModel {
       return;
     }
     const path: string = picture.kind === 'livephoto' ? local.stillPath : local.path;
-    if (this.previewFromLocal && this.previewLocalPath === path) { return; }
+    if (path.length === 0) {
+      if (this.previewFromLocal) { this.inspect(picture.uid); }
+      return;
+    }
+    if (this.previewFromLocal && this.previewLocalPath === path
+      && this.previewMotionPath === local.motionPath) { return; }
     let uri: string = '';
     try { if (path.length > 0) { uri = fileUri.getUriFromPath(path); } } catch (error) { return; }
-    if (uri.length === 0 && picture.kind !== 'livephoto') { return; }
+    if (uri.length === 0) { return; }
     this.inspectionGeneration++;
     this.preview.cancelRequest();
     this.previewUri = uri;
     this.previewLocalPath = path;
+    this.previewMotionPath = local.motionPath;
     this.previewLocalAnimated = local.animated;
     this.previewFromLocal = true;
     this.previewLoading = false;
     this.previewFailure = '';
     this.inspectionBytes = local.size;
     this.inspectionLoading = false;
-    this.previewMessage = picture.kind === 'livephoto' ? '已使用本地下载文件，可在图库播放实况照片'
+    this.previewMessage = picture.kind === 'livephoto' ? local.motionPath.length > 0
+      ? '本地实况照片 · 点击画面可重播' : '本地实况封面'
       : local.animated ? '本地原图 · 动图播放' : '本地原图 · 放大可查看更清晰细节';
   }
 
@@ -782,6 +798,7 @@ export class DiscoverViewModel {
       const copy: PictureItem = PictureFactory.fromUrl(picture.url);
       copy.name = picture.name;
       copy.kind = picture.kind;
+      copy.motionUrl = picture.motionUrl;
       copy.userNamed = picture.userNamed;
       copy.description = picture.description;
       copies.push(copy);
@@ -807,6 +824,7 @@ export class DiscoverViewModel {
       const copy: PictureItem = PictureFactory.fromUrl(picture.url);
       copy.name = picture.name;
       copy.kind = picture.kind;
+      copy.motionUrl = picture.motionUrl;
       copy.userNamed = picture.userNamed;
       copy.description = picture.description;
       DownloadStore.add([copy], this.pageUrl, this.pageTitle, false);
@@ -1006,6 +1024,9 @@ export class DiscoverViewModel {
         if (generation !== this.expansionGeneration) { throw new Error('cancelled'); }
         const data: ScanData = ScanProtocol.parse(raw.getString());
         if (data.url !== url) { throw new Error('page changed'); }
+        // 「加载更多」同样要把微博实况照片的动态部分补上（结果按 bid 缓存，不会每轮都请求）。
+        await WeiboLivePhotos.apply(data.url, data.images);
+        if (generation !== this.expansionGeneration) { throw new Error('cancelled'); }
         if (upgrade) {
           await ScanUpgrader.apply(data.images, data.url, (): boolean => generation === this.expansionGeneration);
         }

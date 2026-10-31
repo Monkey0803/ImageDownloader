@@ -651,28 +651,37 @@ test('local preview prefers an existing completed copy of the exact image URL', 
     { url: 'https://image.test/a.png', kind: 'image', status: 'completed', path: '/old.png' }
   ];
   assert.deepEqual(LocalPreview.find('https://image.test/a.png', 'image', records),
-    { path: '/new.png', size: 240, stillPath: '', animated: false });
+    { path: '/new.png', size: 240, stillPath: '', motionPath: '', animated: false });
   files.delete('/new.png');
   assert.deepEqual(LocalPreview.find('https://image.test/a.png', 'image', records),
-    { path: '/old.png', size: 120, stillPath: '', animated: false });
+    { path: '/old.png', size: 120, stillPath: '', motionPath: '', animated: false });
   files.delete('/old.png');
   assert.equal(LocalPreview.find('https://image.test/a.png', 'image', records), undefined);
 });
 
 test('local preview uses a live photo cover only when its local file exists', () => {
-  const files = new Map([['/photo.livp', 500], ['/cover.jpg', 50]]);
+  const files = new Map([['/photo.livp', 500], ['/cover.jpg', 50], ['/motion.mov', 300]]);
   const load = loader({ '@kit.CoreFileKit': { fileIo: { statSync: (path) => {
     if (!files.has(path)) throw new Error('missing');
     return { isFile: () => true, size: files.get(path) };
   } } } });
   const { LocalPreview } = load(path.join(source, 'service/LocalPreview.ets'));
   const records = [{ url: 'https://image.test/photo.livp', kind: 'livephoto',
-    status: 'completed', path: '/photo.livp', stillPath: '/cover.jpg' }];
+    status: 'completed', path: '/photo.livp', stillPath: '/cover.jpg', motionPath: '/motion.mov' }];
   assert.deepEqual(LocalPreview.find(records[0].url, 'livephoto', records),
-    { path: '/photo.livp', size: 500, stillPath: '/cover.jpg', animated: false });
+    { path: '/photo.livp', size: 500, stillPath: '/cover.jpg', motionPath: '/motion.mov', animated: false });
+  files.delete('/motion.mov');
+  assert.deepEqual(LocalPreview.find(records[0].url, 'livephoto', records),
+    { path: '/photo.livp', size: 500, stillPath: '/cover.jpg', motionPath: '', animated: false });
   files.delete('/cover.jpg');
   assert.deepEqual(LocalPreview.find(records[0].url, 'livephoto', records),
-    { path: '/photo.livp', size: 500, stillPath: '', animated: false });
+    { path: '/photo.livp', size: 500, stillPath: '', motionPath: '', animated: false });
+  files.set('/older.livp', 400);
+  files.set('/older.jpg', 40);
+  records.push({ url: records[0].url, kind: 'livephoto', status: 'completed',
+    path: '/older.livp', stillPath: '/older.jpg', motionPath: '' });
+  assert.deepEqual(LocalPreview.find(records[0].url, 'livephoto', records),
+    { path: '/older.livp', size: 400, stillPath: '/older.jpg', motionPath: '', animated: false });
 });
 
 function deliveryHarness(save) {
@@ -864,7 +873,7 @@ test('preview bulk download keeps selections and ZIP mode, limits scope and skip
 test('completed local original supersedes in-flight preview and ignores late metadata', async () => {
   const h = discoveryPreviewHarness();
   h.vm.inspect('a');
-  h.local.value = { path: '/original.png', size: 1234, stillPath: '', animated: false };
+  h.local.value = { path: '/original.png', size: 1234, stillPath: '', motionPath: '', animated: false };
   h.vm.refreshLocalPreview();
   assert.equal(h.vm.inspectedPicture.uid, 'a');
   assert.equal(h.vm.previewUri, 'file:///original.png');
@@ -890,9 +899,52 @@ test('download failure restores the preview download action and closing ignores 
   h.vm.refreshLocalPreview();
   assert.equal(h.vm.previewDownloadQueued, false);
   h.vm.closeInspection();
-  h.local.value = { path: '/late.png', size: 8, stillPath: '', animated: false };
+  h.local.value = { path: '/late.png', size: 8, stillPath: '', motionPath: '', animated: false };
   h.vm.refreshLocalPreview();
   assert.equal(h.vm.previewUri, '');
+});
+
+test('Weibo live photo previews its still image before download and plays a complete local pair', async () => {
+  const h = discoveryPreviewHarness();
+  h.vm.pictures[0].kind = 'livephoto';
+  h.vm.pictures[0].motionUrl = 'https://video.test/motion.mov';
+  h.vm.inspect('a');
+  assert.equal(h.pending.length, 1);
+  assert.equal(h.pending[0].url, 'https://image/a');
+  h.pending[0].resolve({ uri: 'file:///cache/still.png', path: '/cache/still.png',
+    width: 200, height: 300, failure: '', message: 'ready', animated: false });
+  await Promise.resolve();
+  assert.equal(h.vm.previewUri, 'file:///cache/still.png');
+  assert.equal(h.vm.previewMotionPath, '');
+  h.local.value = { path: '/photo.livp', size: 500, stillPath: '/cover.jpg',
+    motionPath: '/motion.mov', animated: false };
+  h.vm.refreshLocalPreview();
+  assert.equal(h.vm.previewUri, 'file:///cover.jpg');
+  assert.equal(h.vm.previewMotionPath, '/motion.mov');
+  assert.equal(h.vm.previewFromLocal, true);
+});
+
+test('old live photo packages without a cover fall back to the remote still image', () => {
+  const h = discoveryPreviewHarness();
+  h.vm.pictures[0].kind = 'livephoto';
+  h.vm.pictures[0].motionUrl = 'https://video.test/motion.mov';
+  h.local.value = { path: '/old.livp', size: 500, stillPath: '', motionPath: '', animated: false };
+  h.vm.inspect('a');
+  assert.equal(h.pending.length, 1);
+  assert.equal(h.vm.previewFromLocal, false);
+  assert.equal(h.vm.previewMotionPath, '');
+});
+
+test('Weibo preview downloads preserve the motion URL for single and selected downloads', () => {
+  const h = discoveryPreviewHarness();
+  h.vm.pictures[0].kind = 'livephoto';
+  h.vm.pictures[0].motionUrl = 'https://video.test/motion.mov';
+  h.vm.pictures[0].selected = true;
+  h.vm.inspect('a');
+  h.vm.downloadInspected();
+  assert.equal(h.queued[0][0][0].motionUrl, 'https://video.test/motion.mov');
+  h.vm.downloadPreviewSelection(['a']);
+  assert.equal(h.queued[1][0][0].motionUrl, 'https://video.test/motion.mov');
 });
 
 

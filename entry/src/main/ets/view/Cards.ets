@@ -13,6 +13,7 @@ import { MovingPhotoView, MovingPhotoViewController, photoAccessHelper } from '@
 import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
+import { DownloadStore } from '../service/DownloadStore';
 import { MediaFormat } from '../service/MediaFormat';
 import { SheetStyle } from '../theme/SheetStyle';
 import {
@@ -264,6 +265,23 @@ export struct TaskCard {
   @Event onOpen: (task: DownloadItem) => void = () => {
   };
 
+  /** 已完成任务使用与图库相同的本地封面；缺失的文件保留格式占位。 */
+  private coverPath(): string {
+    if (this.task.status !== 'completed') { return ''; }
+    const path: string = this.task.kind === 'livephoto' ? this.task.stillPath : this.task.path;
+    return path.length > 0 && DownloadStore.exists(path) ? path : '';
+  }
+
+  private thumbnailSource(): string {
+    if (this.task.status !== 'completed') { return this.task.url; }
+    const path: string = this.coverPath();
+    return path.length > 0 ? fileUri.getUriFromPath(path) : '';
+  }
+
+  private firstFramePath(): string {
+    return this.task.animated && this.task.kind !== 'livephoto' ? this.coverPath() : '';
+  }
+
   private isActive(): boolean {
     return this.task.status === 'queued' || this.task.status === 'starting'
       || this.task.status === 'running' || this.task.status === 'waiting' || this.task.status === 'paused'
@@ -320,7 +338,8 @@ export struct TaskCard {
     Column() {
       Row({ space: Space.s12 }) {
         Stack({ alignContent: Alignment.BottomEnd }) {
-          Thumb({ src: this.task.url, label: kindOf(this.task.name) })
+          Thumb({ src: this.thumbnailSource(), firstFramePath: this.firstFramePath(),
+            label: kindOf(this.task.name) })
 
           Text(kindOf(this.task.name))
             .fontSize(9)

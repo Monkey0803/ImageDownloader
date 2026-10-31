@@ -40,6 +40,11 @@ export class PictureItem {
    * 后面（下载 / 投递 / 预览）不再靠重新嗅探文件名来判断。
    */
   @Trace kind: string = 'image';
+  /**
+   * 实况照片的动态部分地址（目前只有微博这类「静图 + 视频分开给」的站点会有值）。
+   * 有值时 `kind` 是 `livephoto`，下载层会把静态图与这段视频打包成 `.livp`。
+   */
+  @Trace motionUrl: string = '';
 }
 
 /** One image download, from the queue through to the finished file. */
@@ -82,6 +87,8 @@ export class DownloadItem {
   @Trace animated: boolean = false;
   /** 源文件是 HDR（HEIF / 带 gain map 的 JPEG）；图库角标用。旧记录统一按 SDR 处理。 */
   @Trace hdr: boolean = false;
+  /** 合成实况照片时动态部分的源地址；普通 `.livp` 直链下载时为空。 */
+  @Trace motionUrl: string = '';
   /** 实况照片解出来的静图（封面、相册里的图片资源）。 */
   @Trace stillPath: string = '';
   /** 实况照片解出来的视频（MovingPhotoView 的动态部分、相册里的视频资源）。 */

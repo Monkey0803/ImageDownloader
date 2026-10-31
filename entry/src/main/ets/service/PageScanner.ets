@@ -2,6 +2,7 @@ import { webview } from '@kit.ArkWeb';
 import { ImageCandidate } from './ImageCandidates';
 import { ScanImage } from './PictureFactory';
 import { ScanUpgrader } from './ScanUpgrader';
+import { WeiboLivePhotos } from './WeiboLivePhotos';
 
 /** 一次扫描的结果：页面标题、页面真实地址、扫到的图片。 */
 export interface ScanData {
@@ -379,6 +380,12 @@ export class PageScanner {
     // both mislabel the page and overwrite the address the user typed.
     if (!data.url.startsWith('http://') && !data.url.startsWith('https://')) {
       events.onAborted();
+      return;
+    }
+    // 微博的实况照片：静图在 <img> 里，动态视频要单独取正文接口。补完再发进度，
+    // 这样地址栏扫描得到的结果和批量页一样，能按实况照片下载。
+    await WeiboLivePhotos.apply(data.url, data.images);
+    if (generation !== this.generation) {
       return;
     }
     if (strategy.arbitrate() && data.images.length > 0) {

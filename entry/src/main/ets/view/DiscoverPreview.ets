@@ -14,7 +14,7 @@ import { PictureItem } from '../model/Models';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SheetStyle } from '../theme/SheetStyle';
-import { AnimatedPreviewImage, PreviewStrip, PreviewThumbnail, ZoomablePreviewImage } from './Cards';
+import { AnimatedPreviewImage, LivePhotoSlide, PreviewStrip, PreviewThumbnail, ZoomablePreviewImage } from './Cards';
 import { IconButton, PictureSelectionButton } from './Widgets';
 
 /** Full-screen inspection of a snapshot of the currently filtered results. */
@@ -131,6 +131,10 @@ export struct DiscoverPreview {
     return this.discover.pageUrl.startsWith('http') && this.discover.pageUrl !== item.url;
   }
 
+  private canPreviewStill(item: PictureItem): boolean {
+    return item.kind === 'image' || (item.kind === 'livephoto' && item.motionUrl.length > 0);
+  }
+
   @Builder
   private unavailableState(item: PictureItem) {
     Column({ space: Space.s12 }) {
@@ -138,13 +142,14 @@ export struct DiscoverPreview {
         LoadingProgress().width(28).height(28).color(Palette.white)
       }
       Text(this.discover.previewLoading ? this.discover.previewLoadTitle
-        : this.discover.previewFailure === 'cancelled' ? '已取消加载' : item.kind === 'livephoto' ? (this.discover.previewFromLocal
-          ? '实况照片已下载' : '下载后查看实况照片') : '暂时无法预览')
+        : this.discover.previewFailure === 'cancelled' ? '已取消加载'
+          : this.canPreviewStill(item) ? '暂时无法预览' : '下载后查看实况照片')
         .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.white)
         .textAlign(TextAlign.Center)
       Text(this.discover.previewLoading ? this.discover.previewLoadDetail
-        : item.kind === 'livephoto' ? (this.discover.previewFromLocal
-          ? this.discover.previewMessage : '实况照片包下载后可在图库播放。')
+        : item.kind === 'livephoto' && !this.canPreviewStill(item)
+          ? this.discover.previewMessage.length > 0 ? this.discover.previewMessage
+            : '实况照片包下载后可在图库播放。'
           : this.discover.previewMessage.length > 0 ? this.discover.previewMessage
             : '可重试预览或查看来源页。')
         .fontSize(Font.caption).fontColor('#CCFFFFFF').textAlign(TextAlign.Center)
@@ -158,11 +163,11 @@ export struct DiscoverPreview {
       if (this.discover.previewLoading) {
         PreviewButton({ label: '取消加载', variant: 'tonal', onAction: (): void => { this.discover.cancelPreviewLoading(); } })
       }
-      if (!this.discover.previewLoading && item.kind === 'image') {
+      if (!this.discover.previewLoading && this.canPreviewStill(item)) {
         Text('预览失败不会更改原图下载地址。')
           .fontSize(Font.aux).fontColor('#99FFFFFF').textAlign(TextAlign.Center)
       }
-      if (!this.discover.previewLoading && item.kind === 'image') {
+      if (!this.discover.previewLoading && this.canPreviewStill(item)) {
         PreviewButton({ label: '重试预览',
           variant: ['size', 'decode'].includes(this.discover.previewFailure) ? 'ghost' : 'primary',
           onAction: (): void => { this.inspectCurrent(true); } })
@@ -248,7 +253,10 @@ export struct DiscoverPreview {
         ForEach(this.browseIds, (uid: string, slideIndex: number) => {
           Stack({ alignContent: Alignment.Center }) {
             if (slideIndex === this.currentIndex && this.discover.previewUri.length > 0) {
-              if (!this.discover.previewLocalAnimated) {
+              if (this.discover.previewMotionPath.length > 0) {
+                LivePhotoSlide({ stillFile: this.discover.previewLocalPath,
+                  motionFile: this.discover.previewMotionPath })
+              } else if (!this.discover.previewLocalAnimated) {
                 ZoomablePreviewImage({ imageId: uid, path: this.discover.previewLocalPath,
                   readingKey: 'web:' + this.discover.pageUrl.length.toString() + ':' + this.discover.pageUrl + (this.current()?.url ?? uid),
                   allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
