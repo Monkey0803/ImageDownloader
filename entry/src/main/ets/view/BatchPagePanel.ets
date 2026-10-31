@@ -1,5 +1,5 @@
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
-import { HdsNavDestination, HdsNavigation } from '@kit.UIDesignKit';
+import { HdsNavDestination, HdsNavigation, HdsNavigationTitleBarStyle, TitleBarStyleOptions } from '@kit.UIDesignKit';
 import { BatchPageGroup } from '../service/BatchPageGroups';
 import { BatchLinkRow, BatchLinkStatus } from '../service/BatchLinks';
 import { PictureItem } from '../model/Models';
@@ -32,6 +32,23 @@ export struct BatchFlowHost {
     }
   }
 
+  /**
+   * 标题栏样式：HDS 默认跟随系统主题，而应用可以被单独切成浅色/深色；
+   * 不显式指定时会出现「正文浅色、标题栏与状态栏深色」的分层，看起来就不沉浸。
+   */
+  private titleBarStyle(): TitleBarStyleOptions {
+    const bar: HdsNavigationTitleBarStyle = {
+      backgroundStyle: { backgroundColor: Palette.bg },
+      contentStyle: {
+        titleStyle: { mainTitleColor: Palette.fontPrimary, subTitleColor: Palette.fontSecondary },
+        backIconStyle: { iconColor: Palette.fontPrimary, backgroundColor: Palette.card },
+        dividerStyle: { dividerColor: Palette.divider }
+      }
+    };
+    const style: TitleBarStyleOptions = { originalStyle: bar, scrollEffectStyle: bar };
+    return style;
+  }
+
   @Builder
   private pageMap(name: string) {
     if (name === BATCH_PAGE_NAME) {
@@ -41,6 +58,7 @@ export struct BatchFlowHost {
       .titleBar({
         avoidLayoutSafeArea: true,
         enableComponentSafeArea: true,
+        style: this.titleBarStyle(),
         content: {
           title: {
             mainTitle: this.discover.batchHandling ? '网页处理' : '批量链接',
@@ -356,6 +374,8 @@ export struct BatchFlowHost {
     .mode(NavigationMode.Stack)
     .width('100%')
     .height('100%')
+    // 状态栏那一条属于这一层：开页时铺页面底色，避免露出下层的网页/首页，顶部才和正文连成一片。
+    .backgroundColor(this.discover.batchOpen ? Palette.bg : Color.Transparent)
     .hitTestBehavior(this.discover.batchOpen ? HitTestMode.Default : HitTestMode.None)
   }
 }
