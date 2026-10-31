@@ -36,6 +36,7 @@ export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 export struct SelectTile {
   @Require @Param picture: PictureItem;
   @Param index: number = 0;
+  @Param downloadState: string = 'new';
   /** 图片点击进入预览；角上的选择按钮由父组件处理。 */
   @Event onOpen: (uid: string) => void = () => {
   };
@@ -71,6 +72,15 @@ export struct SelectTile {
       if (this.picture.selected) {
         Row().width('100%').height('100%').borderRadius(Radius.r4)
           .backgroundColor(Palette.brandSoft)
+      }
+
+      if (this.downloadState !== 'new') {
+        Row() {
+          Text(this.downloadState === 'active' ? '下载中' : '已下载')
+            .fontSize(10).fontWeight(FontWeight.Bold).fontColor(Palette.white)
+            .padding({ left: Space.s6, right: Space.s6, top: 2, bottom: 2 })
+            .borderRadius(Radius.full).backgroundColor('#B3000000')
+        }.width('100%').justifyContent(FlexAlign.Start).padding({ left: 5, top: 5 })
       }
 
       // the prototype's bottom-left index badge

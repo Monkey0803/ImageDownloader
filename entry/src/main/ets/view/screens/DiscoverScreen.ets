@@ -229,6 +229,7 @@ export struct DiscoverScreen {
                 SelectTile({
                   picture: cell,
                   index: rowIndex * 3 + colIndex,
+                  downloadState: this.discover.downloadState(cell),
                   onOpen: (uid: string): void => { this.onOpenPreview(uid); },
                   onDimensions: (url: string, width: number, height: number): void => {
                     this.discover.recordDimensions(cell.uid, url, width, height);
@@ -276,6 +277,9 @@ export struct DiscoverScreen {
   @Builder
   private filterPanel() {
     Column({ space: Space.s8 }) {
+      PillButton({ label: this.discover.onlyNew ? '只看未下载 ✓' : '只看未下载', small: true,
+        variant: this.discover.onlyNew ? 'primary' : 'ghost',
+        onAction: (): void => { this.discover.onlyNew = !this.discover.onlyNew; } })
       Row({ space: Space.s8 }) {
         SettingSelect({
           options: FILTER_OPTIONS,
@@ -359,6 +363,10 @@ export struct DiscoverScreen {
 
             this.expansionControls()
             this.quickFilters()
+            TextInput({ placeholder: '搜索文件名、图片描述或链接', text: this.discover.filterText })
+              .fontSize(Font.aux).fontColor(Palette.fontPrimary)
+              .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
+              .onChange((value: string): void => { this.discover.filterText = value; })
             if (this.filtersOpen) {
               this.filterPanel()
             }

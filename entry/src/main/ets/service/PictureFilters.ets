@@ -4,7 +4,7 @@ import { MediaFormat } from './MediaFormat';
 /** 扫描结果筛选；宽高为 0 的图片尺寸未知，保留在结果中供用户自行判断。 */
 export class PictureFilters {
   static matches(item: PictureItem, format: string, minWidth: number, minHeight: number,
-    urlQuery: string, quick: string = ''): boolean {
+    urlQuery: string, quick: string = '', textQuery: string = ''): boolean {
     const extension: string = MediaFormat.extensionOf(item.url);
     if (format.length > 0) {
       if (format === 'other') {
@@ -25,7 +25,10 @@ export class PictureFilters {
       if (quick === 'landscape' && item.width <= item.height) { return false; }
       if (quick === 'portrait' && item.height <= item.width) { return false; }
     }
-    return item.url.toLowerCase().includes(urlQuery.trim().toLowerCase());
+    if (!item.url.toLowerCase().includes(urlQuery.trim().toLowerCase())) { return false; }
+    const query: string = textQuery.trim().toLowerCase();
+    return query.length === 0 || (item.name ?? '').toLowerCase().includes(query)
+      || (item.description ?? '').toLowerCase().includes(query) || item.url.toLowerCase().includes(query);
   }
 
   /** 元数据优先；没有元数据时仅推荐实际量到的较大图片。 */

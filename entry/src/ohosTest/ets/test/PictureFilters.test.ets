@@ -29,6 +29,17 @@ export default function pictureFiltersTest() {
       expect(PictureFilters.minimum('')).assertEqual(0);
     });
 
+    it('searches_name_description_and_url_with_other_filters', 0, () => {
+      const item: PictureItem = picture('https://example.com/photos/portrait.webp', 0, 0);
+      item.name = 'Summer Cover.webp';
+      item.description = '海边 人像';
+      expect(PictureFilters.matches(item, 'webp', 2000, 2000, 'PHOTOS', '', 'summer')).assertTrue();
+      expect(PictureFilters.matches(item, '', 0, 0, '', '', '人像')).assertTrue();
+      expect(PictureFilters.matches(item, '', 0, 0, '', '', 'PORTRAIT')).assertTrue();
+      expect(PictureFilters.matches(item, 'jpg', 0, 0, '', '', 'summer')).assertFalse();
+      expect(PictureFilters.matches(item, '', 0, 0, '', '', 'missing')).assertFalse();
+    });
+
     it('keeps_selection_when_rescanning_same_url', 0, () => {
       const first: ScanImage = { url: 'https://example.com/a.jpg', description: 'A', width: 800, height: 600 };
       const initial: PictureItem[] = PictureFactory.merge([], [first]);

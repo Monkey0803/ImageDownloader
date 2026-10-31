@@ -271,6 +271,7 @@ struct Index {
 
   /** 商店里的数据变了：把 ViewModel 拉回一致，再取一次攒下的提示。 */
   private storeChanged(): void {
+    this.discover.syncDownloads();
     this.discover.refreshLocalPreview();
     this.tasks.sync();
     this.library.sync();

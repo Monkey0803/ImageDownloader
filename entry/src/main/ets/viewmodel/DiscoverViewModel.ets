@@ -1,9 +1,10 @@
 import { webview } from '@kit.ArkWeb';
 import { fileUri } from '@kit.CoreFileKit';
-import { PictureItem } from '../model/Models';
+import { DownloadItem, PictureItem } from '../model/Models';
 import { PreviewAsset } from '../model/PreviewAsset';
 import { TAB_TASKS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
+import { AdmissionResult, DownloadAdmission, DownloadPresence } from '../service/DownloadAdmission';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
 import { BatchCheckKind, BatchLinkCheck, BatchLinks, BatchLinkReport, BatchLinkRow, BatchLinkStatus, BatchProbeToken } from '../service/BatchLinks';
@@ -106,6 +107,9 @@ export class DiscoverViewModel {
   @Trace filterWidth: string = '';
   @Trace filterHeight: string = '';
   @Trace filterUrl: string = '';
+  @Trace filterText: string = '';
+  @Trace onlyNew: boolean = false;
+  @Trace downloadSnapshot: DownloadItem[] = [];
   @Trace quickFilter: string = '';
   @Trace batchOpen: boolean = false;
   @Trace batchText: string = '';
@@ -196,12 +200,22 @@ export class DiscoverViewModel {
     const done: number = this.batchGroups.filter((group: BatchPageGroup): boolean =>
       group.status === 'ready' || group.status === 'failed').length;
     return (this.batchResolving ? '正在解析 ' + done.toString() + '/' + this.batchGroups.length.toString() + ' · ' : '')
-      + '已选 ' + this.batchSelectedCount.toString() + ' 张'
+      + '已选 ' + this.batchSelectedCount.toString() + ' 张 · 可加入 ' + this.batchEligibleCount.toString() + ' 张'
       + (this.batchReviewZip ? ' · 每个网页一个 ZIP' : ' · 单图下载');
   }
 
   @Computed
   get batchSelectedCount(): number { return BatchPageGroups.count(this.batchGroups); }
+
+  @Computed
+  get batchEligibleCount(): number {
+    const pictures: PictureItem[] = [];
+    for (const job of BatchPageGroups.downloads(this.batchGroups)) {
+      for (const picture of job.pictures) { pictures.push(picture); }
+    }
+    return DownloadAdmission.plan(pictures, this.downloadSnapshot,
+      (path: string): boolean => DownloadStore.exists(path)).result.added;
+  }
 
   batchBrowser(): BatchPageResolver { return this.batchResolver; }
 
@@ -290,7 +304,26 @@ export class DiscoverViewModel {
     const width: number = PictureFilters.minimum(this.filterWidth);
     const height: number = PictureFilters.minimum(this.filterHeight);
     return this.pictures.filter((item: PictureItem): boolean =>
-      PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl, this.quickFilter));
+      PictureFilters.matches(item, this.filterFormat, width, height, this.filterUrl, this.quickFilter, this.filterText)
+        && (!this.onlyNew || this.downloadState(item) === 'new'));
+  }
+
+  syncDownloads(): void { this.downloadSnapshot = DownloadStore.downloads.slice(); }
+
+  downloadState(item: PictureItem): DownloadPresence {
+    return DownloadAdmission.presence(item.url, item.kind, this.downloadSnapshot,
+      (path: string): boolean => DownloadStore.exists(path));
+  }
+
+  eligibleSelectedCount(): number {
+    return DownloadAdmission.plan(this.pictures, this.downloadSnapshot,
+      (path: string): boolean => DownloadStore.exists(path)).result.added;
+  }
+
+  previewEligibleCount(ids: string[]): number {
+    const inScope: PictureItem[] = this.pictures.filter((item: PictureItem): boolean => ids.includes(item.uid));
+    return DownloadAdmission.plan(inScope, this.downloadSnapshot,
+      (path: string): boolean => DownloadStore.exists(path)).result.added;
   }
 
   recordDimensions(uid: string, url: string, width: number, height: number): void {
@@ -302,12 +335,15 @@ export class DiscoverViewModel {
     this.filterWidth = '';
     this.filterHeight = '';
     this.filterUrl = '';
+    this.filterText = '';
+    this.onlyNew = false;
     this.quickFilter = '';
   }
 
   hasFilters(): boolean {
     return this.filterFormat.length > 0 || this.filterWidth.length > 0
-      || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0 || this.quickFilter.length > 0;
+      || this.filterHeight.length > 0 || this.filterUrl.trim().length > 0 || this.filterText.trim().length > 0
+      || this.onlyNew || this.quickFilter.length > 0;
   }
   /**
    * 选中的张数。头部「已选 N」、底部选择条、返回顶部按钮的落点都读它。
@@ -591,7 +627,17 @@ export class DiscoverViewModel {
       this.ui.say('没有可导入的图片直链');
       return;
     }
-    for (const job of jobs) { DownloadStore.add(job.pictures, job.pageUrl, job.title, this.batchReviewZip); }
+    let added: number = 0;
+    let skipped: number = 0;
+    for (const job of jobs) {
+      const result: AdmissionResult = DownloadStore.add(job.pictures, job.pageUrl, job.title, this.batchReviewZip);
+      added += result.added;
+      skipped += result.skipped();
+    }
+    if (added === 0) {
+      this.ui.say('所选图片已下载或正在下载，没有新增任务');
+      return;
+    }
     this.cancelBatchPages(); this.batchGroups = [];
     this.batchText = '';
     this.batchChecks = [];
@@ -601,7 +647,8 @@ export class DiscoverViewModel {
     this.batchProbeNote = '';
     this.batchOpen = false;
     this.ui.switchTab(TAB_TASKS);
-    this.ui.say('已加入 ' + count.toString() + ' 条下载任务');
+    this.ui.say('已加入 ' + added.toString() + ' 张图片'
+      + (skipped > 0 ? '，跳过 ' + skipped.toString() + ' 张重复图片' : ''));
   }
 
   private cancelBatchProbe(): void {
@@ -820,17 +867,9 @@ export class DiscoverViewModel {
   /** Download this preview's selected range while keeping the overlay and selection intact. */
   downloadPreviewSelection(ids: string[]): void {
     const copies: PictureItem[] = [];
-    const seen: string[] = [];
-    let skipped: number = 0;
     for (const id of ids) {
       const picture: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean => item.uid === id);
       if (picture === undefined || !picture.selected) { continue; }
-      const key: string = picture.kind + ':' + picture.url;
-      if (seen.includes(key)) { continue; }
-      seen.push(key);
-      const pending: boolean = DownloadStore.downloads.some((item): boolean => item.url === picture.url
-        && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
-      if (pending) { skipped++; continue; }
       const copy: PictureItem = PictureFactory.fromUrl(picture.url);
       copy.name = picture.name;
       copy.kind = picture.kind;
@@ -840,33 +879,45 @@ export class DiscoverViewModel {
       copies.push(copy);
     }
     if (copies.length === 0) {
-      this.ui.say(skipped > 0 ? '所选图片已在下载任务中' : '请先选择图片');
+      this.ui.say('请先选择图片');
       return;
     }
-    DownloadStore.add(copies, this.pageUrl, this.pageTitle, this.mode === 'zip');
+    const result: AdmissionResult = DownloadStore.add(copies, this.pageUrl, this.pageTitle, this.mode === 'zip');
+    if (result.added === 0) {
+      this.ui.say('所选图片已下载或正在下载，没有新增任务');
+      return;
+    }
     this.refreshLocalPreview();
-    this.ui.say('已加入 ' + copies.length.toString() + ' 张图片'
+    this.ui.say('已加入 ' + result.added.toString() + ' 张图片'
       + (this.mode === 'zip' ? '，普通图片将打包为 ZIP' : '')
-      + (skipped > 0 ? '；已跳过 ' + skipped.toString() + ' 张正在下载的图片' : ''));
+      + (result.skipped() > 0 ? '；已跳过 ' + result.skipped().toString() + ' 张重复图片' : ''));
   }
 
   /** Explicit single-image recovery action; leave the grid selection and ZIP setting untouched. */
-  downloadInspected(): void {
+  downloadInspected(allowCompleted: boolean = false): void {
     const picture: PictureItem | undefined = this.inspectedPicture;
-    if (picture === undefined || this.previewDownloadQueued) { return; }
-    const pending: boolean = DownloadStore.downloads.some((item): boolean => item.url === picture.url
-      && item.kind === picture.kind && ['queued', 'waiting', 'running', 'paused', 'starting'].includes(item.status));
-    if (!pending) {
-      const copy: PictureItem = PictureFactory.fromUrl(picture.url);
-      copy.name = picture.name;
-      copy.kind = picture.kind;
-      copy.motionUrl = picture.motionUrl;
-      copy.userNamed = picture.userNamed;
-      copy.description = picture.description;
-      DownloadStore.add([copy], this.pageUrl, this.pageTitle, false);
+    if (picture === undefined) { return; }
+    const copy: PictureItem = PictureFactory.fromUrl(picture.url);
+    copy.name = picture.name;
+    copy.kind = picture.kind;
+    copy.motionUrl = picture.motionUrl;
+    copy.userNamed = picture.userNamed;
+    copy.description = picture.description;
+    const result: AdmissionResult = DownloadStore.add([copy], this.pageUrl, this.pageTitle, false, allowCompleted);
+    this.previewDownloadQueued = result.added > 0 || result.skippedActive > 0;
+    this.ui.say(result.added > 0 ? '已加入下载任务，完成后可在图库查看'
+      : result.skippedActive > 0 ? '这张图片已在下载任务中' : '这张图片已下载，可选择重新下载');
+  }
+
+  requestInspectedDownload(): void {
+    const picture: PictureItem | undefined = this.inspectedPicture;
+    if (picture === undefined) { return; }
+    if (this.downloadState(picture) === 'completed') {
+      this.ui.confirm('重新下载图片', '将新增一份下载，不覆盖已有文件。', '重新下载',
+        (): void => { this.downloadInspected(true); });
+      return;
     }
-    this.previewDownloadQueued = true;
-    this.ui.say(pending ? '这张图片已在下载任务中' : '已加入下载任务，完成后可在图库查看');
+    this.downloadInspected();
   }
 
   inspectionSizeLabel(): string {
@@ -1144,12 +1195,18 @@ export class DiscoverViewModel {
     // 所以 add() 会把它们按单文件走，这里的文案要跟着说清楚。
     const liveSelected: boolean = this.pictures.some((item: PictureItem): boolean =>
       item.selected && item.kind === 'livephoto');
-    DownloadStore.add(this.pictures, this.pageUrl, this.pageTitle, zipMode);
-    this.ui.switchTab(TAB_TASKS);
-    if (zipMode && liveSelected) {
-      this.ui.say('已加入任务；实况照片包按单文件下载，不参与打包');
+    const result: AdmissionResult = DownloadStore.add(this.pictures, this.pageUrl, this.pageTitle, zipMode);
+    if (result.added === 0) {
+      this.ui.say('所选图片已下载或正在下载，没有新增任务');
       return;
     }
-    this.ui.say(zipMode ? '已把所选图片加入打包队列' : '已加入下载任务');
+    this.ui.switchTab(TAB_TASKS);
+    if (zipMode && liveSelected) {
+      this.ui.say('已加入 ' + result.added.toString() + ' 张图片；实况照片包按单文件下载，不参与打包'
+        + (result.skipped() > 0 ? '；跳过 ' + result.skipped().toString() + ' 张重复图片' : ''));
+      return;
+    }
+    this.ui.say('已加入 ' + result.added.toString() + ' 张图片'
+      + (result.skipped() > 0 ? '；跳过 ' + result.skipped().toString() + ' 张重复图片' : ''));
   }
 }

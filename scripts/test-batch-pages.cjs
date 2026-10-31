@@ -131,12 +131,27 @@ function viewModelHarness() {
     mocks[id] = Object.fromEntries(match[1].split(',').map(n => [n.trim(), class {}]));
   }
   mocks['@kit.ArkWeb'] = { webview: { WebviewController: class {} } };
+  const { DownloadAdmission } = get('service/DownloadAdmission');
+  mocks[path.join(root, 'service/DownloadAdmission.ets')] = { DownloadAdmission };
   for (const module of ['BatchLinks', 'BatchPageGroups', 'BatchPageQueue', 'PictureFactory']) {
     mocks[path.join(root, 'service/' + module + '.ets')] = get('service/' + module);
   }
   mocks[path.join(root, 'service/BatchLinkProbe.ets')] = { BatchLinkProbe: { check: async () => [] } };
   const queued = [];
-  mocks[path.join(root, 'service/DownloadStore.ets')] = { DownloadStore: { add: (...args) => queued.push(args) } };
+  const downloads = [];
+  mocks[path.join(root, 'service/DownloadStore.ets')] = { DownloadStore: {
+    downloads, exists: () => false,
+    add: (pictures, url, title, zip) => {
+      const plan = DownloadAdmission.plan(pictures, downloads, () => false);
+      if (plan.result.added > 0) {
+        queued.push([plan.items, url, title, zip]);
+        for (const picture of plan.items) {
+          downloads.push({ url: picture.url, kind: picture.kind, status: 'queued', path: '' });
+        }
+      }
+      return plan.result;
+    }
+  } };
   const { DiscoverViewModel } = loader(mocks)(file);
   const model = new DiscoverViewModel();
   model.ui = { say: () => {}, switchTab: () => {} };
@@ -157,9 +172,10 @@ test('review creates no tasks and confirmation snapshots ZIP and the selected pe
   assert.equal(model.batchSelectedCount, 4);
   model.toggleBatchPicture(model.batchGroups[0].id, model.batchGroups[0].pictures[1].uid);
   model.mode = 'single';
+  assert.equal(model.batchEligibleCount, 2);
   model.confirmBatchReview();
   assert.deepEqual(queued.map(([pictures, url, title, zip]) => [pictures.length, url, title, zip]), [
-    [1, 'https://a.test/one.html', '网页 1', true], [2, 'https://a.test/two.html', '网页 2', true]
+    [1, 'https://a.test/one.html', '网页 1', true], [1, 'https://a.test/two.html', '网页 2', true]
   ]);
 });
 

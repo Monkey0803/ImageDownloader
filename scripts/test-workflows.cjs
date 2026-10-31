@@ -510,7 +510,21 @@ function discoveryPreviewHarness() {
   mocks['@kit.ArkWeb'] = { webview: { WebviewController: class {} } };
   mocks['@kit.CoreFileKit'] = { fileUri: { getUriFromPath: (value) => 'file://' + value } };
   const queued = [];
-  const store = { downloads: [], add: (...args) => queued.push(args) };
+  const { DownloadAdmission } = loader()(path.join(source, 'service/DownloadAdmission.ets'));
+  mocks[path.join(source, 'service/DownloadAdmission.ets')] = { DownloadAdmission };
+  mocks[path.join(source, 'service/PictureFilters.ets')] = loader()(path.join(source, 'service/PictureFilters.ets'));
+  const existingFiles = new Set();
+  const store = { downloads: [], exists: (file) => existingFiles.has(file),
+    add: (pictures, url, title, zip, allowCompleted = false) => {
+      const plan = DownloadAdmission.plan(pictures, store.downloads, store.exists, allowCompleted);
+      if (plan.result.added > 0) {
+        queued.push([plan.items, url, title, zip, allowCompleted]);
+        for (const picture of plan.items) {
+          store.downloads.push({ url: picture.url, kind: picture.kind, status: 'queued', path: '' });
+        }
+      }
+      return plan.result;
+    } };
   mocks[path.join(source, 'service/DownloadStore.ets')] = { DownloadStore: store };
   const local = { value: undefined };
   mocks[path.join(source, 'service/LocalPreview.ets')] = { LocalPreview: { find: () => local.value } };
@@ -536,7 +550,7 @@ function discoveryPreviewHarness() {
     { uid: 'a', url: 'https://image/a', kind: 'image', selected: false, name: 'a.png', width: 0, height: 0 },
     { uid: 'b', url: 'https://image/b', kind: 'image', selected: true, name: 'b.png', width: 0, height: 0 }
   ];
-  return { vm, pending, cancellations, queued, store, local };
+  return { vm, pending, cancellations, queued, store, local, existingFiles };
 }
 
 test('discovery tools use the same surviving local copy as the preview', () => {
@@ -872,6 +886,70 @@ test('page jumps reject empty, fractional, negative, out-of-range and unsafe val
   assert.equal(previewNavigation.jump('1', 0), -1);
 });
 
+test('download admission skips active and saved files, but permits an explicit new copy', () => {
+  const { DownloadAdmission } = loader()(path.join(source, 'service/DownloadAdmission.ets'));
+  const pictures = [
+    { url: 'https://image/a?sig=1', kind: 'image', selected: true },
+    { url: 'https://image/a?sig=1', kind: 'image', selected: true },
+    { url: 'https://image/b', kind: 'image', selected: true },
+    { url: 'https://image/c', kind: 'livephoto', selected: true },
+    { url: 'https://image/a?sig=2', kind: 'image', selected: true }
+  ];
+  const downloads = [
+    { url: 'https://image/a?sig=1', kind: 'image', status: 'completed', path: '/a' },
+    { url: 'https://image/b', kind: 'image', status: 'running', path: '/b' },
+    { url: 'https://image/c', kind: 'livephoto', status: 'completed', path: '/missing' }
+  ];
+  const exists = (file) => file === '/a';
+  const normal = DownloadAdmission.plan(pictures, downloads, exists);
+  assert.equal(DownloadAdmission.presence('https://image/c', 'livephoto', downloads, exists), 'new');
+  assert.equal(DownloadAdmission.presence('https://image/a?sig=1', 'livephoto', downloads, exists), 'new');
+  assert.deepEqual(normal.items.map((item) => item.url), ['https://image/c', 'https://image/a?sig=2']);
+  assert.equal(normal.result.skippedCompleted, 1);
+  assert.equal(normal.result.skippedActive, 1);
+  assert.equal(normal.result.skippedRepeated, 1);
+  const repeated = DownloadAdmission.plan(pictures, downloads, exists, true);
+  assert.equal(repeated.result.added, 3);
+  assert.equal(repeated.result.skippedActive, 1);
+});
+
+test('discovery shows saved state, filters new results, and confirms a new copy', () => {
+  const h = discoveryPreviewHarness();
+  let confirmAction;
+  h.vm.ui.confirm = (_title, _message, _confirm, action) => { confirmAction = action; };
+  h.store.downloads.push({ url: 'https://image/a', kind: 'image', status: 'completed', path: '/saved' });
+  h.existingFiles.add('/saved');
+  h.vm.syncDownloads();
+  assert.equal(h.vm.downloadState(h.vm.pictures[0]), 'completed');
+  h.vm.onlyNew = true;
+  assert.deepEqual(h.vm.visiblePictures.map((item) => item.uid), ['b']);
+  h.vm.filterText = 'a.png';
+  assert.deepEqual(h.vm.visiblePictures.map((item) => item.uid), []);
+  h.vm.clearFilters();
+  assert.deepEqual(h.vm.visiblePictures.map((item) => item.uid), ['a', 'b']);
+  h.vm.inspectedUid = 'a';
+  h.vm.requestInspectedDownload();
+  assert.equal(h.queued.length, 0);
+  assert.equal(typeof confirmAction, 'function');
+  confirmAction();
+  assert.equal(h.queued.length, 1);
+  assert.equal(h.queued[0][4], true);
+  assert.equal(h.queued[0][0][0].url, 'https://image/a');
+});
+
+test('discovery does not create an empty ZIP when every selected picture is saved', () => {
+  const h = discoveryPreviewHarness();
+  h.vm.pictures[0].selected = true;
+  h.vm.pictures[1].selected = false;
+  h.vm.mode = 'zip';
+  h.store.downloads.push({ url: 'https://image/a', kind: 'image', status: 'completed', path: '/saved' });
+  h.existingFiles.add('/saved');
+  h.vm.syncDownloads();
+  assert.equal(h.vm.eligibleSelectedCount(), 0);
+  h.vm.enqueue();
+  assert.equal(h.queued.length, 0);
+});
+
 test('preview bulk download keeps selections and ZIP mode, limits scope and skips pending duplicates', () => {
   const h = discoveryPreviewHarness();
   h.vm.mode = 'zip';
@@ -963,7 +1041,13 @@ test('Weibo preview downloads preserve the motion URL for single and selected do
   h.vm.downloadInspected();
   assert.equal(h.queued[0][0][0].motionUrl, 'https://video.test/motion.mov');
   h.vm.downloadPreviewSelection(['a']);
-  assert.equal(h.queued[1][0][0].motionUrl, 'https://video.test/motion.mov');
+  assert.equal(h.queued.length, 1);
+  const selected = discoveryPreviewHarness();
+  selected.vm.pictures[0].kind = 'livephoto';
+  selected.vm.pictures[0].motionUrl = 'https://video.test/motion.mov';
+  selected.vm.pictures[0].selected = true;
+  selected.vm.downloadPreviewSelection(['a']);
+  assert.equal(selected.queued[0][0][0].motionUrl, 'https://video.test/motion.mov');
 });
 
 

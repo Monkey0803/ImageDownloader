@@ -25,6 +25,7 @@ import { EditJournal } from './EditJournal';
 import { LIBRARY_CATALOG } from './LibraryCatalog';
 import { WebIdentity } from './WebIdentity';
 import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
+import { AdmissionPlan, AdmissionResult, DownloadAdmission } from './DownloadAdmission';
 
 interface ProgressSample {
   bytes: number;
@@ -566,9 +567,12 @@ export class DownloadStore {
    * 下完由 `finishContent()` 解包成静图 + 视频。混合选择时批次里只装真正的图片，
    * 批次号为空的那几条就是实况照片（与「单独下载的图片」同一种记录形态）。
    */
-  static add(items: PictureItem[], pageUrl: string, title: string, zipMode: boolean): void {
-    const selected: PictureItem[] = items.filter((item: PictureItem): boolean => item.selected);
-    if (selected.length === 0) { return; }
+  static add(items: PictureItem[], pageUrl: string, title: string, zipMode: boolean,
+    allowCompleted: boolean = false): AdmissionResult {
+    const plan: AdmissionPlan = DownloadAdmission.plan(items, DownloadStore.downloads,
+      (path: string): boolean => DownloadStore.exists(path), allowCompleted);
+    const selected: PictureItem[] = plan.items;
+    if (selected.length === 0) { return plan.result; }
     const packable: number = selected.filter((item: PictureItem): boolean =>
       item.kind !== 'livephoto').length;
     let batchId: string = '';
@@ -617,6 +621,7 @@ export class DownloadStore {
     }
     DownloadStore.notify();
     DownloadStore.pump();
+    return plan.result;
   }
 
   static setConcurrency(value: number): void {

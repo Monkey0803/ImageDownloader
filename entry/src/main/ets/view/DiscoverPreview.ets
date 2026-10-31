@@ -171,10 +171,11 @@ export struct DiscoverPreview {
           onAction: (): void => { this.inspectCurrent(true); } })
       }
       if (!this.discover.previewLoading && !this.discover.previewFromLocal) {
-        PreviewButton({ label: this.discover.previewDownloadQueued ? '已加入下载任务' : '下载原文件',
+        PreviewButton({ label: this.discover.downloadState(item) === 'active' ? '已加入下载任务'
+          : this.discover.downloadState(item) === 'completed' ? '重新下载原文件' : '下载原文件',
           variant: ['size', 'decode'].includes(this.discover.previewFailure) ? 'primary' : 'tonal',
-          active: !this.discover.previewDownloadQueued,
-          onAction: (): void => { this.discover.downloadInspected(); } })
+          active: this.discover.downloadState(item) !== 'active',
+          onAction: (): void => { this.discover.requestInspectedDownload(); } })
       }
       if (!this.discover.previewLoading && this.hasSourcePage(item)) {
         PreviewButton({ label: this.discover.previewFailure === 'login' ? '前往来源页确认登录' : '查看来源页', variant: 'tonal',
@@ -297,11 +298,11 @@ export struct DiscoverPreview {
           Column() {
             if (this.current() !== undefined) {
               Row({ space: Space.s12 }) {
-                PreviewButton({ label: this.discover.previewFromLocal ? '已下载'
-                  : this.discover.previewDownloadQueued ? '已加入任务' : '下载当前',
+                PreviewButton({ label: this.discover.downloadState(this.current()!) === 'active' ? '已加入任务'
+                  : this.discover.downloadState(this.current()!) === 'completed' ? '重新下载' : '下载当前',
                   icon: 'download', small: true, variant: 'tonal',
-                  active: !this.discover.previewFromLocal && !this.discover.previewDownloadQueued,
-                  onAction: (): void => { this.discover.downloadInspected(); } })
+                  active: this.discover.downloadState(this.current()!) !== 'active',
+                  onAction: (): void => { this.discover.requestInspectedDownload(); } })
                 PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
                   onAction: (): void => {
                     const item: PictureItem | undefined = this.current();
@@ -311,8 +312,9 @@ export struct DiscoverPreview {
                     }
                   } })
                 if (this.selectedIds().length > 0) {
-                  PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
-                    + this.selectedIds().length.toString(), small: true, variant: 'tonal',
+                  PreviewButton({ label: (this.discover.mode === 'zip' ? '打包可加入 ' : '下载可加入 ')
+                    + this.discover.previewEligibleCount(this.ids).toString(), small: true, variant: 'tonal',
+                    active: this.discover.previewEligibleCount(this.ids) > 0,
                     onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
                 }
               }.width('100%').justifyContent(FlexAlign.Center)

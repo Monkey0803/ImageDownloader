@@ -272,9 +272,9 @@ export struct BatchFlowHost {
             onAction: (): void => { this.discover.stopBatchPages(); } })
         }
         Blank()
-        PillButton({ label: '加入任务 · ' + this.discover.batchSelectedCount.toString() + ' 张',
+        PillButton({ label: '加入任务 · ' + this.discover.batchEligibleCount.toString() + ' 张',
           variant: 'primary', small: true,
-          active: this.discover.batchSelectedCount > 0 && !this.discover.batchResolving && !this.discover.batchHandling,
+          active: this.discover.batchEligibleCount > 0 && !this.discover.batchResolving && !this.discover.batchHandling,
           onAction: (): void => { this.discover.confirmBatchReview(); } })
       }
       .width('100%')

@@ -28,11 +28,12 @@ export struct SelectionDock {
   build() {
     Row({ space: Space.s10 }) {
       Column({ space: 1 }) {
-        Text('已选 ' + this.discover.selectedTotal.toString() + ' 张')
+        Text('可加入 ' + this.discover.eligibleSelectedCount().toString() + ' 张')
           .fontSize(Font.body)
           .fontWeight(FontWeight.Bold)
           .fontColor(Palette.fontPrimary)
-        Text(this.discover.mode === 'zip' ? '打包为 ZIP' : '保存为单独文件')
+        Text('已选 ' + this.discover.selectedTotal.toString() + ' · '
+          + (this.discover.mode === 'zip' ? '打包 ZIP' : '单独文件'))
           .fontSize(Font.chip)
           .fontColor(Palette.fontTertiary)
           .maxLines(1)
@@ -55,6 +56,7 @@ export struct SelectionDock {
         variant: 'primary',
         small: true,
         icon: 'download',
+        active: this.discover.eligibleSelectedCount() > 0,
         onAction: (): void => {
           this.discover.enqueue();
         }
