@@ -3,8 +3,8 @@ import { PreviewOverlayState } from '../model/PreviewOverlayState';
  * Cards.ets — the prototype's data-bound components.
  *
  * Ported from designs/image-downloader-ui/ui.jsx, screen-tasks.jsx and
- * screen-library.jsx. Each struct binds to an @Observed model instance with
- * @ObjectLink so progress and selection update in place.
+ * screen-library.jsx. Components receive ArkUI V2 state and event callbacks;
+ * screen ViewModels own queue actions and local thumbnail selection.
  */
 
 import { fileUri } from '@kit.CoreFileKit';
@@ -13,7 +13,6 @@ import { MovingPhotoView, MovingPhotoViewController, photoAccessHelper } from '@
 import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
-import { DownloadStore } from '../service/DownloadStore';
 import { MediaFormat } from '../service/MediaFormat';
 import { SheetStyle } from '../theme/SheetStyle';
 import {
@@ -24,7 +23,7 @@ import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
 import { Thumb } from './Thumb';
 import { AnimatedPreviewImage, AnimationDockActions, AnimationToolbarAction, ZoomablePreviewImage } from './ImageSurface';
 import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
-import { PreviewAsset } from '../model/PreviewAsset';
+import { PreviewAsset, ViewerSlide } from '../model/PreviewAsset';
 import { PreviewTools } from './PreviewTools';
 import { PreviewCompare } from './PreviewCompare';
 import { PreviewChrome } from './PreviewChrome';
@@ -245,6 +244,8 @@ export struct ShotTile {
 @ComponentV2
 export struct TaskCard {
   @Require @Param task: DownloadItem;
+  @Param thumbnailSource: string = '';
+  @Param firstFramePath: string = '';
   @Event onRetryDelivery: (task: DownloadItem) => void = () => {};
   @Event onPause: (task: DownloadItem) => void = () => {
   };
@@ -264,23 +265,6 @@ export struct TaskCard {
    */
   @Event onOpen: (task: DownloadItem) => void = () => {
   };
-
-  /** 已完成任务使用与图库相同的本地封面；缺失的文件保留格式占位。 */
-  private coverPath(): string {
-    if (this.task.status !== 'completed') { return ''; }
-    const path: string = this.task.kind === 'livephoto' ? this.task.stillPath : this.task.path;
-    return path.length > 0 && DownloadStore.exists(path) ? path : '';
-  }
-
-  private thumbnailSource(): string {
-    if (this.task.status !== 'completed') { return this.task.url; }
-    const path: string = this.coverPath();
-    return path.length > 0 ? fileUri.getUriFromPath(path) : '';
-  }
-
-  private firstFramePath(): string {
-    return this.task.animated && this.task.kind !== 'livephoto' ? this.coverPath() : '';
-  }
 
   private isActive(): boolean {
     return this.task.status === 'queued' || this.task.status === 'starting'
@@ -338,7 +322,7 @@ export struct TaskCard {
     Column() {
       Row({ space: Space.s12 }) {
         Stack({ alignContent: Alignment.BottomEnd }) {
-          Thumb({ src: this.thumbnailSource(), firstFramePath: this.firstFramePath(),
+          Thumb({ src: this.thumbnailSource, firstFramePath: this.firstFramePath,
             label: kindOf(this.task.name) })
 
           Text(kindOf(this.task.name))
@@ -778,19 +762,6 @@ export struct ArchiveCard {
       if (this.selecting) { this.onSelect(this.zip); }
     })
   }
-}
-
-/**
- * 大图预览里「一页」需要的全部内容。
- *
- * 由预览页（pages/Viewer.ets）按当前要看的图片列表算好：`src` 是本地文件 URI 或远程地址，
- * `label` 是取不到图时兜底的类型角标。组件只负责画，不自己去商店取记录 ——
- * 这样翻页只换数据，不和下载队列的状态纠缠。
- */
-export class ViewerSlide extends PreviewAsset {
-  label: string = '';
-  stillPath: string = '';
-  motionPath: string = '';
 }
 
 /**

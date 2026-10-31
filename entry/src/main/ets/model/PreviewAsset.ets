@@ -15,3 +15,10 @@ export class PreviewAsset {
   height: number = 0;
   animated: boolean = false;
 }
+
+/** Data for one page in the downloaded-image viewer. */
+export class ViewerSlide extends PreviewAsset {
+  label: string = '';
+  stillPath: string = '';
+  motionPath: string = '';
+}

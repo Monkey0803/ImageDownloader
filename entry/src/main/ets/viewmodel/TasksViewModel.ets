@@ -1,6 +1,7 @@
 import { BatchItem, DownloadItem } from '../model/Models';
 import { batchViewOf, BatchView } from '../model/BatchView';
 import { DownloadStore } from '../service/DownloadStore';
+import { fileUri } from '@kit.CoreFileKit';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
 
@@ -18,6 +19,22 @@ import { ScreenMetrics } from '../theme/Metrics';
 export class TasksViewModel {
   private ui: UiPort = new UiPort();
   private scroller: Scroller = new Scroller();
+
+  private coverPath(task: DownloadItem): string {
+    if (task.status !== 'completed') { return ''; }
+    const path: string = task.kind === 'livephoto' ? task.stillPath : task.path;
+    return path.length > 0 && DownloadStore.exists(path) ? path : '';
+  }
+
+  thumbnailSource(task: DownloadItem): string {
+    if (task.status !== 'completed') { return task.url; }
+    const path: string = this.coverPath(task);
+    return path.length > 0 ? fileUri.getUriFromPath(path) : '';
+  }
+
+  firstFramePath(task: DownloadItem): string {
+    return task.animated && task.kind !== 'livephoto' ? this.coverPath(task) : '';
+  }
 
   /** `DownloadStore` 的两张表在这里的镜像。 */
   @Trace downloads: DownloadItem[] = [];

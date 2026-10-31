@@ -1,10 +1,7 @@
 import { DownloadItem } from '../model/Models';
 import { AnalysisToken, AssetStamp } from '../model/LibraryAsset';
-import { EditDocument, EditRect, EditResult, EditStroke, EditTicket, ImageEditorPort, PreviewSize } from '../model/ImageEditDocument';
-import { DownloadStore } from '../service/DownloadStore';
-import { EditExport } from '../service/EditExport';
-import { EditJournal } from '../service/EditJournal';
-import { LibraryImageReader } from '../service/LibraryImageReader';
+import { EditDocument, EditRect, EditStroke, ImageEditorPort, PreviewSize } from '../model/ImageEditDocument';
+import { ImageEditorWorkflow } from '../service/ImageEditorWorkflow';
 import { Font, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { SheetStyle } from '../theme/SheetStyle';
@@ -49,10 +46,10 @@ struct ImageEditor {
 
   aboutToAppear(): void {
     const port: EditorRuntimePort = new EditorRuntimePort();
-    port.source = (id: string): Promise<AssetStamp> => this.source(id);
-    port.info = (stamp: AssetStamp): Promise<PreviewSize> => LibraryImageReader.info(stamp);
+    port.source = (id: string): Promise<AssetStamp> => ImageEditorWorkflow.source(id);
+    port.info = (stamp: AssetStamp): Promise<PreviewSize> => ImageEditorWorkflow.info(stamp);
     port.exportAndRegister = (id: string, doc: EditDocument, token: AnalysisToken): Promise<DownloadItem> =>
-      this.exportAndRegister(id, doc, token);
+      ImageEditorWorkflow.exportAndRegister(id, doc, token, this.vm.stamp);
     port.showError = (message: string): void => { this.notice = message; };
     port.finish = (newId: string): void => {
       this.notice = '已保存编辑副本';
@@ -68,37 +65,6 @@ struct ImageEditor {
   }
 
   aboutToDisappear(): void { this.vm.cancel(); }
-
-  private async source(id: string): Promise<AssetStamp> {
-    const item: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
-      entry.id === id && entry.status === 'completed');
-    if (item === undefined) { throw new Error('图片尚未下载或已删除'); }
-    return LibraryImageReader.stamp(item);
-  }
-
-  private async exportAndRegister(id: string, doc: EditDocument,
-    token: AnalysisToken): Promise<DownloadItem> {
-    const stamp: AssetStamp = await this.source(id);
-    const loaded: AssetStamp | undefined = this.vm.stamp;
-    if (loaded === undefined || stamp.path !== loaded.path || stamp.bytes !== loaded.bytes ||
-      stamp.modified !== loaded.modified || stamp.changed !== loaded.changed || token.cancelled) {
-      throw new Error('原图已变化，请重新打开编辑');
-    }
-    const setting: string = DownloadStore.editQuality;
-    const extension: string = await EditExport.extensionFor(stamp, setting);
-    const ticket: EditTicket = await EditJournal.prepare(DownloadStore.context.filesDir,
-      DownloadStore.nextId(), id, extension);
-    try {
-      const result: EditResult = await EditExport.render(stamp, doc, ticket.pendingPath, token, setting);
-      if (token.cancelled) { throw new Error('编辑已取消'); }
-      await EditJournal.finalize(ticket, result);
-      if (token.cancelled) { throw new Error('编辑已取消'); }
-      return await DownloadStore.registerEdited(id, ticket, result);
-    } catch (error) {
-      await EditJournal.rollback(ticket);
-      throw new Error(String(error));
-    }
-  }
 
   private exit(): void {
     if (this.leaving) { return; }

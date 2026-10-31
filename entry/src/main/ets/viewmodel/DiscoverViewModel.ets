@@ -1,8 +1,10 @@
 import { webview } from '@kit.ArkWeb';
 import { fileUri } from '@kit.CoreFileKit';
 import { PictureItem } from '../model/Models';
+import { PreviewAsset } from '../model/PreviewAsset';
 import { TAB_TASKS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
+import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { BrowserCollection, BrowserData, BrowserEntry } from '../service/BrowserCollection';
 import { BatchCheckKind, BatchLinkCheck, BatchLinks, BatchLinkReport, BatchLinkRow, BatchLinkStatus, BatchProbeToken } from '../service/BatchLinks';
 import { BatchLinkProbe } from '../service/BatchLinkProbe';
@@ -43,6 +45,38 @@ import { BusinessError } from '@kit.BasicServicesKit';
 @ObservedV2
 export class DiscoverViewModel {
   private ui: UiPort = new UiPort();
+
+  /** Resolve a result into the local/remote asset shown by preview tools and comparison. */
+  previewAsset(item: PictureItem): PreviewAsset {
+    const result: PreviewAsset = new PreviewAsset();
+    result.id = item.uid;
+    result.name = item.name;
+    result.url = item.url;
+    result.src = item.url;
+    result.sourcePage = this.pageUrl;
+    result.width = item.width;
+    result.height = item.height;
+    const local = DownloadStore.downloads.find((value): boolean => value.url === item.url
+      && value.kind === item.kind && value.status === 'completed' && DownloadStore.exists(value.path));
+    if (local !== undefined) {
+      result.localPath = item.kind === 'livephoto' ? local.stillPath : local.path;
+      result.src = result.localPath.length > 0 ? fileUri.getUriFromPath(result.localPath) : '';
+      result.bytes = local.size;
+      result.downloaded = true;
+      result.downloadedAt = local.finishedAt;
+      result.animated = local.animated;
+      result.libraryId = LIBRARY_CATALOG.assetForPreview(DownloadStore.downloads, item.url, item.kind);
+    }
+    if (item.uid === this.inspectedPicture?.uid) {
+      result.src = this.previewUri || item.url;
+      result.localPath = this.previewLocalPath;
+      result.bytes = this.inspectionBytes;
+      if (local === undefined || result.localPath !== (item.kind === 'livephoto' ? local.stillPath : local.path)) {
+        result.libraryId = '';
+      }
+    }
+    return result;
+  }
   private browser: webview.WebviewController = new webview.WebviewController();
   private initialPageFinished: boolean = false;
   private pendingBrowserUrl: string = '';

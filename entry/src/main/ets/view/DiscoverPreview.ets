@@ -1,13 +1,10 @@
 import { PreviewChrome, PreviewButton } from './PreviewChrome';
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PreviewAsset } from '../model/PreviewAsset';
-import { DownloadItem } from '../model/Models';
-import { DownloadStore } from '../service/DownloadStore';
+import { common } from '@kit.AbilityKit';
 import { PreviewOrientation } from '../service/PreviewOrientation';
 import { SystemBars } from '../service/SystemBars';
-import { fileUri } from '@kit.CoreFileKit';
 import { PreviewTools } from './PreviewTools';
-import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { PreviewCompare } from './PreviewCompare';
 import { PreviewNavigation } from '../util/PreviewNavigation';
 import { PictureItem } from '../model/Models';
@@ -58,7 +55,7 @@ export struct DiscoverPreview {
   private thumbnails(): PreviewThumbnail[] {
     return this.browseIds.map((id: string): PreviewThumbnail => {
       const item: PictureItem | undefined = this.discover.pictures.find((item: PictureItem): boolean => item.uid === id);
-      const asset: PreviewAsset = item !== undefined ? this.asset(item) : new PreviewAsset();
+      const asset: PreviewAsset = item !== undefined ? this.discover.previewAsset(item) : new PreviewAsset();
       return { id: id, name: asset.name, src: asset.src, localPath: asset.localPath };
     });
   }
@@ -93,8 +90,9 @@ export struct DiscoverPreview {
   }
 
   aboutToAppear(): void {
-    this.orientation.enter(DownloadStore.context);
-    SystemBars.enter('discover-preview', DownloadStore.context);
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    this.orientation.enter(context);
+    SystemBars.enter('discover-preview', context);
     this.browseIds = this.ids.slice();
     const at: number = this.browseIds.indexOf(this.startId);
     this.currentIndex = at >= 0 ? at : 0;
@@ -103,7 +101,7 @@ export struct DiscoverPreview {
 
   aboutToDisappear(): void {
     this.orientation.leave();
-    SystemBars.leave('discover-preview', DownloadStore.context);
+    SystemBars.leave('discover-preview', this.getUIContext().getHostContext() as common.UIAbilityContext);
   }
 
   private current(): PictureItem | undefined {
@@ -192,46 +190,15 @@ export struct DiscoverPreview {
     .hitTestBehavior(HitTestMode.Default)
   }
 
-  private asset(item: PictureItem): PreviewAsset {
-    const result: PreviewAsset = new PreviewAsset();
-    result.id = item.uid;
-    result.name = item.name;
-    result.url = item.url;
-    result.src = item.url;
-    result.sourcePage = this.discover.pageUrl;
-    result.width = item.width;
-    result.height = item.height;
-    const local: DownloadItem | undefined = DownloadStore.downloads.find((value: DownloadItem): boolean =>
-      value.url === item.url && value.kind === item.kind && value.status === 'completed' && DownloadStore.exists(value.path));
-    if (local !== undefined) {
-      result.localPath = item.kind === 'livephoto' ? local.stillPath : local.path;
-      result.src = result.localPath.length > 0 ? fileUri.getUriFromPath(result.localPath) : '';
-      result.bytes = local.size;
-      result.downloaded = true;
-      result.downloadedAt = local.finishedAt;
-      result.animated = local.animated;
-      result.libraryId = LIBRARY_CATALOG.assetForPreview(DownloadStore.downloads, item.url, item.kind);
-    }
-    if (item.uid === this.discover.inspectedPicture?.uid) {
-      result.src = this.discover.previewUri || item.url;
-      result.localPath = this.discover.previewLocalPath;
-      result.bytes = this.discover.inspectionBytes;
-      if (local === undefined || result.localPath !== (item.kind === 'livephoto' ? local.stillPath : local.path)) {
-        result.libraryId = '';
-      }
-    }
-    return result;
-  }
-
   private comparisonAssets(): PreviewAsset[] {
     return this.discover.pictures.filter((item: PictureItem): boolean => this.browseIds.includes(item.uid))
-      .map((item: PictureItem): PreviewAsset => this.asset(item));
+      .map((item: PictureItem): PreviewAsset => this.discover.previewAsset(item));
   }
 
   @Builder
   private toolsContent() {
     if (this.current() !== undefined) {
-      PreviewTools({ asset: this.asset(this.current()!), backgroundMode: this.backgroundMode,
+      PreviewTools({ asset: this.discover.previewAsset(this.current()!), backgroundMode: this.backgroundMode,
         onEdit: (id: string): void => { this.panels.tools = false; this.onEdit(id); },
         onBackground: (mode: string): void => { this.backgroundMode = mode; },
         onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
@@ -243,7 +210,7 @@ export struct DiscoverPreview {
     const item: PictureItem | undefined = this.current();
     if (item === undefined || item.kind === 'livephoto') { return false; }
     // 远程预览可能尚未获得真实动图元数据；仅已落盘且确认为静态的图片启用材质。
-    const asset: PreviewAsset = this.asset(item);
+    const asset: PreviewAsset = this.discover.previewAsset(item);
     return asset.downloaded && !asset.animated;
   }
 

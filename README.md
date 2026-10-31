@@ -44,7 +44,7 @@
 
 | 目录 | 是什么 | 文档 |
 |------|--------|------|
-| `entry/` | **图片下载管理**应用本体（ArkTS，状态管理 V2 + MVVM 分层） | 本 README 的「界面 / 构建」两节 |
+| `entry/` | **图片下载管理**应用本体（ArkTS，状态管理 V2 + MVVM 分层） | 本 README 的「界面 / 构建」两节、[`docs/architecture/mvvm.md`](docs/architecture/mvvm.md) |
 | `designs/image-downloader-ui/` | 本应用的高保真原型（HTML/JSX），界面就是照它实现的 | 浏览器打开 `index.html`（字体自备，见下）|
 | `designs/harmonyos-mobile/` | HarmonyOS 设计系统：设计令牌、组件模板、一致性校验工具 | `designs/harmonyos-mobile/readme.md`、`compliance.md` |
 | `apps/harmony-starter/` | 起新应用用的脚手架（`cp -R apps/harmony-starter apps/<新应用>`） | `apps/harmony-starter/README.md` |

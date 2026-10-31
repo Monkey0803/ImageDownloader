@@ -23,6 +23,8 @@ export struct TasksScreen {
   private taskCard(task: DownloadItem) {
     TaskCard({
       task: task,
+      thumbnailSource: this.tasks.thumbnailSource(task),
+      firstFramePath: this.tasks.firstFramePath(task),
       onCancel: (item: DownloadItem): void => { this.tasks.cancel(item); },
       onPause: (item: DownloadItem): void => { this.tasks.pause(item); },
       onResume: (item: DownloadItem): void => { this.tasks.resume(item); },

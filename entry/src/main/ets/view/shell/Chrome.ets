@@ -1,4 +1,3 @@
-import { AntiPeep } from '../../service/AntiPeep';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
@@ -161,8 +160,7 @@ export struct PrivacyVeil {
     .backgroundColor(Palette.privacyVeil)
     .backdropBlur(30)
     .onClick((): void => {
-      AntiPeep.acknowledge();
-      this.device.peeking = false;
+      this.device.acknowledgePeeking();
     })
   }
 }

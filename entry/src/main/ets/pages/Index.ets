@@ -51,10 +51,8 @@ struct Index {
   /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
   private toast: ToastLatch = new ToastLatch();
   /**
-   * 五个 ViewModel。必须是 `@State`：子组件用 `@ObjectLink` 收它们，而 `@ObjectLink` 只认
-   * 状态变量（或另一个 `@ObjectLink`）—— 写成普通成员时编译器直接报
-   * 「regular property cannot be assigned to @ObjectLink property」。
-   * 类都是 `@Observed`，所以第一层属性变化会同时刷到壳和各个子组件。
+   * 五个 ArkUI V2 ViewModel 由壳层持有，并通过 @Param 传给子页面。
+   * @ObservedV2 / @Trace 负责把业务状态变化同步到这些页面。
    */
   @Local private discover: DiscoverViewModel = new DiscoverViewModel();
   @Local private tasks: TasksViewModel = new TasksViewModel();

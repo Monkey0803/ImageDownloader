@@ -4,12 +4,11 @@ import { PreviewReadingState } from '../model/PreviewReadingState';
 import { PreviewReadingStore } from '../service/PreviewReadingStore';
 import { PreviewRegionImage } from './PreviewRegionImage';
 import { AnimationPlayback, AnimationFrameInfo } from '../service/AnimationPlayback';
-import { FrameSaveDestination, ImageTools } from '../service/ImageTools';
-import { ActionOutcome } from '../service/FileActions';
+import { FrameSaveDestination } from '../service/ImageTools';
+import { FrameSaveViewModel } from '../viewmodel/FrameSaveViewModel';
 import { DownloadStore } from '../service/DownloadStore';
 import { image } from '@kit.ImageKit';
 import { display, promptAction } from '@kit.ArkUI';
-import { BusinessError } from '@kit.BasicServicesKit';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { PreviewGeometry, PreviewPosition, PreviewSize } from '../util/PreviewGeometry';
@@ -229,9 +228,7 @@ export struct AnimatedPreviewImage {
   @Local private paused: boolean = false;
   @Local private frameIndex: number = 0;
   @Local private frameCount: number = 1;
-  @Local private exporting: boolean = false;
-  @Local private choosingDestination: boolean = false;
-  @Local private notice: string = '';
+  @Local private frameSave: FrameSaveViewModel = new FrameSaveViewModel();
   @Local private transparent: boolean = false;
   private playback: AnimationPlayback | undefined = undefined;
   private generation: number = 0;
@@ -239,17 +236,16 @@ export struct AnimatedPreviewImage {
   private firstFrameTimer: number = -1;
   @Local private loadAttempt: number = 0;
   @Local private failureMessage: string = PREVIEW_SOURCE_UNAVAILABLE;
-  // System pickers may background playback without ending the save request.
-  private saveGeneration: number = 0;
 
   aboutToAppear(): void {
     this.dockState.onToggle = (): void => { this.togglePlayback(); };
     this.dockState.onSave = (): void => { this.saveFrame(); };
     this.alive = true;
+    this.frameSave.start();
     this.sourceIdentity = this.localPath + this.src;
     this.start();
   }
-  aboutToDisappear(): void { this.alive = false; this.saveGeneration++; this.stop(); }
+  aboutToDisappear(): void { this.alive = false; this.frameSave.stop(); this.stop(); }
 
   private stop(): void {
     this.clearFirstFrameTimer();
@@ -284,12 +280,9 @@ export struct AnimatedPreviewImage {
     this.failed = false;
     this.failureMessage = PREVIEW_SOURCE_UNAVAILABLE;
     if (reset) {
-      this.saveGeneration++;
+      this.frameSave.reset();
       this.paused = false;
       this.frameIndex = 0;
-      this.exporting = false;
-      this.choosingDestination = false;
-      this.notice = '';
     }
     if (!this.active || !this.alive) { return; }
     const token: number = this.generation;
@@ -331,46 +324,21 @@ export struct AnimatedPreviewImage {
     if (this.paused) { this.playback?.pause(); } else { this.playback?.resume(); }
   }
 
-  private async saveFrame(): Promise<void> {
-    if (this.exporting || this.choosingDestination || !this.active || !this.alive
+  private saveFrame(): void {
+    if (this.frameSave.exporting || this.frameSave.choosingDestination || !this.active || !this.alive
       || !this.loaded || this.localPath.length === 0) { return; }
     this.paused = true;
     this.playback?.pause();
-    this.notice = '';
-    const token: number = this.saveGeneration;
-    const index: number = this.frameIndex;
     const path: string = this.localPath;
     const name: string = this.name;
-    let destination: FrameSaveDestination = 'folder';
-    this.choosingDestination = true;
-    try {
+    const index: number = this.frameIndex;
+    this.frameSave.save(path, name, index, async (): Promise<FrameSaveDestination | undefined> => {
       const choice: promptAction.ActionMenuSuccessResponse = await this.getUIContext().getPromptAction().showActionMenu({
         title: '保存当前帧',
         buttons: [{ text: '保存到相册', color: Palette.fontPrimary }, { text: '保存到文件夹', color: Palette.fontPrimary }]
       });
-      if (!this.alive || token !== this.saveGeneration) { return; }
-      if (choice.index !== 0 && choice.index !== 1) { return; }
-      destination = choice.index === 0 ? 'album' : 'folder';
-    } catch (error) {
-      const failure: BusinessError = error as BusinessError;
-      const message: string = (failure.message ?? '').toLowerCase();
-      if (this.alive && token === this.saveGeneration && !message.includes('cancel') && !message.includes('取消')) {
-        this.notice = '无法打开保存选项，可重试';
-      }
-      return;
-    } finally {
-      if (this.alive && token === this.saveGeneration) { this.choosingDestination = false; }
-    }
-    if (!this.alive || token !== this.saveGeneration) { return; }
-    this.exporting = true;
-    try {
-      const outcome: ActionOutcome = await ImageTools.saveFrame(DownloadStore.context, path, name, index, destination);
-      if (this.alive && token === this.saveGeneration) { this.notice = outcome.message; }
-    } catch (error) {
-      if (this.alive && token === this.saveGeneration) { this.notice = '当前帧保存失败，可重试'; }
-    } finally {
-      if (this.alive && token === this.saveGeneration) { this.exporting = false; }
-    }
+      return choice.index === 0 ? 'album' : choice.index === 1 ? 'folder' : undefined;
+    });
   }
   @Param active: boolean = true;
   @Local private imageWidth: number = 0;
@@ -484,17 +452,17 @@ export struct AnimatedPreviewImage {
     this.dockState.available = this.loaded && this.localPath.length > 0;
     this.dockState.canPause = this.frameCount > 1;
     this.dockState.paused = this.paused;
-    this.dockState.exporting = this.exporting;
-    this.dockState.choosingDestination = this.choosingDestination;
-    this.dockState.notice = this.notice;
+    this.dockState.exporting = this.frameSave.exporting;
+    this.dockState.choosingDestination = this.frameSave.choosingDestination;
+    this.dockState.notice = this.frameSave.notice;
   }
 
   @Builder
   private animationControls() {
     if (this.controlsVisible && this.active && this.loaded && this.localPath.length > 0) {
       Column({ space: Space.s8 }) {
-        if (this.notice.length > 0) {
-          Text(this.notice).fontSize(Font.aux).fontColor(Palette.white).backgroundColor('#DD333333').padding(Space.s8)
+        if (this.frameSave.notice.length > 0) {
+          Text(this.frameSave.notice).fontSize(Font.aux).fontColor(Palette.white).backgroundColor('#DD333333').padding(Space.s8)
             .hitTestBehavior(HitTestMode.None)
         }
         Row({ space: Space.s8 }) {
@@ -502,8 +470,8 @@ export struct AnimatedPreviewImage {
             PreviewButton({ label: this.paused ? '继续' : '暂停', small: true, variant: 'tonal',
               icon: this.paused ? 'play' : 'pause', onAction: (): void => { this.togglePlayback(); } })
           }
-          PreviewButton({ label: this.exporting ? '正在保存…' : '保存当前帧', small: true, variant: 'tonal',
-            active: !this.exporting && !this.choosingDestination, onAction: (): void => { this.saveFrame(); } })
+          PreviewButton({ label: this.frameSave.exporting ? '正在保存…' : '保存当前帧', small: true, variant: 'tonal',
+            active: !this.frameSave.exporting && !this.frameSave.choosingDestination, onAction: (): void => { this.saveFrame(); } })
         }.hitTestBehavior(HitTestMode.None)
       }.margin({ bottom: this.controlsBottom + 8 })
         .hitTestBehavior(HitTestMode.None)

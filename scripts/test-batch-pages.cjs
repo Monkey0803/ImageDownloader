@@ -111,7 +111,7 @@ test('Weibo extractor verifies the requested post and ignores avatars and retwee
   assert.ok(wrong.error.includes('目标微博'));
 });
 
-test('Weibo visitor pages expose a verification action instead of collecting page images', () => {
+test('Weibo visitor pages stay pending for the credential redirect without collecting images', () => {
   const protocolLoad = loader({ '@kit.ArkWeb': { webview: {} }, '@kit.NetworkKit': { http: {} } });
   const { BatchPageProtocol } = protocolLoad(path.join(root, 'service/BatchPageProtocol.ets'));
   const result = JSON.parse(vm.runInNewContext(BatchPageProtocol.script('https://weibo.com/1/RoKPzDSuI', 'display'), {
@@ -119,7 +119,8 @@ test('Weibo visitor pages expose a verification action instead of collecting pag
     document: { title: 'Sina Visitor System', body: { innerText: '' } }
   }));
   assert.equal(result.images.length, 0);
-  assert.ok(result.error.includes('登录或验证'));
+  assert.equal(result.pending, true);
+  assert.equal(result.error, '');
 });
 
 function viewModelHarness() {

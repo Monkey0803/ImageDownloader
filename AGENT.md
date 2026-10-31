@@ -7,8 +7,8 @@
 | File | Why |
 |------|-----|
 | `entry/src/main/ets/pages/Index.ets` | `@Entry` **外壳**：页签、Toast、浮层、装配 ViewModel、订阅商店。四个页面不在这里 |
-| `entry/src/main/ets/viewmodel/*.ets` | Discover / Tasks / Library / Settings / Device 及独立的 ImageEditor `@ObservedV2` ViewModel |
-| `entry/src/main/ets/view/screens/*.ets` | 四个 `@Component` 页面：Discover / Tasks / Library / Settings（纯展示，事件转给 VM） |
+| `entry/src/main/ets/viewmodel/*.ets` | 主页面、Viewer、预览工具、双图对比、动图帧保存及 ImageEditor 的 `@ObservedV2` ViewModel |
+| `entry/src/main/ets/view/screens/*.ets` | 四个 `@ComponentV2` 页面：Discover / Tasks / Library / Settings（展示与事件转发） |
 | `entry/src/main/ets/pages/Viewer.ets` | 第二个 `@Entry`：图片大图预览，独立页面（系统返回键只认页面栈；图库进来可左右滑动换图） |
 | `entry/src/main/ets/pages/ImageEditor.ets` | 图片编辑副本页面；画布手势在 `view/ImageEditorCanvas.ets`，保存经 EditExport → EditJournal → DownloadStore |
 | `entry/src/main/ets/theme/Tokens.ets` | 设计令牌；颜色在 `resources/{base,dark}/element/color.json` |
@@ -26,13 +26,15 @@ service/   系统能力与业务：DownloadStore / StoreState / Naming / Deliver
            PageScanner / PictureFactory / UiPort / MediaFormat（纯格式判定）/
            StillFrames（动图首帧）/ LivePhoto（.livp 解包与动态照片加载）/
            LibraryCatalog（收藏、标签及索引）/ LibraryAnalysis（按需 OCR、相似图）/
-           LibraryImageReader（统一 EXIF 解码）/ EditExport、EditJournal（独立 PNG 与恢复）
-viewmodel/ @ObservedV2 ViewModel：状态 + 行为 + @Computed 派生，界面只读它
+           LibraryImageReader（统一 EXIF 解码）/ EditExport、EditJournal、ImageEditorWorkflow（独立副本与恢复）
+viewmodel/ @ObservedV2 ViewModel：状态 + 行为 + @Computed 派生；业务动作由界面事件调用
 view/      Icons / Widgets / Cards + screens/（四个页面）+ shell/（浮层）
 pages/     Index（外壳）、Viewer（大图预览）、ImageEditor（编辑副本）
 ```
 
-依赖方向是**单向**的：`pages → view → viewmodel → service → model`，`theme` / `util` 谁都能用。
+业务依赖方向是**单向**的：`pages / view → viewmodel → service → model`，`theme` / `util` 谁都能用。
+装配入口 `Index` 可以直接初始化和订阅 service；媒体绘制组件可以持有与组件生命周期绑定的
+PixelMap、动画播放和屏幕效果服务。详细职责见 `docs/architecture/mvvm.md`。
 反向的那一步（VM 要弹提示 / 推页面 / 拿 Context）走 `service/UiPort.ets` 这一个端口，由 `Index`
 在 `aboutToAppear` 里注入 —— 所以 ViewModel 里没有任何 `getUIContext()`。
 
@@ -57,7 +59,7 @@ pages/     Index（外壳）、Viewer（大图预览）、ImageEditor（编辑�
   （补默认值 + 把裸对象变成 `@ObservedV2` 实例 + 取值归一）。`DownloadStore.adopt` 只负责赋值。
   写盘则走 `StoreState.serialize()` 的显式线格式 —— **不能直接 stringify 模型实例**，见坑 19。
 - `service/FileActions.ets` — 单个已落盘文件的系统操作：导出 / 存相册 / 分享 / 拷进用户目录，
-  以及目录选择与授权。**Viewer 与各 ViewModel 都从这里调**，不要各自再写一份。
+  以及目录选择与授权。**ViewerViewModel 与各 ViewModel 都从这里调**，不要各自再写一份。
   「存相册」对动图有兜底（首帧转 JPEG 再存）与实况照片的成对投递，都在这一个文件里。
 - `service/MediaFormat.ets` — 媒体格式判定（**纯函数、零 IO**）：扩展名与类型（image / livephoto / video）、
   动图的头部特征（GIF 的 `NETSCAPE2.0` / 多图形控制扩展，WebP 的 `VP8X` ANIM 位）、ZIP 魔数。
@@ -97,7 +99,7 @@ pages/     Index（外壳）、Viewer（大图预览）、ImageEditor（编辑�
 
 ## 状态管理 V2（整个应用已经迁完）
 
-三十七个组件全部是 `@ComponentV2`，九个模型/ViewModel 全部是 `@ObservedV2` + `@Trace`；
+应用组件使用 `@ComponentV2`，可观察模型与 ViewModel 使用 `@ObservedV2` + `@Trace`；
 仓库里**没有** `@Component` / `@State` / `@Prop` / `@Link` / `@ObjectLink` / `@Observed` / `@StorageProp` 的声明了
 （`grep` 一遍即可确认）。家族映射与实测踩出来的规则：
 

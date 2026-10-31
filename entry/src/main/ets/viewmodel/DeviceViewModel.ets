@@ -17,6 +17,10 @@ import { UiPort } from '../service/UiPort';
  */
 @ObservedV2
 export class DeviceViewModel {
+  acknowledgePeeking(): void {
+    AntiPeep.acknowledge();
+    this.peeking = false;
+  }
   /** UI 出口，页面在 `attach` 时注入；默认是安全空实现。 */
   private ui: UiPort = new UiPort();
 
