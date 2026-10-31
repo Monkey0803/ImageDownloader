@@ -56,16 +56,18 @@ export class DiscoverViewModel {
     result.sourcePage = this.pageUrl;
     result.width = item.width;
     result.height = item.height;
-    const local = DownloadStore.downloads.find((value): boolean => value.url === item.url
-      && value.kind === item.kind && value.status === 'completed' && DownloadStore.exists(value.path));
+    const local: LocalPreviewFile | undefined = LocalPreview.find(item.url, item.kind, DownloadStore.downloads);
     if (local !== undefined) {
       result.localPath = item.kind === 'livephoto' ? local.stillPath : local.path;
       result.src = result.localPath.length > 0 ? fileUri.getUriFromPath(result.localPath) : '';
       result.bytes = local.size;
       result.downloaded = true;
-      result.downloadedAt = local.finishedAt;
+      const record = DownloadStore.downloads.find((value): boolean => value.url === item.url
+        && value.kind === item.kind && value.path === local.path
+        && value.status === 'completed');
+      result.downloadedAt = record?.finishedAt ?? 0;
       result.animated = local.animated;
-      result.libraryId = LIBRARY_CATALOG.assetForPreview(DownloadStore.downloads, item.url, item.kind);
+      result.libraryId = record === undefined ? '' : LIBRARY_CATALOG.assetForPreview([record], item.url, item.kind);
     }
     if (item.uid === this.inspectedPicture?.uid) {
       result.src = this.previewUri || item.url;

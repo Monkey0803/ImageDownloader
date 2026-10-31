@@ -122,6 +122,48 @@ test('preview tools ignore metadata from a previously selected image', async () 
   assert.equal(listeners.size, 0);
 });
 
+test('preview tools cancel library OCR when the selected image changes', async () => {
+  let finish;
+  let activeToken;
+  class AnalysisToken {
+    constructor() { this.cancelled = false; }
+    cancel() { this.cancelled = true; }
+  }
+  class ImageMetadata { constructor() { this.width = 0; this.height = 0; } }
+  const downloads = [{ id: 'first', status: 'completed', path: '/first' }];
+  const load = loader({
+    [modulePath('model/LibraryAsset')]: { AnalysisToken },
+    [modulePath('service/DownloadStore')]: { DownloadStore: { downloads } },
+    [modulePath('service/ImageTools')]: { ImageMetadata, ImageTools: {
+      metadata: async () => new ImageMetadata()
+    } },
+    [modulePath('service/ImageSuperResolution')]: { ImageSuperResolution: {} },
+    [modulePath('service/LibraryCatalog')]: { LIBRARY_CATALOG: {
+      subscribe: () => {}, unsubscribe: () => {}, getMeta: () => ({ favorite: false, tags: [] }),
+      getIndex: () => undefined
+    } },
+    [modulePath('service/LibraryAnalysis')]: { LibraryAnalysis: {
+      ocr: (_items, _force, token) => {
+        activeToken = token;
+        return new Promise((resolve) => { finish = resolve; });
+      }
+    } },
+    [modulePath('service/MediaFormat')]: { MediaFormat: {} }
+  });
+  const { PreviewToolsViewModel } = load(modulePath('viewmodel/PreviewToolsViewModel'));
+  const vm = new PreviewToolsViewModel();
+  vm.start({ id: 'first', localPath: '/first', libraryId: 'first' });
+  const recognition = vm.recognize(true);
+  assert.equal(activeToken.cancelled, false);
+  vm.load({ id: 'second', localPath: '/second', libraryId: '' });
+  assert.equal(activeToken.cancelled, true);
+  finish();
+  await recognition;
+  assert.equal(vm.busy, false);
+  assert.equal(vm.recognizedText, '');
+  vm.stop();
+});
+
 test('comparison pane discards a late response after the source changes', async () => {
   const pending = new Map();
   class AuthenticatedPreview {

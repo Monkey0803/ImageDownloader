@@ -23,6 +23,7 @@ export class PreviewToolsViewModel {
   private asset: PreviewAsset = new PreviewAsset();
   private generation: number = 0;
   private alive: boolean = false;
+  private recognitionToken: AnalysisToken | undefined = undefined;
   private superResolutionToken: AnalysisToken | undefined = undefined;
   private catalogListener: () => void = (): void => { this.refreshMeta(); };
 
@@ -35,12 +36,16 @@ export class PreviewToolsViewModel {
   stop(): void {
     this.alive = false;
     this.generation++;
+    this.recognitionToken?.cancel();
+    this.recognitionToken = undefined;
     this.superResolutionToken?.cancel();
     this.superResolutionToken = undefined;
     LIBRARY_CATALOG.unsubscribe(this.catalogListener);
   }
 
   load(asset: PreviewAsset): void {
+    this.recognitionToken?.cancel();
+    this.recognitionToken = undefined;
     this.superResolutionToken?.cancel();
     this.superResolutionToken = undefined;
     this.asset = asset;
@@ -102,6 +107,8 @@ export class PreviewToolsViewModel {
     if (this.busy || this.asset.localPath.length === 0) { return; }
     const generation: number = this.generation;
     const path: string = this.asset.localPath;
+    const token: AnalysisToken = new AnalysisToken();
+    this.recognitionToken = token;
     this.busy = true;
     this.noticeGroup = 'recognize';
     this.notice = text ? '正在识别文字…' : '正在识别二维码…';
@@ -111,7 +118,7 @@ export class PreviewToolsViewModel {
         const item: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
           entry.id === this.asset.libraryId && entry.status === 'completed');
         if (this.asset.libraryId.length > 0 && item !== undefined) {
-          await LibraryAnalysis.ocr([item], true, new AnalysisToken(), (): void => {});
+          await LibraryAnalysis.ocr([item], true, token, (): void => {});
           const index: LibraryIndex | undefined = LIBRARY_CATALOG.getIndex(item.id);
           if (index?.ocrStatus === 'failed') { throw new Error(index.ocrError); }
           value = index?.text ?? '';
@@ -130,6 +137,7 @@ export class PreviewToolsViewModel {
     } catch (error) {
       if (this.alive && generation === this.generation) { this.notice = '识别失败：' + String(error); }
     } finally {
+      if (this.recognitionToken === token) { this.recognitionToken = undefined; }
       if (this.alive && generation === this.generation) { this.busy = false; }
     }
   }

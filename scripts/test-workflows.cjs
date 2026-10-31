@@ -514,6 +514,9 @@ function discoveryPreviewHarness() {
   mocks[path.join(source, 'service/DownloadStore.ets')] = { DownloadStore: store };
   const local = { value: undefined };
   mocks[path.join(source, 'service/LocalPreview.ets')] = { LocalPreview: { find: () => local.value } };
+  mocks[path.join(source, 'service/LibraryCatalog.ets')] = { LIBRARY_CATALOG: {
+    assetForPreview: (items) => items[0]?.id ?? ''
+  } };
   mocks[path.join(source, 'service/SizeArbiter.ets')] = { SizeArbiter: { measure: async () => 42 } };
   mocks[path.join(source, 'service/PictureFactory.ets')] = {
     PictureFactory: { fromUrl: (url) => ({ url, selected: true }) }
@@ -535,6 +538,22 @@ function discoveryPreviewHarness() {
   ];
   return { vm, pending, cancellations, queued, store, local };
 }
+
+test('discovery tools use the same surviving local copy as the preview', () => {
+  const h = discoveryPreviewHarness();
+  const picture = h.vm.pictures[0];
+  h.store.downloads.push(
+    { id: 'new', url: picture.url, kind: 'image', status: 'completed', path: '/missing.png', finishedAt: 2 },
+    { id: 'old', url: picture.url, kind: 'image', status: 'completed', path: '/valid.png', finishedAt: 1 }
+  );
+  h.local.value = { path: '/valid.png', size: 120, stillPath: '', motionPath: '', animated: false };
+  const asset = h.vm.previewAsset(picture);
+  assert.equal(asset.localPath, '/valid.png');
+  assert.equal(asset.src, 'file:///valid.png');
+  assert.equal(asset.libraryId, 'old');
+  assert.equal(asset.bytes, 120);
+  assert.equal(asset.downloadedAt, 1);
+});
 
 test('discovery ignores late preview results, preserves visited cache on navigation, and clears on close', async () => {
   const h = discoveryPreviewHarness();
