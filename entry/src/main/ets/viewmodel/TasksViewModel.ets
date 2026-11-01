@@ -48,6 +48,8 @@ export class TasksViewModel {
   @Trace batchViews: BatchView[] = [];
   @Trace collectionFilter: string = '*';
   @Trace collections: CollectionSummary[] = [];
+  @Trace statusFilter: string = 'all';
+  @Trace statusCounts: number[] = [0, 0, 0, 0, 0];
   /** 包含批次成员和批次本身，供页签徽标使用。 */
   @Trace running: number = 0;
 
@@ -80,16 +82,34 @@ export class TasksViewModel {
     if (this.collectionFilter !== '*' && !this.collections.some((group: CollectionSummary): boolean =>
       group.id === this.collectionFilter)) { this.collectionFilter = '*'; }
     this.concurrency = DownloadStore.concurrency;
-    this.active = this.downloads.filter((item: DownloadItem): boolean =>
-      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter) && item.batchId.length === 0
-        && (item.status === 'running' || item.status === 'starting'
+    const visible: DownloadItem[] = this.downloads.filter((item: DownloadItem): boolean =>
+      !item.taskHidden && (this.collectionFilter === '*' || item.collectionId === this.collectionFilter)
+        && item.batchId.length === 0);
+    const relevantBatches: BatchItem[] = this.batches.filter((batch: BatchItem): boolean =>
+      this.collectionFilter === '*' || batch.collectionId === this.collectionFilter);
+    const activeBatches: number = relevantBatches.filter((batch: BatchItem): boolean =>
+      batch.status === 'downloading' || batch.status === 'waiting' || batch.status === 'packing').length;
+    const failedBatches: number = relevantBatches.filter((batch: BatchItem): boolean => batch.status === 'failed').length;
+    this.statusCounts = [visible.length + relevantBatches.length,
+      visible.filter((item: DownloadItem): boolean => !['completed', 'failed', 'cancelled'].includes(item.status)).length
+        + activeBatches,
+      visible.filter((item: DownloadItem): boolean => item.status === 'completed').length,
+      visible.filter((item: DownloadItem): boolean => item.status === 'failed').length + failedBatches,
+      visible.filter((item: DownloadItem): boolean => item.status === 'cancelled').length];
+    this.active = visible.filter((item: DownloadItem): boolean =>
+      (this.statusFilter === 'all' || this.statusFilter === 'active') &&
+      (item.status === 'running' || item.status === 'starting'
           || item.status === 'queued' || item.status === 'waiting' || item.status === 'paused'));
-    this.settled = this.downloads.filter((item: DownloadItem): boolean =>
-      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter) && item.batchId.length === 0
-        && (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
+    this.settled = visible.filter((item: DownloadItem): boolean =>
+      (this.statusFilter === 'all' || this.statusFilter === item.status) &&
+      (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled'));
     const views: BatchView[] = [];
     for (const batch of this.batches) {
       if (this.collectionFilter !== '*' && batch.collectionId !== this.collectionFilter) { continue; }
+      if (this.statusFilter !== 'all' && this.statusFilter !== 'active' && this.statusFilter !== 'failed') { continue; }
+      if (this.statusFilter === 'active' && batch.status !== 'downloading' && batch.status !== 'waiting'
+        && batch.status !== 'packing') { continue; }
+      if (this.statusFilter === 'failed' && batch.status !== 'failed') { continue; }
       const members: DownloadItem[] =
         this.downloads.filter((item: DownloadItem): boolean => item.batchId === batch.id);
       const done: number = members.filter((item: DownloadItem): boolean => item.status === 'completed').length;
@@ -114,6 +134,23 @@ export class TasksViewModel {
   }
 
   setCollectionFilter(id: string): void { this.collectionFilter = id; this.sync(); }
+  setStatusFilter(value: string): void { this.statusFilter = value; this.sync(); }
+
+  hideTask(item: DownloadItem): void {
+    this.ui.say(DownloadStore.hideTask(item) ? '已移出任务页，素材仍在图库' : '当前任务无法移出');
+  }
+
+  clearFinished(): void {
+    const count: number = this.downloads.filter((item: DownloadItem): boolean =>
+      !item.taskHidden && item.batchId.length === 0 &&
+      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter) &&
+      (item.status === 'completed' || item.status === 'cancelled')).length;
+    if (count === 0) { this.ui.say('没有可清理的已完成或已取消任务'); return; }
+    this.ui.confirm('清理已完成与已取消', '将从任务页移出 ' + count.toString() +
+      ' 条记录，下载文件仍保留在图库。失败任务继续显示。', '清理', (): void => {
+        this.ui.say('已移出 ' + DownloadStore.hideFinishedTasks(this.collectionFilter).toString() + ' 条任务');
+      });
+  }
 
   selectedCollection(): CollectionSummary | undefined {
     return this.collections.find((group: CollectionSummary): boolean => group.id === this.collectionFilter);
@@ -126,6 +163,9 @@ export class TasksViewModel {
 
   /** 标题副标题：进行中优先；没有进行中时如实说明已结束数量。 */
   caption(): string {
+    if (this.statusFilter !== 'all') {
+      return '筛选结果 ' + (this.active.length + this.settled.length + this.batchViews.length).toString() + ' 条';
+    }
     if (this.running > 0) {
       return this.running.toString() + ' 个任务进行中 · 并发 ' + this.concurrency.toString();
     }

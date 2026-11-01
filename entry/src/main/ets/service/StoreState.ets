@@ -53,6 +53,7 @@ class DownloadWire {
   batchId: string = '';
   taskId: string = '';
   status: string = 'queued';
+  taskHidden: boolean = false;
   processed: number = 0;
   total: number = 0;
   size: number = 0;
@@ -145,6 +146,7 @@ export class StoreState {
       out.batchId = item.batchId;
       out.taskId = item.taskId;
       out.status = item.status;
+      out.taskHidden = item.taskHidden;
       out.processed = item.processed;
       out.total = item.total;
       out.size = item.size;
@@ -251,6 +253,7 @@ export class StoreState {
       item.batchId = orString(entry.batchId, '');
       item.taskId = orString(entry.taskId, '');
       item.status = orString(entry.status, 'queued');
+      item.taskHidden = orBoolean(entry.taskHidden, false);
       item.processed = orNumber(entry.processed, 0);
       item.total = orNumber(entry.total, 0);
       item.size = orNumber(entry.size, 0);

@@ -67,6 +67,8 @@ export class DownloadItem {
   @Trace batchId: string = '';
   @Trace taskId: string = '';
   @Trace status: string = 'queued';
+  /** Hide a settled download from Tasks while retaining its library asset and duplicate history. */
+  @Trace taskHidden: boolean = false;
   @Trace processed: number = 0;
   @Trace total: number = 0;
   /** 当前进程内的实测速度；重启后等待新采样，不从旧进度推测。 */

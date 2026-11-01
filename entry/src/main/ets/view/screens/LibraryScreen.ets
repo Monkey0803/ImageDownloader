@@ -1,6 +1,6 @@
 import { DownloadItem, ZipItem } from '../../model/Models';
 import { LibraryText } from '../../util/LibraryText';
-import { LibraryViewModel } from '../../viewmodel/LibraryViewModel';
+import { LibraryDateGroup, LibraryViewModel } from '../../viewmodel/LibraryViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, formatBytes, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
@@ -12,7 +12,7 @@ import { ArchiveCard, ShotTile } from '../Cards';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
 import { LibraryOrganizeSheet } from '../LibraryOrganizeSheet';
 import { ImageTagDialog } from '../ImageTagDialog';
-import { EmptyState, IconButton, LibrarySegment, PillButton, TitleBar } from '../Widgets';
+import { EmptyState, IconButton, LibrarySegment, PillButton, SectionHead, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -229,9 +229,9 @@ export struct LibraryScreen {
   }
 
   @Builder
-  private galleryGrid() {
+  private galleryGrid(items: DownloadItem[]) {
     Column({ space: Space.s12 }) {
-      ForEach(chunkRows<DownloadItem>(this.library.images, this.library.density),
+      ForEach(chunkRows<DownloadItem>(items, this.library.density),
         (row: DownloadItem[], rowIndex: number) => {
           Row({ space: this.library.density === 3 ? Space.s6 : Space.s12 }) {
             ForEach(row, (cell: DownloadItem, colIndex: number) => {
@@ -272,7 +272,16 @@ export struct LibraryScreen {
   @Builder
   private libraryImages() {
     if (this.library.images.length > 0) {
-      this.galleryGrid()
+      Column({ space: Space.s16 }) {
+        ForEach(this.library.imageDateGroups(), (group: LibraryDateGroup) => {
+          Column({ space: Space.s8 }) {
+            if (group.label.length > 0) {
+              SectionHead({ heading: group.label, meta: group.items.length.toString() + ' 张' })
+            }
+            this.galleryGrid(group.items)
+          }.width('100%')
+        }, (group: LibraryDateGroup) => group.label || 'all')
+      }.width('100%')
     } else {
       EmptyState({
         glyph: 'image',
@@ -342,6 +351,56 @@ export struct LibraryScreen {
           })
 
           this.searchTools()
+          if (this.library.query.length > 0 || this.activeOptionCount() > 0 || this.library.focusedIds.length > 0) {
+            Column({ space: Space.s6 }) {
+              Text('当前结果 ' + (this.library.isZips() ? this.library.archives.length : this.library.images.length)
+                .toString() + ' 项').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+              Scroll() {
+                Row({ space: Space.s6 }) {
+                if (this.library.query.length > 0) {
+                  PillButton({ label: '搜索：' + this.library.query + ' ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.setQuery(''); } })
+                }
+                if (this.library.collectionFilter !== '*') {
+                  PillButton({ label: '来源分组 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.collectionFilter = '*'; } })
+                }
+                if (this.library.focusedIds.length > 0) {
+                  PillButton({ label: '重复候选 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.focusedIds = []; } })
+                }
+                if (this.library.sourceQuery.length > 0) {
+                  PillButton({ label: '来源网页 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.sourceQuery = ''; } })
+                }
+                if (this.library.formatFilter.length > 0) {
+                  PillButton({ label: '格式 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.formatFilter = ''; } })
+                }
+                if (this.library.favoritesOnly) {
+                  PillButton({ label: '仅收藏 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.favoritesOnly = false; } })
+                }
+                if (this.library.tagFilter.length > 0) {
+                  PillButton({ label: '标签 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.tagFilter = ''; } })
+                }
+                if (this.library.searchScope !== 'all') {
+                  PillButton({ label: '搜索范围 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.searchScope = 'all'; } })
+                }
+                if (this.library.sortOrder !== 'newest') {
+                  PillButton({ label: '排序 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.sortOrder = 'newest'; } })
+                }
+                if (this.library.density !== 2 && !this.library.isZips()) {
+                  PillButton({ label: '三列 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.setDensity(2); } })
+                }
+                }
+              }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+            }.width('100%').alignItems(HorizontalAlign.Start)
+          }
           this.selectionControls()
           this.selectionActions()
 

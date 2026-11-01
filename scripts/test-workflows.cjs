@@ -950,6 +950,24 @@ test('discovery does not create an empty ZIP when every selected picture is save
   assert.equal(h.queued.length, 0);
 });
 
+test('download review updates admission and destination before confirmation', () => {
+  const h = discoveryPreviewHarness();
+  h.vm.pictures[0].selected = true;
+  h.vm.pictures[1].selected = true;
+  h.store.downloadLocation = 'app';
+  const before = h.vm.reviewSignature();
+  assert.equal(h.vm.reviewResult().added, 2);
+  assert.equal(h.vm.destinationLabel(), '应用文件');
+  h.store.downloads.push({ id: 'already', url: 'https://image/a', kind: 'image',
+    status: 'completed', path: '/saved' });
+  h.existingFiles.add('/saved');
+  h.store.downloadLocation = 'custom'; h.store.customDirName = '素材';
+  assert.notEqual(h.vm.reviewSignature(), before);
+  assert.equal(h.vm.reviewResult().added, 1);
+  assert.equal(h.vm.reviewResult().skippedCompleted, 1);
+  assert.equal(h.vm.destinationLabel(), '素材');
+});
+
 test('preview bulk download keeps selections and ZIP mode, limits scope and skips pending duplicates', () => {
   const h = discoveryPreviewHarness();
   h.vm.mode = 'zip';

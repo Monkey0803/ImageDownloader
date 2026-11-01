@@ -267,6 +267,7 @@ export struct TaskCard {
   };
   @Event onLocate: (task: DownloadItem) => void = () => {
   };
+  @Event onHide: (task: DownloadItem) => void = () => {};
   /**
    * 点缩略图看大图。
    *
@@ -456,6 +457,11 @@ export struct TaskCard {
                 this.onLocate(this.task);
               }
             })
+          }
+          if (this.isSettled()) {
+            IconButton({ glyph: 'close', glyphSize: 18, diameter: 38, plain: true,
+              accessibilityLabel: '移出任务页，保留素材',
+              onAction: (): void => { this.onHide(this.task); } })
           }
         }
       }

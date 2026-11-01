@@ -406,6 +406,17 @@ caseTest('origin survives state migration', () => {
   assert.equal(StoreState.normalized(StoreState.parse('{"downloads":[{"id":"old"}]}')).downloads[0].origin, 'download');
 });
 
+caseTest('task visibility survives persistence and old records remain visible', () => {
+  const { DownloadItem, SavedState } = load(ets('model/Models'));
+  const { StoreState } = load(ets('service/StoreState'));
+  const item = new DownloadItem(); item.id = 'download'; item.taskHidden = true;
+  const state = new SavedState(); state.downloads = [item];
+  const restored = StoreState.normalized(StoreState.parse(StoreState.serialize(state)));
+  assert.equal(restored.downloads[0].taskHidden, true);
+  assert.equal(StoreState.normalized(StoreState.parse('{"downloads":[{"id":"old"}]}'))
+    .downloads[0].taskHidden, false);
+});
+
 caseTest('origin rejects unknown wire values', () => {
   const { StoreState } = load(ets('service/StoreState'));
   const restored = StoreState.normalized(StoreState.parse('{"downloads":[{"id":"x","origin":"imported","originalId":"a"}]}'));
@@ -712,7 +723,9 @@ caseTest('edited registration keeps copies out of download task lists and badges
   const original = { id: 'original', origin: 'download', batchId: '', status: 'completed' };
   const edited = { id: 'copy', origin: 'edited', batchId: '', status: 'completed' };
   const nativeLoad = loader({
-    [ets('service/DownloadStore')]: { DownloadStore: { downloads: [edited, original], batches: [], concurrency: 3 } },
+    '@kit.CoreFileKit': { fileUri: { getUriFromPath: path => path } },
+    [ets('service/DownloadStore')]: { DownloadStore: { downloads: [edited, original], batches: [], zips: [],
+      collections: [], concurrency: 3 } },
     [ets('service/UiPort')]: { UiPort: class {} },
     [ets('theme/Metrics')]: { ScreenMetrics: {} }
   });
@@ -722,6 +735,26 @@ caseTest('edited registration keeps copies out of download task lists and badges
   assert.deepEqual(vm.settled.map(x => x.id), ['original']);
   assert.equal(vm.running, 0);
   assert.equal(vm.downloads.some(x => x.id === 'copy'), false);
+});
+
+caseTest('task status filter ignores hidden cards but retains failures', () => {
+  const done = { id: 'done', origin: 'download', collectionId: '', batchId: '', status: 'completed', taskHidden: true };
+  const failed = { id: 'failed', origin: 'download', collectionId: '', batchId: '', status: 'failed', taskHidden: false };
+  const nativeLoad = loader({
+    '@kit.CoreFileKit': { fileUri: { getUriFromPath: path => path } },
+    [ets('service/DownloadStore')]: { DownloadStore: { downloads: [done, failed], batches: [], zips: [],
+      collections: [], concurrency: 3 } },
+    [ets('service/UiPort')]: { UiPort: class {} },
+    [ets('theme/Metrics')]: { ScreenMetrics: {} }
+  });
+  const { TasksViewModel } = nativeLoad(ets('viewmodel/TasksViewModel'));
+  const vm = new TasksViewModel(); vm.sync();
+  assert.deepEqual(vm.settled.map(x => x.id), ['failed']);
+  assert.deepEqual(vm.statusCounts, [1, 0, 0, 1, 0]);
+  vm.setStatusFilter('completed');
+  assert.deepEqual(vm.settled, []);
+  vm.setStatusFilter('failed');
+  assert.deepEqual(vm.settled.map(x => x.id), ['failed']);
 });
 
 caseTest('edited copy survives clearing downloads and remains independently deletable', async () => {
@@ -734,6 +767,23 @@ caseTest('edited copy survives clearing downloads and remains independently dele
   assert.equal(h.memory.files.has(copy.path), true);
   assert.equal(h.memory.files.has(h.original.path), false);
   assert.equal(JSON.parse(h.memory.fs.readTextSync('/files/download-state.json')).downloads.length, 1);
+});
+
+caseTest('clearing finished task cards preserves files and keeps failures for retry', async () => {
+  const h = await registrationHarness();
+  const { DownloadItem } = h.nativeLoad(ets('model/Models'));
+  const failed = new DownloadItem(); failed.id = 'failed'; failed.status = 'failed';
+  failed.collectionId = 'other';
+  const cancelled = new DownloadItem(); cancelled.id = 'cancelled'; cancelled.status = 'cancelled';
+  cancelled.collectionId = 'other';
+  h.DownloadStore.downloads.push(failed, cancelled);
+  assert.equal(h.DownloadStore.hideFinishedTasks('other'), 1);
+  assert.equal(h.DownloadStore.downloads[0].taskHidden, false);
+  assert.equal(failed.taskHidden, false);
+  assert.equal(cancelled.taskHidden, true);
+  assert.equal(h.DownloadStore.hideTask(h.original), true);
+  assert.equal(h.memory.files.has(h.original.path), true);
+  assert.equal(h.DownloadStore.downloads.some(item => item.id === h.original.id), true);
 });
 
 caseTest('edited copy and original can be deleted independently', async () => {
@@ -1254,6 +1304,23 @@ caseTest('similar view model snapshots current scope and opens only the chosen g
   v.vm.sync();
   assert.equal(v.vm.similarChecked, false);
   assert.deepEqual(v.vm.similarGroups, []);
+});
+
+caseTest('gallery groups time-sorted images by saved day and opens duplicate candidates', () => {
+  const v = libraryVmHarness();
+  const a = completed('a', 'a.png'), b = completed('b', 'b.png');
+  a.finishedAt = new Date(2026, 9, 30, 10).getTime();
+  b.finishedAt = 0; b.createdAt = new Date(2026, 9, 29, 10).getTime();
+  v.store.downloads = [a, b]; v.vm.sync();
+  assert.deepEqual(v.vm.imageDateGroups().map(group => group.label), ['2026-10-30', '2026-10-29']);
+  v.vm.sortOrder = 'name';
+  assert.equal(v.vm.imageDateGroups().length, 1);
+  v.vm.scrollToTop = () => {};
+  v.vm.openDuplicateGroup({ key: 'same', items: [a, b] });
+  assert.deepEqual(v.vm.images.map(item => item.id).sort(), ['a', 'b']);
+  assert.deepEqual(v.vm.focusedIds.sort(), ['a', 'b']);
+  v.vm.focusedIds = [];
+  assert.equal(v.vm.images.length, 2);
 });
 
 caseTest('leaving a completed similar group keeps its success notice', async () => {

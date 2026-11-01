@@ -70,8 +70,8 @@ export class LibraryQuery {
       }
       if (order === 'size') { return b.size - a.size || a.name.localeCompare(b.name); }
       if (order === 'sizeAsc') { return a.size - b.size || a.name.localeCompare(b.name); }
-      const aTime: number = archive ? a.createdAt : (a as DownloadItem).finishedAt;
-      const bTime: number = archive ? b.createdAt : (b as DownloadItem).finishedAt;
+      const aTime: number = archive ? a.createdAt : ((a as DownloadItem).finishedAt || a.createdAt);
+      const bTime: number = archive ? b.createdAt : ((b as DownloadItem).finishedAt || b.createdAt);
       return order === 'oldest' ? aTime - bTime : bTime - aTime;
     });
     return result;

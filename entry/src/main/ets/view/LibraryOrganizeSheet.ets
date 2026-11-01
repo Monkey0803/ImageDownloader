@@ -20,7 +20,7 @@ export struct LibraryOrganizeSheet {
     if (groups.length === 0) {
       Text('未发现').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
     } else {
-      ForEach(groups.slice(0, 10), (group: DuplicateGroup) => {
+      ForEach(groups, (group: DuplicateGroup) => {
         Column({ space: Space.s4 }) {
           Text((showKey ? group.key : 'SHA-256 一致') + ' · ' + group.items.length.toString() + ' 张')
             .fontSize(Font.aux).fontColor(TransparentGlass.foreground())
@@ -28,13 +28,11 @@ export struct LibraryOrganizeSheet {
           Text(group.items.map((item: DownloadItem): string => item.name).join('、'))
             .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
             .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+          PillButton({ label: '查看本组', small: true, variant: 'tonal',
+            onAction: (): void => { this.library.openDuplicateGroup(group); this.onOpenGroup(); } })
         }.alignItems(HorizontalAlign.Start).width('100%')
           .padding({ top: Space.s6, bottom: Space.s6 })
       }, (group: DuplicateGroup) => group.key)
-      if (groups.length > 10) {
-        Text('另有 ' + (groups.length - 10).toString() + ' 组未展开')
-          .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
-      }
     }
   }
 

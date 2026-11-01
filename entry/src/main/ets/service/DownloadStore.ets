@@ -1909,6 +1909,30 @@ export class DownloadStore {
     return true;
   }
 
+  /** Remove a settled card from Tasks without deleting the source record or file. */
+  static hideTask(item: DownloadItem): boolean {
+    const current: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
+      entry.id === item.id && entry.origin === 'download');
+    if (current === undefined || !['completed', 'failed', 'cancelled'].includes(current.status)) { return false; }
+    current.taskHidden = true;
+    DownloadStore.notify();
+    return true;
+  }
+
+  /** Keep failures visible for retry; completed assets remain in the library. */
+  static hideFinishedTasks(collectionId: string = '*'): number {
+    let changed: number = 0;
+    for (const item of DownloadStore.downloads) {
+      if (item.origin !== 'download' || item.taskHidden || item.batchId.length > 0 ||
+        (collectionId !== '*' && item.collectionId !== collectionId) ||
+        (item.status !== 'completed' && item.status !== 'cancelled')) { continue; }
+      item.taskHidden = true;
+      changed++;
+    }
+    if (changed > 0) { DownloadStore.notify(); }
+    return changed;
+  }
+
   static deleteZip(item: ZipItem): boolean {
     if (!DownloadStore.removeFileChecked(item.path)) { return false; }
     DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);

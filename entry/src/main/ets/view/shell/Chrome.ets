@@ -24,6 +24,49 @@ import { SCREEN_INSETS } from '../../theme/Metrics';
 export struct SelectionDock {
   @Require @Param discover: DiscoverViewModel;
   @Require @Param device: DeviceViewModel;
+  @Local private reviewOpen: boolean = false;
+  @Local private reviewSignature: string = '';
+  @Local private reviewChanged: boolean = false;
+
+  @Builder
+  private reviewSheet() {
+    Column({ space: Space.s12 }) {
+      Text('确认下载').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
+      Text('已选 ' + this.discover.selectedTotal.toString() + ' 张 · 可加入 '
+        + this.discover.reviewResult().added.toString() + ' 张 · 跳过 '
+        + this.discover.reviewResult().skipped().toString() + ' 张')
+        .fontSize(Font.aux).fontColor(Palette.fontSecondary)
+      Text('方式：' + (this.discover.mode === 'zip' ? '打包 ZIP' : '单独文件')
+        + ' · 位置：' + this.discover.destinationLabel())
+        .fontSize(Font.aux).fontColor(Palette.fontSecondary)
+      if (this.discover.mode === 'zip' && this.discover.selectedLivePhotoCount() > 0) {
+        Text('实况照片包将单独下载，不放入 ZIP。')
+          .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+      }
+      Text('预计文件名：' + (this.discover.namePreview().slice(0, 3).join('、') || '无可加入文件'))
+        .fontSize(Font.caption).fontColor(Palette.fontTertiary).maxLines(3)
+      if (this.reviewChanged) {
+        Text('选择或任务状态已变化，请核对更新后的结果后再次确认。')
+          .fontSize(Font.caption).fontColor(Palette.warning)
+      }
+      Row({ space: Space.s8 }) {
+        PillButton({ label: '返回选图', variant: 'ghost',
+          onAction: (): void => { this.reviewOpen = false; } })
+        PillButton({ label: '确认加入任务', variant: 'primary',
+          active: this.discover.reviewResult().added > 0,
+          onAction: (): void => {
+            const current: string = this.discover.reviewSignature();
+            if (current !== this.reviewSignature) {
+              this.reviewSignature = current;
+              this.reviewChanged = true;
+              return;
+            }
+            this.reviewOpen = false;
+            this.discover.enqueue();
+          } })
+      }.width('100%')
+    }.width('100%').alignItems(HorizontalAlign.Start).padding(Space.s16)
+  }
 
   build() {
     Row({ space: Space.s10 }) {
@@ -58,7 +101,9 @@ export struct SelectionDock {
         icon: 'download',
         active: this.discover.eligibleSelectedCount() > 0,
         onAction: (): void => {
-          this.discover.enqueue();
+          this.reviewSignature = this.discover.reviewSignature();
+          this.reviewChanged = false;
+          this.reviewOpen = true;
         }
       })
     }
@@ -74,6 +119,12 @@ export struct SelectionDock {
     .backgroundColor(Palette.glassStrong)
     .backdropBlur(30)
     .shadow(Shadow.float())
+    .bindSheet(this.reviewOpen, this.reviewSheet(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      showClose: false,
+      onDisappear: (): void => { this.reviewOpen = false; }
+    })
   }
 }
 

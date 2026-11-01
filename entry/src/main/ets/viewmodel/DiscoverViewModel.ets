@@ -320,6 +320,34 @@ export class DiscoverViewModel {
     return DownloadStore.previewNames(this.pictures, this.pageUrl, this.pageTitle, this.mode === 'zip', this.nameMode);
   }
 
+  reviewResult(): AdmissionResult {
+    return DownloadAdmission.plan(this.pictures, DownloadStore.downloads,
+      (path: string): boolean => DownloadStore.exists(path)).result;
+  }
+
+  reviewSignature(): string {
+    const chosen: string = this.pictures.filter((item: PictureItem): boolean => item.selected)
+      .map((item: PictureItem): string => item.uid + ':' + item.url + ':' + item.kind + ':' + item.name).join('|');
+    const result: AdmissionResult = this.reviewResult();
+    return chosen + '#' + [result.added, result.skippedActive, result.skippedCompleted, result.skippedRepeated,
+      this.mode, this.nameMode, this.pageTitle, this.pageUrl, DownloadStore.downloadLocation,
+      DownloadStore.customDirUri, DownloadStore.customDirName].join('|') + '#'
+      + DownloadStore.downloads.map((item: DownloadItem): string =>
+        item.id + ':' + item.status + ':' + item.path).join('|');
+  }
+
+  selectedLivePhotoCount(): number {
+    return this.pictures.filter((item: PictureItem): boolean => item.selected && item.kind === 'livephoto').length;
+  }
+
+  destinationLabel(): string {
+    if (DownloadStore.downloadLocation === 'gallery') { return '系统相册'; }
+    if (DownloadStore.downloadLocation === 'custom') {
+      return DownloadStore.customDirName.length > 0 ? DownloadStore.customDirName : '自定义目录';
+    }
+    return '应用文件';
+  }
+
   batchNamePreview(group: BatchPageGroup): string[] {
     return DownloadStore.previewNames(group.pictures, group.kind === 'direct' ? '' : group.pageUrl,
       group.title, this.batchReviewZip, this.nameMode, 2);

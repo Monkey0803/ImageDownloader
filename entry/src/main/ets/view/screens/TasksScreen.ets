@@ -5,7 +5,7 @@ import { TasksViewModel } from '../../viewmodel/TasksViewModel';
 import { Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { BatchCard, TaskCard } from '../Cards';
-import { EmptyState, SectionHead, SettingSelect, TitleBar } from '../Widgets';
+import { EmptyState, PillButton, SectionHead, SettingSelect, TitleBar } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -38,6 +38,7 @@ export struct TasksScreen {
       onRetry: (item: DownloadItem): void => { this.tasks.retry(item); },
       onRetryDelivery: (item: DownloadItem): void => { this.tasks.retryDelivery(item); },
       onLocate: (item: DownloadItem): void => { this.tasks.locate(item); },
+      onHide: (item: DownloadItem): void => { this.tasks.hideTask(item); },
       onOpen: (item: DownloadItem): void => { this.tasks.openTask(item); }
     })
   }
@@ -46,6 +47,20 @@ export struct TasksScreen {
     Stack({ alignContent: Alignment.TopStart }) {
       Scroll(this.tasks.scrollController()) {
         Column({ space: Space.s16 }) {
+          Scroll() {
+            Row({ space: Space.s6 }) {
+              ForEach(['all', 'active', 'completed', 'failed', 'cancelled'],
+                (status: string, index: number) => {
+                  PillButton({ label: ['全部', '进行中', '已完成', '失败', '已取消'][index]
+                    + ' ' + this.tasks.statusCounts[index].toString(), small: true,
+                    variant: this.tasks.statusFilter === status ? 'primary' : 'ghost',
+                    onAction: (): void => { this.tasks.setStatusFilter(status); } })
+                }, (status: string) => status)
+            }
+          }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+          PillButton({ label: '清理已完成与已取消', small: true, variant: 'ghost',
+            active: this.tasks.statusCounts[2] + this.tasks.statusCounts[4] > 0,
+            onAction: (): void => { this.tasks.clearFinished(); } })
           if (this.tasks.collections.length > 0) {
             Column({ space: Space.s6 }) {
               SettingSelect({
@@ -132,9 +147,11 @@ export struct TasksScreen {
             Column() {
               EmptyState({
                 glyph: 'inbox',
-                heading: this.tasks.collectionFilter === '*' ? '还没有下载任务' : '此来源没有待处理任务',
-                body: this.tasks.collectionFilter === '*' ? '回到「发现」，扫描网页并选择要保存的图片。'
-                  : '已完成的素材可在「图库」按来源查看。'
+                heading: this.tasks.statusFilter !== 'all' ? '此状态下没有任务' :
+                  this.tasks.collectionFilter === '*' ? '还没有下载任务' : '此来源没有待处理任务',
+                body: this.tasks.statusFilter !== 'all' ? '可切换上方状态查看其他任务。' :
+                  this.tasks.collectionFilter === '*' ? '回到「发现」，扫描网页并选择要保存的图片。'
+                    : '已完成的素材可在「图库」按来源查看。'
               })
             }
             .width('100%')
@@ -163,7 +180,7 @@ export struct TasksScreen {
         heading: '任务',
         caption: this.tasks.caption(),
         actionGlyph: this.tasks.isEmpty() ? '' : 'trash',
-        actionLabel: '清除下载记录',
+        actionLabel: '删除全部下载文件和记录',
         layer: Layout.tbLayerSecondary,
         onAction: (): void => { this.tasks.confirmClearAll(); }
       })

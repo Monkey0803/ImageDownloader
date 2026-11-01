@@ -13,6 +13,11 @@ import { ScreenMetrics } from '../theme/Metrics';
 import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveService';
 import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 
+export class LibraryDateGroup {
+  label: string = '';
+  items: DownloadItem[] = [];
+}
+
 /**
  * 「图库」页的 ViewModel：图片网格 + 压缩包列表 + 搜索 + 分段 + 密度。
  *
@@ -62,6 +67,7 @@ export class LibraryViewModel {
   @Trace scrolled: boolean = false;
   @Trace selecting: boolean = false;
   @Trace selectedIds: string[] = [];
+  @Trace focusedIds: string[] = [];
   @Trace duplicateOpen: boolean = false;
   @Trace contentAnalyzing: boolean = false;
   @Trace contentChecked: boolean = false;
@@ -305,6 +311,7 @@ export class LibraryViewModel {
     this.query = ''; this.sourceQuery = ''; this.formatFilter = '';
     this.collectionFilter = '*';
     this.searchScope = 'all'; this.favoritesOnly = false; this.tagFilter = '';
+    this.focusedIds = [];
   }
 
   /** 重置次级筛选与布局，保留首页搜索框里的关键词。 */
@@ -322,6 +329,7 @@ export class LibraryViewModel {
     this.tagFilter = '';
     this.sortOrder = 'newest';
     this.density = 2;
+    this.focusedIds = [];
   }
 
   @Computed
@@ -384,7 +392,38 @@ export class LibraryViewModel {
     options.order = this.sortOrder; options.favoritesOnly = this.favoritesOnly;
     options.tag = this.tagFilter;
     return LibraryQuery.search(this.downloads, this.catalogEntries, options).filter((item: DownloadItem): boolean =>
-      this.collectionFilter === '*' || item.collectionId === this.collectionFilter);
+      (this.collectionFilter === '*' || item.collectionId === this.collectionFilter)
+        && (this.focusedIds.length === 0 || this.focusedIds.includes(item.id)));
+  }
+
+  imageDateGroups(): LibraryDateGroup[] {
+    if (this.sortOrder !== 'newest' && this.sortOrder !== 'oldest') {
+      const group: LibraryDateGroup = new LibraryDateGroup(); group.items = this.images; return [group];
+    }
+    const groups: LibraryDateGroup[] = [];
+    for (const item of this.images) {
+      const timestamp: number = item.finishedAt > 0 ? item.finishedAt : item.createdAt;
+      const moment: Date = new Date(timestamp);
+      const key: string = timestamp <= 0 ? '日期未知' : moment.getFullYear().toString() + '-'
+        + (moment.getMonth() + 1).toString().padStart(2, '0') + '-'
+        + moment.getDate().toString().padStart(2, '0');
+      let group: LibraryDateGroup | undefined = groups.find((value: LibraryDateGroup): boolean => value.label === key);
+      if (group === undefined) { group = new LibraryDateGroup(); group.label = key; groups.push(group); }
+      group.items.push(item);
+    }
+    return groups;
+  }
+
+  openDuplicateGroup(group: DuplicateGroup): void {
+    const ids: string[] = group.items.filter((item: DownloadItem): boolean =>
+      this.downloads.some((entry: DownloadItem): boolean => entry.id === item.id && entry.status === 'completed'))
+      .map((item: DownloadItem): string => item.id);
+    if (ids.length === 0) { this.ui.say('这组图片已不在图库'); return; }
+    this.clearFilters();
+    this.segment = LIBRARY_IMAGES;
+    this.focusedIds = ids;
+    this.endSelection();
+    this.scrollToTop();
   }
 
   @Computed
