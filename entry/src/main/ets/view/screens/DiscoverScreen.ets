@@ -47,11 +47,13 @@ export struct DiscoverScreen {
   @Event onOpenBrowser: () => void = (): void => {};
   @Event onShowResults: () => void = (): void => {};
   @Event onOpenPreview: (uid: string) => void = (uid: string): void => {};
+  @Event onOpenQuickPreview: (uid: string) => void = (uid: string): void => {};
   @Local private filtersOpen: boolean = false;
+  @Local private quickImageUrl: string = '';
+  private quickMenuResult: WebContextMenuResult | undefined = undefined;
   /** 批量页的导航栈放在入口这一层：push 发生在点击回调里，走 HDS 默认转场动画。 */
   @Local private batchPages: NavPathStack = new NavPathStack();
 
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
@@ -156,6 +158,12 @@ export struct DiscoverScreen {
     return this.settings.lightEffect && this.settings.materialType !== 'none';
   }
 
+  private closeQuickMenu(): void {
+    if (this.quickMenuResult !== undefined) { this.quickMenuResult.closeContextMenu(); }
+    this.quickMenuResult = undefined;
+    this.quickImageUrl = '';
+  }
+
   @Builder
   private expansionControls() {
     if (this.discover.canExpand() || this.discover.expanding) {
@@ -186,7 +194,16 @@ export struct DiscoverScreen {
           .width('100%')
           .height('100%')
           .backgroundColor(Palette.card)
-          .onPageBegin((): void => { this.discover.navigationStarted(); })
+          .onPageBegin((): void => { this.closeQuickMenu(); this.discover.navigationStarted(); })
+          .onContextMenuShow((event: OnContextMenuShowEvent): boolean => {
+            if (!event.param.existsImageContents()) { return false; }
+            const url: string = event.param.getSourceUrl() ?? '';
+            if (!url.startsWith('https://') && !url.startsWith('http://')) { return false; }
+            this.closeQuickMenu();
+            this.quickImageUrl = url;
+            this.quickMenuResult = event.result;
+            return true;
+          })
           .onPageEnd((): void => {
             this.discover.browserPageEnded(this.settings.pictureQuality);
           })
@@ -195,6 +212,33 @@ export struct DiscoverScreen {
               this.discover.navigationFailed(event.error.getErrorInfo());
             }
           })
+        if (this.quickImageUrl.length > 0) {
+          Column({ space: Space.s8 }) {
+            Text('当前网页图片').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            Row({ space: Space.s8 }) {
+              PillButton({ label: '预览图片', variant: 'tonal', small: true,
+                onAction: (): void => {
+                  const url: string = this.quickImageUrl;
+                  this.closeQuickMenu();
+                  const item: PictureItem = this.discover.prepareQuickImage(url);
+                  this.onOpenQuickPreview(item.uid);
+                } })
+              PillButton({ label: '下载这张', variant: 'primary', small: true,
+                onAction: (): void => {
+                  const url: string = this.quickImageUrl;
+                  this.closeQuickMenu();
+                  this.discover.downloadQuickImage(url);
+                } })
+              IconButton({ glyph: 'close', diameter: 36, plain: true,
+                accessibilityLabel: '关闭图片快捷菜单',
+                onAction: (): void => { this.closeQuickMenu(); } })
+            }.width('100%')
+          }
+          .width('100%')
+          .padding(Space.s12)
+          .backgroundColor(Palette.card)
+          .borderRadius(Radius.r8)
+        }
       }
       .width('100%')
       .layoutWeight(1)

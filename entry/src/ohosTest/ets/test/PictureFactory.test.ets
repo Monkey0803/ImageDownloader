@@ -24,5 +24,22 @@ export default function pictureFactoryTest() {
       expect(picture.motionUrl).assertEqual('');
       expect(picture.name).assertEqual('b.jpg');
     });
+
+    it('keeps_page_image_address_when_download_url_is_upgraded', 0, () => {
+      const first: PictureItem[] = PictureFactory.merge([], [{
+        url: 'https://a.example/original.jpg',
+        sourceUrl: 'https://a.example/thumb.jpg',
+        description: ''
+      }]);
+      expect(first[0].sourceUrl).assertEqual('https://a.example/thumb.jpg');
+      expect(first[0].url).assertEqual('https://a.example/original.jpg');
+      const again: PictureItem[] = PictureFactory.merge(first, [{
+        url: 'https://a.example/original.jpg',
+        sourceUrl: 'https://a.example/second-thumb.jpg',
+        description: ''
+      }]);
+      expect(again[0].uid).assertEqual(first[0].uid);
+      expect(again[0].sourceUrl).assertEqual('https://a.example/second-thumb.jpg');
+    });
   });
 }

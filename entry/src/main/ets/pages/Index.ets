@@ -322,6 +322,14 @@ struct Index {
     this.previewOpen = true;
   }
 
+  private openQuickDiscoverPreview(uid: string): void {
+    if (!this.discover.pictures.some((item): boolean => item.uid === uid)) { return; }
+    this.previewPanels.reset();
+    this.previewIds = [uid];
+    this.previewStartId = uid;
+    this.previewOpen = true;
+  }
+
   private closeDiscoverPreview(): void {
     if (!this.previewOpen) { return; }
     this.previewPanels.reset();
@@ -425,7 +433,8 @@ struct Index {
           browserOpen: this.browserOpen,
           onOpenBrowser: (): void => { this.discover.resumeBrowser(); },
           onShowResults: (): void => { this.discover.browserPanel = ''; this.browserOpen = false; },
-          onOpenPreview: (uid: string): void => { this.openDiscoverPreview(uid); }
+          onOpenPreview: (uid: string): void => { this.openDiscoverPreview(uid); },
+          onOpenQuickPreview: (uid: string): void => { this.openQuickDiscoverPreview(uid); }
         })
       }
       .width('100%')

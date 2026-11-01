@@ -727,7 +727,8 @@ caseTest('edited registration keeps copies out of download task lists and badges
     [ets('service/DownloadStore')]: { DownloadStore: { downloads: [edited, original], batches: [], zips: [],
       collections: [], concurrency: 3 } },
     [ets('service/UiPort')]: { UiPort: class {} },
-    [ets('theme/Metrics')]: { ScreenMetrics: {} }
+    [ets('theme/Metrics')]: { ScreenMetrics: {} },
+    [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
   });
   const { TasksViewModel } = nativeLoad(ets('viewmodel/TasksViewModel'));
   const vm = new TasksViewModel();
@@ -745,7 +746,8 @@ caseTest('task status filter ignores hidden cards but retains failures', () => {
     [ets('service/DownloadStore')]: { DownloadStore: { downloads: [done, failed], batches: [], zips: [],
       collections: [], concurrency: 3 } },
     [ets('service/UiPort')]: { UiPort: class {} },
-    [ets('theme/Metrics')]: { ScreenMetrics: {} }
+    [ets('theme/Metrics')]: { ScreenMetrics: {} },
+    [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
   });
   const { TasksViewModel } = nativeLoad(ets('viewmodel/TasksViewModel'));
   const vm = new TasksViewModel(); vm.sync();
@@ -755,6 +757,75 @@ caseTest('task status filter ignores hidden cards but retains failures', () => {
   assert.deepEqual(vm.settled, []);
   vm.setStatusFilter('failed');
   assert.deepEqual(vm.settled.map(x => x.id), ['failed']);
+});
+
+caseTest('retry all failures respects source filter and skips changed records', () => {
+  const same = { id: 'same', origin: 'download', collectionId: 'source-a', batchId: '',
+    status: 'failed', taskHidden: false, error: 'HTTP 403' };
+  const changed = { id: 'changed', origin: 'download', collectionId: 'source-a', batchId: '',
+    status: 'failed', taskHidden: false, error: 'network timeout' };
+  const other = { id: 'other', origin: 'download', collectionId: 'source-b', batchId: '',
+    status: 'failed', taskHidden: false, error: 'HTTP 404' };
+  const batch = { id: 'zip', collectionId: 'source-a', status: 'failed', error: 'HTTP 404' };
+  const calls = [];
+  const store = { downloads: [same, changed, other], batches: [batch], zips: [],
+    collections: [], concurrency: 3,
+    retry: item => { calls.push(item.id); item.status = 'queued'; return true; },
+    retryBatch: id => { calls.push(id); batch.status = 'downloading'; return true; } };
+  const nativeLoad = loader({
+    '@kit.CoreFileKit': { fileUri: { getUriFromPath: path => path } },
+    [ets('service/DownloadStore')]: { DownloadStore: store },
+    [ets('service/UiPort')]: { UiPort: class {} },
+    [ets('theme/Metrics')]: { ScreenMetrics: {} },
+    [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
+  });
+  const { TasksViewModel } = nativeLoad(ets('viewmodel/TasksViewModel'));
+  const vm = new TasksViewModel();
+  vm.attach({ confirm: (_title, _body, _button, callback) => { changed.status = 'completed'; callback(); },
+    say: text => calls.push(text) });
+  vm.setCollectionFilter('source-a');
+  assert.equal(vm.failureSummary.includes('登录或权限 1'), true);
+  assert.equal(vm.failureSummary.includes('链接失效 1'), true);
+  vm.retryAllFailed();
+  assert.deepEqual(calls.slice(0, 2), ['zip', 'same']);
+  assert.equal(calls[2], '已重试 2 项，跳过 1 项');
+  assert.equal(other.status, 'failed');
+});
+
+caseTest('task rows update only changed batch cards when list identity stays stable', () => {
+  const { TaskRow, TaskRows } = load(ets('viewmodel/TaskRows'));
+  const rows = new TaskRows();
+  const events = [];
+  rows.registerDataChangeListener({ onDataReloaded: () => events.push('reload'),
+    onDataChange: index => events.push('changed ' + index) });
+  const heading = new TaskRow(); heading.key = 'heading|batch'; heading.count = 1;
+  const first = new TaskRow(); first.key = 'batch|a'; first.batch = { status: 'downloading', done: 0, failed: 0 };
+  rows.replace([heading, first]);
+  const nextHeading = new TaskRow(); nextHeading.key = 'heading|batch'; nextHeading.count = 1;
+  const changed = new TaskRow(); changed.key = 'batch|a'; changed.batch = { status: 'failed', done: 0, failed: 1 };
+  rows.replace([nextHeading, changed]);
+  assert.deepEqual(events, ['reload', 'changed 1']);
+});
+
+caseTest('hundreds of unchanged task rows do not reload on progress refresh', () => {
+  const { TaskRow, TaskRows } = load(ets('viewmodel/TaskRows'));
+  const rows = new TaskRows();
+  const events = [];
+  rows.registerDataChangeListener({ onDataReloaded: () => events.push('reload'),
+    onDataChange: index => events.push('changed ' + index) });
+  const make = () => Array.from({ length: 500 }, (_, index) => {
+    const row = new TaskRow();
+    row.key = 'task|' + index; row.kind = 'task';
+    row.task = { id: String(index), status: 'running', processed: 0 };
+    row.state = 'running';
+    return row;
+  });
+  rows.replace(make());
+  const refreshed = make();
+  refreshed[310].task.processed = 50;
+  rows.replace(refreshed);
+  assert.deepEqual(events, ['reload']);
+  assert.equal(rows.totalCount(), 500);
 });
 
 caseTest('edited copy survives clearing downloads and remains independently deletable', async () => {

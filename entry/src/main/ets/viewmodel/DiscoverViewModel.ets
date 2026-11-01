@@ -968,6 +968,45 @@ export class DiscoverViewModel {
     this.downloadInspected();
   }
 
+  /** Resolve a long-pressed Web image without changing the user's grid selection. */
+  prepareQuickImage(sourceUrl: string): PictureItem {
+    if (!this.pageUrl.startsWith('http')) {
+      try {
+        const current: string = this.browser.getUrl();
+        if (current.startsWith('https://') || current.startsWith('http://')) { this.pageUrl = current; }
+      } catch (error) {}
+    }
+    const match: PictureItem | undefined = this.pictures.find((item: PictureItem): boolean =>
+      item.sourceUrl === sourceUrl || item.elementUrl === sourceUrl || item.url === sourceUrl);
+    if (match !== undefined) { return match; }
+    const picture: PictureItem = PictureFactory.fromUrl(sourceUrl);
+    picture.selected = false;
+    this.pictures = this.pictures.concat([picture]);
+    this.ui.say('网页图片尚未匹配到扫描原图，将使用当前图片地址');
+    return picture;
+  }
+
+  downloadQuickImage(sourceUrl: string): void {
+    const picture: PictureItem = this.prepareQuickImage(sourceUrl);
+    const enqueue: (allowCompleted: boolean) => void = (allowCompleted: boolean): void => {
+      const copy: PictureItem = PictureFactory.fromUrl(picture.url);
+      copy.name = picture.name;
+      copy.kind = picture.kind;
+      copy.motionUrl = picture.motionUrl;
+      copy.userNamed = picture.userNamed;
+      const result: AdmissionResult = DownloadStore.add([copy], this.pageUrl, this.pageTitle,
+        false, allowCompleted, this.nameMode);
+      this.ui.say(result.added > 0 ? '已加入下载任务，完成后可在图库查看'
+        : result.skippedActive > 0 ? '这张图片已在下载任务中' : '这张图片已下载');
+    };
+    if (this.downloadState(picture) === 'completed') {
+      this.ui.confirm('重新下载图片', '将新增一份下载，不覆盖已有文件。', '重新下载',
+        (): void => { enqueue(true); });
+      return;
+    }
+    enqueue(false);
+  }
+
   inspectionSizeLabel(): string {
     return this.inspectionLoading ? '查询中…'
       : (this.inspectionBytes > 0 ? formatBytes(this.inspectionBytes) + '（已测得）' : '未知');

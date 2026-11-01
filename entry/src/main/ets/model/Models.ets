@@ -23,6 +23,10 @@ export class PictureItem {
   @Trace uid: string = '';
   @Trace id: string = '';
   @Trace url: string = '';
+  /** Current page image address, used to match a long press to an upgraded scan result. */
+  @Trace sourceUrl: string = '';
+  /** The element's src may differ from currentSrc when srcset is active. */
+  @Trace elementUrl: string = '';
   @Trace name: string = '';
   @Trace description: string = '';
   @Trace selected: boolean = false;

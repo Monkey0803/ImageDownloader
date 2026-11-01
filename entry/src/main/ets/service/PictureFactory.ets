@@ -16,6 +16,9 @@ import { Naming } from './Naming';
 export interface ScanImage {
   url: string;
   description: string;
+  /** Address displayed by the page before the original-first upgrade. */
+  sourceUrl?: string;
+  elementUrl?: string;
   candidates?: ImageCandidate[];
   width?: number;
   height?: number;
@@ -55,6 +58,8 @@ export class PictureFactory {
     picture.uid = PictureFactory.nextUid();
     picture.id = url;
     picture.url = url;
+    picture.sourceUrl = url;
+    picture.elementUrl = url;
     picture.selected = true;
     picture.name = Naming.suggested(url, '', 1);
     picture.kind = MediaFormat.mediaKindOf(url);
@@ -67,6 +72,8 @@ export class PictureFactory {
     picture.uid = PictureFactory.nextUid();
     picture.id = image.url;
     picture.url = image.url;
+    picture.sourceUrl = image.sourceUrl ?? image.url;
+    picture.elementUrl = image.elementUrl ?? picture.sourceUrl;
     picture.description = image.description;
     picture.width = image.width ?? 0;
     picture.height = image.height ?? 0;
@@ -96,6 +103,8 @@ export class PictureFactory {
       const image: ScanImage = images[i];
       if (found.has(image.url)) {
         const old: PictureItem = found.get(image.url)!;
+        if (image.sourceUrl !== undefined && image.sourceUrl.length > 0) { old.sourceUrl = image.sourceUrl; }
+        if (image.elementUrl !== undefined && image.elementUrl.length > 0) { old.elementUrl = image.elementUrl; }
         if ((image.width ?? 0) > 0 && (image.height ?? 0) > 0) {
           old.width = image.width ?? 0;
           old.height = image.height ?? 0;

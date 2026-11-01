@@ -1700,6 +1700,14 @@ export class DownloadStore {
     try {
       for (const item of DownloadStore.downloads) {
         if (!DownloadStore.foreground || !DownloadStore.initialized) { break; }
+        const sample: ProgressSample | undefined = DownloadStore.progressSamples.get(item.id);
+        if (item.status === 'running' && item.speedBps > 0 &&
+          (sample === undefined || Date.now() - sample.at > 5000)) {
+          item.speedBps = 0;
+          item.etaSeconds = 0;
+          DownloadStore.progressSamples.delete(item.id);
+          DownloadStore.emit();
+        }
         const taskId: string = item.taskId;
         if (!DownloadStore.acceptsAgentEvent(item, taskId)
           || DownloadStore.pauseRequests.has(item.id) || DownloadStore.resumeRequests.has(item.id)) { continue; }

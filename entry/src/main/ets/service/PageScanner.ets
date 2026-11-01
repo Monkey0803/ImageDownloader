@@ -194,12 +194,15 @@ export class ScanProtocol {
       };
       for (const img of document.images) {
         const description = img.alt || img.title || '';
+        const sourceUrl = absolute(img.currentSrc) || absolute(img.src);
+        const elementUrl = absolute(img.src);
         if (order.length === 0) {
           const sources = [img.currentSrc, img.getAttribute('data-src'), img.getAttribute('data-original'), img.src];
           for (const raw of sources) {
             if (!raw) continue;
             const url = absolute(raw);
-            if (url) found.set(url, { url: url, description: description, ...measured(img, url) });
+            if (url) found.set(url, { url: url, sourceUrl: sourceUrl || url, elementUrl: elementUrl || url,
+              description: description, ...measured(img, url) });
           }
           continue;
         }
@@ -217,8 +220,10 @@ export class ScanProtocol {
         if (!primary) continue;
         if (found.has(primary)) continue;
         found.set(primary, upgrade
-          ? { url: primary, description: description, candidates: candidates, ...measured(img, primary) }
-          : { url: primary, description: description, ...measured(img, primary) });
+          ? { url: primary, sourceUrl: sourceUrl || primary, elementUrl: elementUrl || primary, description: description,
+            candidates: candidates, ...measured(img, primary) }
+          : { url: primary, sourceUrl: sourceUrl || primary, elementUrl: elementUrl || primary,
+            description: description, ...measured(img, primary) });
       }
       const mainTag = document.querySelector('meta[property="og:image"],meta[name="twitter:image"]');
       const mainUrl = mainTag ? absolute(mainTag.getAttribute('content')) : '';
@@ -259,6 +264,8 @@ export class ScanProtocol {
       image.width = typeof image.width === 'number' && image.width > 0 ? Math.floor(image.width) : 0;
       image.height = typeof image.height === 'number' && image.height > 0 ? Math.floor(image.height) : 0;
       image.featured = image.featured === true;
+      image.sourceUrl = typeof image.sourceUrl === 'string' ? image.sourceUrl : image.url;
+      image.elementUrl = typeof image.elementUrl === 'string' ? image.elementUrl : image.sourceUrl;
       const candidates: ImageCandidate[] = [];
       const received: ImageCandidate[] | undefined = image.candidates;
       if (received !== undefined && Array.isArray(received)) {
