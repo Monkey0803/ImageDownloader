@@ -120,7 +120,7 @@ struct Viewer {
     }
     this.getUIContext().showAlertDialog({
       title: '删除图片',
-      message: '将同时删除应用内文件和下载记录，已导出的副本不受影响。',
+      message: '图片将移入最近删除，30 天内可恢复；已导出的副本不受影响。',
       backgroundColor: SheetStyle.background(),
       systemMaterial: SheetStyle.dialogMaterial(),
       primaryButton: {

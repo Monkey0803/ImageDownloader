@@ -20,13 +20,14 @@ import { StillFrames } from './StillFrames';
 import { WidgetForms } from '../widget/WidgetForms';
 import { WidgetSnapshot } from '../widget/WidgetSnapshot';
 import { EditResult, EditTicket } from '../model/ImageEditDocument';
-import { AnalysisToken, AssetStamp } from '../model/LibraryAsset';
+import { AnalysisToken, AssetStamp, LibraryMeta } from '../model/LibraryAsset';
 import { EditJournal } from './EditJournal';
 import { LIBRARY_CATALOG } from './LibraryCatalog';
 import { WebIdentity } from './WebIdentity';
 import { PreviewGeometry, PreviewSize } from '../util/PreviewGeometry';
 import { AdmissionPlan, AdmissionResult, DownloadAdmission } from './DownloadAdmission';
 import { CollectionNames } from './CollectionNames';
+import { TRASH_STORE, TrashEntry } from './TrashStore';
 
 interface ProgressSample {
   bytes: number;
@@ -170,6 +171,20 @@ export class DownloadStore {
       }
       DownloadStore.adopt(parsed ?? new SavedState());
     }
+    try {
+      TRASH_STORE.initialize(context.filesDir);
+      for (const entry of TRASH_STORE.list()) {
+        const inNormal: boolean = DownloadStore.downloads.some((item: DownloadItem): boolean => item.id === entry.id)
+          || DownloadStore.zips.some((item: ZipItem): boolean => item.id === entry.id);
+        if (entry.restoreTargets.length > 0) {
+          if (inNormal) {
+            LIBRARY_CATALOG.restoreMetaSnapshot(entry.id, entry.meta ?? new LibraryMeta())
+              .then((): void => TRASH_STORE.finish(entry.id)).catch((): void => {});
+          } else { TRASH_STORE.rollbackRestore(entry); }
+        } else if (inNormal) { TRASH_STORE.rollbackPending(entry); }
+      }
+      TRASH_STORE.purgeExpired();
+    } catch (error) { DownloadStore.saveProblem = '最近删除读取失败，请检查应用数据'; }
     DownloadStore.initialized = true;
     DownloadStore.recovering = true;
     DownloadStore.recover().finally((): void => {
@@ -293,12 +308,13 @@ export class DownloadStore {
    * 默认出口：状态跃迁（完成 / 失败 / 取消 / 重试）、增删记录、改设置、清空都用它 ——
    * 这些变化晚一秒落盘都可能真的丢东西。高频的下载进度请用 `notifyProgress()`。
    */
-  static notify(): void {
+  static notify(): boolean {
     // 立刻写盘就等于把排队中的那次合并写盘取代了，先撤掉定时器，免得再白写一遍。
     DownloadStore.cancelPendingSave();
-    DownloadStore.save();
+    const saved: boolean = DownloadStore.save();
     DownloadStore.publishWidget();
     DownloadStore.emit();
+    return saved;
   }
 
   /**
@@ -1949,4 +1965,101 @@ export class DownloadStore {
     DownloadStore.notify();
     return true;
   }
+
+  /** Gallery deletion is reversible; the task-page clear action still uses clearAll(). */
+  static trashDownload(item: DownloadItem): boolean {
+    if (item.status !== 'completed' || !DownloadStore.exists(item.path) ||
+      LIBRARY_CATALOG.loading || LIBRARY_CATALOG.loadError.length > 0) { return false; }
+    const state: SavedState = new SavedState(); state.downloads = [item];
+    const entry: TrashEntry = new TrashEntry();
+    entry.id = item.id; entry.kind = 'image'; entry.name = item.name;
+    entry.deletedAt = Date.now(); entry.bytes = item.size + item.auxSize;
+    entry.snapshot = StoreState.serialize(state); entry.meta = LIBRARY_CATALOG.getMeta(item.id);
+    entry.previewOriginal = item.kind === 'livephoto' ? item.stillPath : item.path;
+    entry.originals = [item.path];
+    if (item.kind === 'livephoto' && DownloadStore.exists(DownloadStore.livePhotoDir(item.id))) {
+      entry.originals.push(DownloadStore.livePhotoDir(item.id));
+    }
+    if (!TRASH_STORE.move(entry)) { return false; }
+    const priorCollections: CollectionRecord[] = DownloadStore.collections.slice();
+    DownloadStore.downloads = DownloadStore.downloads.filter((value: DownloadItem): boolean => value.id !== item.id);
+    DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);
+    DownloadStore.pruneCollections();
+    StillFrames.forget(item.path); StillFrames.forget(item.stillPath);
+    if (!DownloadStore.notify()) {
+      DownloadStore.downloads.unshift(item);
+      DownloadStore.collections = priorCollections;
+      TRASH_STORE.rollbackPending(entry);
+      DownloadStore.notify();
+      return false;
+    }
+    return true;
+  }
+
+  static trashZip(item: ZipItem): boolean {
+    if (!DownloadStore.exists(item.path)) { return false; }
+    const state: SavedState = new SavedState(); state.zips = [item];
+    const entry: TrashEntry = new TrashEntry();
+    entry.id = item.id; entry.kind = 'zip'; entry.name = item.name;
+    entry.deletedAt = Date.now(); entry.bytes = item.size;
+    entry.snapshot = StoreState.serialize(state); entry.originals = [item.path];
+    if (!TRASH_STORE.move(entry)) { return false; }
+    const priorCollections: CollectionRecord[] = DownloadStore.collections.slice();
+    DownloadStore.zips = DownloadStore.zips.filter((value: ZipItem): boolean => value.id !== item.id);
+    DownloadStore.removeEmptyCollectionDir(item.path, item.collectionFolder);
+    DownloadStore.pruneCollections();
+    if (!DownloadStore.notify()) {
+      DownloadStore.zips.unshift(item);
+      DownloadStore.collections = priorCollections;
+      TRASH_STORE.rollbackPending(entry);
+      DownloadStore.notify();
+      return false;
+    }
+    return true;
+  }
+
+  static async restoreTrash(id: string): Promise<boolean> {
+    const entry: TrashEntry | undefined = TRASH_STORE.get(id);
+    if (entry === undefined) { return false; }
+    const normalImage: boolean = DownloadStore.downloads.some((item: DownloadItem): boolean => item.id === id);
+    const normalZip: boolean = DownloadStore.zips.some((zip: ZipItem): boolean => zip.id === id);
+    if (normalImage || normalZip) {
+      if (entry.restoreTargets.length === 0 || (entry.kind === 'image' && !normalImage)
+        || (entry.kind === 'zip' && !normalZip)) { return false; }
+      if (normalImage) { await LIBRARY_CATALOG.restoreMetaSnapshot(id, entry.meta ?? new LibraryMeta()); }
+      TRASH_STORE.finish(id);
+      return true;
+    }
+    const state: SavedState = StoreState.normalized(StoreState.parse(entry.snapshot) ?? new SavedState());
+    if ((entry.kind === 'image' && state.downloads.length !== 1)
+      || (entry.kind === 'zip' && state.zips.length !== 1)) { return false; }
+    const paths: string[] | undefined = TRASH_STORE.restoreFiles(entry);
+    if (paths === undefined) { return false; }
+    if (entry.kind === 'image' && state.downloads.length === 1) {
+      const item: DownloadItem = state.downloads[0];
+      item.path = paths[0]; item.name = paths[0].substring(paths[0].lastIndexOf('/') + 1);
+      if (paths.length > 1) {
+        item.stillPath = item.stillPath.replace(entry.originals[1], paths[1]);
+        item.motionPath = item.motionPath.replace(entry.originals[1], paths[1]);
+      }
+      DownloadStore.downloads.unshift(item);
+      if (!DownloadStore.notify()) {
+        DownloadStore.downloads = DownloadStore.downloads.filter((value: DownloadItem): boolean => value.id !== id);
+        TRASH_STORE.rollbackRestore(entry); DownloadStore.notify(); return false;
+      }
+      await LIBRARY_CATALOG.restoreMetaSnapshot(id, entry.meta ?? new LibraryMeta());
+    } else if (entry.kind === 'zip' && state.zips.length === 1) {
+      const zip: ZipItem = state.zips[0];
+      zip.path = paths[0]; zip.name = paths[0].substring(paths[0].lastIndexOf('/') + 1);
+      DownloadStore.zips.unshift(zip);
+      if (!DownloadStore.notify()) {
+        DownloadStore.zips = DownloadStore.zips.filter((value: ZipItem): boolean => value.id !== id);
+        TRASH_STORE.rollbackRestore(entry); DownloadStore.notify(); return false;
+      }
+    } else { return false; }
+    TRASH_STORE.finish(id);
+    return true;
+  }
+
+  static purgeTrash(id: string): boolean { return TRASH_STORE.purge(id); }
 }

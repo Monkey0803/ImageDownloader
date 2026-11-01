@@ -41,6 +41,7 @@ function harness(options = {}) {
   }
   const component = vm.runInNewContext(javascript, {
     AnimationDockActions: class {}, AnimationPlayback: Playback,
+    FrameSaveViewModel: class { start() {} stop() {} reset() {} },
     ImageFit: { Contain: 'contain' },
     Image(source, aiOptions, reloadKey) {
       const request = { source, reloadKey };

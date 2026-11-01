@@ -34,5 +34,34 @@ export default function libraryCatalogTest() {
         try { fs.rmdirSync(folder); } catch (error) { }
       }
     });
+    it('keeps_multi_album_membership_across_reload_and_deletes_album_only', 0, async () => {
+      const root: string = abilityDelegatorRegistry.getAbilityDelegator().getAppContext().filesDir;
+      const folder: string = root + '/album-test-' + Date.now().toString();
+      const imagePath: string = folder + '/sample.png';
+      fs.mkdirSync(folder, true);
+      try {
+        const file: fs.File = fs.openSync(imagePath, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+        fs.writeSync(file.fd, 'sample-image'); fs.closeSync(file);
+        const item: DownloadItem = new DownloadItem();
+        item.id = 'sample'; item.name = 'sample.png'; item.path = imagePath; item.status = 'completed';
+        const catalog: LibraryCatalog = new LibraryCatalog(); await catalog.initialize(folder);
+        await catalog.reconcile([item]);
+        await catalog.createAlbum('作品'); await catalog.createAlbum('收藏集');
+        const first: string = catalog.userAlbums()[0].id;
+        const second: string = catalog.userAlbums()[1].id;
+        await catalog.setAlbum(['sample'], first, true);
+        await catalog.setAlbum(['sample'], second, true);
+        const reloaded: LibraryCatalog = new LibraryCatalog(); await reloaded.initialize(folder);
+        expect(reloaded.getMeta('sample').albumIds.length).assertEqual(2);
+        await reloaded.deleteAlbum(first);
+        expect(reloaded.getMeta('sample').albumIds[0]).assertEqual(second);
+        expect(fs.accessSync(imagePath)).assertTrue();
+      } finally {
+        try { fs.unlinkSync(imagePath); } catch (error) { }
+        try { fs.unlinkSync(folder + '/library-catalog.json'); } catch (error) { }
+        try { fs.rmdirSync(folder + '/library-index'); } catch (error) { }
+        try { fs.rmdirSync(folder); } catch (error) { }
+      }
+    });
   });
 }

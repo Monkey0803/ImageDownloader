@@ -80,6 +80,8 @@ export class DownloadItem {
   @Trace etaSeconds: number = 0;
   /** Final on-disk byte count, recorded when the download completes. */
   @Trace size: number = 0;
+  /** Last confirmed export to a user-selected system location. */
+  @Trace exportedAt: number = 0;
   @Trace error: string = '';
   @Trace createdAt: number = 0;
   /** When the download finished, used for the gallery's timestamp. */
@@ -123,6 +125,8 @@ export class ZipItem {
   @Trace imageCount: number = 0;
   @Trace failedCount: number = 0;
   @Trace size: number = 0;
+  /** Last confirmed export to a user-selected system location. */
+  @Trace exportedAt: number = 0;
   @Trace createdAt: number = 0;
   /** Source URLs of a few members, kept only to draw the stacked preview. */
   @Trace thumbs: string[] = [];

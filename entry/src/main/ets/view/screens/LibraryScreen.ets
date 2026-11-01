@@ -1,5 +1,9 @@
 import { DownloadItem, ZipItem } from '../../model/Models';
 import { LibraryText } from '../../util/LibraryText';
+import { UserAlbum } from '../../model/LibraryAsset';
+import { CollectionSummary } from '../../service/CollectionGroups';
+import { TrashEntry } from '../../service/TrashStore';
+import { fileUri } from '@kit.CoreFileKit';
 import { LibraryDateGroup, LibraryViewModel } from '../../viewmodel/LibraryViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
@@ -9,6 +13,7 @@ import { SheetStyle } from '../../theme/SheetStyle';
 import { TransparentGlass } from '../../theme/TransparentGlass';
 import { Glyph } from '../Icons';
 import { ArchiveCard, ShotTile } from '../Cards';
+import { Thumb } from '../Thumb';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
 import { LibraryOrganizeSheet } from '../LibraryOrganizeSheet';
 import { ImageTagDialog } from '../ImageTagDialog';
@@ -29,6 +34,8 @@ export struct LibraryScreen {
   @Param active: boolean = false;
   @Local private tagDialogOpen: boolean = false;
   @Local private sheet: string = '';
+  @Local private albumDraft: string = '';
+  @Local private albumRenameId: string = '';
   private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -71,6 +78,7 @@ export struct LibraryScreen {
   private activeOptionCount(): number {
     let count: number = this.library.sortOrder === 'newest' ? 0 : 1;
     if (this.library.collectionFilter !== '*') { count++; }
+    if (this.library.albumFilter !== '*') { count++; }
     if (this.library.isZips()) { return count; }
     if (this.library.formatFilter.length > 0) { count++; }
     if (this.library.sourceQuery.length > 0) { count++; }
@@ -84,6 +92,7 @@ export struct LibraryScreen {
   private hasImageFilter(): boolean {
     return this.library.query.length > 0 || this.library.sourceQuery.length > 0
       || this.library.collectionFilter !== '*'
+      || this.library.albumFilter !== '*'
       || this.library.formatFilter.length > 0 || this.library.favoritesOnly
       || this.library.tagFilter.length > 0;
   }
@@ -119,6 +128,82 @@ export struct LibraryScreen {
     if (this.library.extractZipId.length > 0) { return 'extract'; }
     if (this.tagDialogOpen) { return 'tag'; }
     return this.sheet;
+  }
+
+  @Builder
+  private albumsContent() {
+    Column({ space: Space.s12 }) {
+      Text('自建相册只保存归类，不移动或复制图片。')
+        .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+      Row({ space: Space.s8 }) {
+        TextInput({ placeholder: this.albumRenameId.length > 0 ? '新的相册名' : '新建相册名称', text: this.albumDraft })
+          .layoutWeight(1).onChange((value: string): void => { this.albumDraft = value; })
+        PillButton({ label: this.albumRenameId.length > 0 ? '保存改名' : '创建', small: true,
+          onAction: (): void => {
+            if (this.albumRenameId.length > 0) { this.library.renameAlbum(this.albumRenameId, this.albumDraft); }
+            else { this.library.createAlbum(this.albumDraft); }
+            this.albumDraft = ''; this.albumRenameId = '';
+          } })
+      }.width('100%')
+      ForEach(this.library.albums, (album: UserAlbum) => {
+        Column({ space: Space.s6 }) {
+          Row({ space: Space.s6 }) {
+            Text(album.name).fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
+            PillButton({ label: '查看', small: true, variant: 'tonal',
+              onAction: (): void => { this.library.albumFilter = album.id; this.sheet = ''; } })
+            PillButton({ label: '改名', small: true, variant: 'ghost',
+              onAction: (): void => { this.albumRenameId = album.id; this.albumDraft = album.name; } })
+            PillButton({ label: '删除', small: true, variant: 'ghost',
+              onAction: (): void => { this.library.deleteAlbum(album.id); } })
+          }.width('100%')
+          if (this.library.selecting && this.library.visibleSelectedCount > 0) {
+            Row({ space: Space.s8 }) {
+              PillButton({ label: '将已选加入', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.setSelectedAlbum(album.id, true); } })
+              PillButton({ label: '将已选移出', small: true, variant: 'ghost',
+                onAction: (): void => { this.library.setSelectedAlbum(album.id, false); } })
+            }.width('100%')
+          }
+        }.width('100%').alignItems(HorizontalAlign.Start)
+      }, (album: UserAlbum) => album.id)
+      if (this.library.albums.length === 0) {
+        Text('还没有自建相册').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+      }
+    }.width('100%').alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  private trashContent() {
+    Column({ space: Space.s12 }) {
+      Text(this.library.trashEntries.length.toString() + ' 项 · ' + formatBytes(this.library.trashEntries.reduce(
+        (bytes: number, entry: TrashEntry): number => bytes + entry.bytes, 0)) + ' · 保留 30 天')
+        .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+      if (this.library.trashEntries.length > 0) {
+        PillButton({ label: '清空最近删除', small: true, variant: 'danger',
+          onAction: (): void => { this.library.clearTrash(); } })
+      }
+      ForEach(this.library.trashEntries, (entry: TrashEntry) => {
+        Row({ space: Space.s8 }) {
+          if (entry.kind === 'image' && entry.previewPath.length > 0) {
+            Thumb({ src: fileUri.getUriFromPath(entry.previewPath), label: '图片' })
+              .width(48).height(48).borderRadius(Radius.r6)
+          } else {
+            Glyph({ glyph: 'archive', glyphSize: 28, glyphTone: TransparentGlass.secondary() })
+              .width(48).height(48)
+          }
+          Text((entry.kind === 'zip' ? 'ZIP · ' : '图片 · ') + entry.name)
+            .fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+          PillButton({ label: '恢复', small: true, variant: 'tonal',
+            onAction: (): void => { this.library.restoreTrash(entry.id); } })
+          PillButton({ label: '永久删除', small: true, variant: 'ghost',
+            onAction: (): void => { this.library.permanentlyDeleteTrash(entry.id); } })
+        }.width('100%')
+      }, (entry: TrashEntry) => entry.id)
+      if (this.library.trashEntries.length === 0) {
+        Text('最近删除是空的').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+      }
+    }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
   @Builder
@@ -165,7 +250,8 @@ export struct LibraryScreen {
     } else {
       Column({ space: Space.s12 }) {
         Row({ space: Space.s8 }) {
-          Text(this.sheet === 'filter' ? '筛选与排序' : '查找与整理')
+          Text(this.sheet === 'filter' ? '筛选与排序' : this.sheet === 'albums' ? '自建相册' :
+            this.sheet === 'trash' ? '最近删除' : '查找与整理')
             .fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(TransparentGlass.foreground())
             .layoutWeight(1)
           IconButton({ glyph: 'close', plain: true, diameter: 36, tone: TransparentGlass.foreground(),
@@ -175,6 +261,10 @@ export struct LibraryScreen {
           ListItem() {
             if (this.sheet === 'filter') {
               LibraryFilterSheet({ library: this.library })
+            } else if (this.sheet === 'albums') {
+              this.albumsContent()
+            } else if (this.sheet === 'trash') {
+              this.trashContent()
             } else {
               LibraryOrganizeSheet({ library: this.library,
                 onOpenGroup: (): void => { this.sheet = ''; } })
@@ -223,6 +313,8 @@ export struct LibraryScreen {
           PillButton({ label: '编辑标签', variant: 'ghost', small: true,
             onAction: (): void => { this.tagDialogOpen = true; } })
         }.width('100%')
+        PillButton({ label: '加入或移出相册', variant: 'ghost', small: true,
+          onAction: (): void => { this.sheet = 'albums'; } })
       }
       }.width('100%')
     }
@@ -240,6 +332,10 @@ export struct LibraryScreen {
                   image: cell,
                   favorite: this.library.entry(cell.id).favorite,
                   tags: this.library.entry(cell.id).tags,
+                  exportedAt: cell.exportedAt,
+                  albumNames: this.library.albums.filter((album: UserAlbum): boolean =>
+                    this.library.entry(cell.id).albumIds.includes(album.id))
+                    .map((album: UserAlbum): string => album.name),
                   snippet: this.library.query.length > 0
                     ? LibraryText.snippet(this.library.entry(cell.id).text, this.library.query, 64) : '',
                   dense: this.library.density === 3,
@@ -351,6 +447,33 @@ export struct LibraryScreen {
           })
 
           this.searchTools()
+          if (!this.library.isZips()) {
+            Scroll() {
+              Row({ space: Space.s6 }) {
+                PillButton({ label: this.library.favoritesOnly ? '★ 仅收藏' : '☆ 收藏', small: true,
+                  variant: this.library.favoritesOnly ? 'primary' : 'ghost',
+                  onAction: (): void => { this.library.favoritesOnly = !this.library.favoritesOnly; } })
+                PillButton({ label: '相册', small: true, variant: 'ghost',
+                  onAction: (): void => { this.sheet = 'albums'; } })
+                ForEach(this.library.collections, (group: CollectionSummary) => {
+                  PillButton({ label: group.name, small: true,
+                    variant: this.library.collectionFilter === group.id ? 'primary' : 'ghost',
+                    onAction: (): void => {
+                      this.library.collectionFilter = this.library.collectionFilter === group.id ? '*' : group.id;
+                    } })
+                }, (group: CollectionSummary) => group.id)
+                ForEach(this.library.existingTags(), (tag: string) => {
+                  PillButton({ label: '#' + tag, small: true,
+                    variant: this.library.tagFilter === tag ? 'primary' : 'ghost',
+                    onAction: (): void => { this.library.tagFilter = this.library.tagFilter === tag ? '' : tag; } })
+                }, (tag: string) => tag)
+              }
+            }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+          }
+          Row({ space: Space.s8 }) {
+            PillButton({ label: '最近删除 ' + this.library.trashEntries.length.toString(), small: true,
+              variant: 'ghost', onAction: (): void => { this.library.refreshTrash(); this.sheet = 'trash'; } })
+          }
           if (this.library.query.length > 0 || this.activeOptionCount() > 0 || this.library.focusedIds.length > 0) {
             Column({ space: Space.s6 }) {
               Text('当前结果 ' + (this.library.isZips() ? this.library.archives.length : this.library.images.length)
@@ -364,6 +487,10 @@ export struct LibraryScreen {
                 if (this.library.collectionFilter !== '*') {
                   PillButton({ label: '来源分组 ×', small: true, variant: 'tonal',
                     onAction: (): void => { this.library.collectionFilter = '*'; } })
+                }
+                if (this.library.albumFilter !== '*') {
+                  PillButton({ label: '相册 ×', small: true, variant: 'tonal',
+                    onAction: (): void => { this.library.albumFilter = '*'; } })
                 }
                 if (this.library.focusedIds.length > 0) {
                   PillButton({ label: '重复候选 ×', small: true, variant: 'tonal',
@@ -444,9 +571,9 @@ export struct LibraryScreen {
     .width('100%')
     .height('100%')
     .bindSheet(this.active && this.activeSheet().length > 0, this.sheetContent(), {
-      height: this.activeSheet() === 'organize' ? undefined
+      height: this.activeSheet() === 'organize' || this.activeSheet() === 'albums' || this.activeSheet() === 'trash' ? undefined
         : this.activeSheet() === 'filter' ? SheetSize.MEDIUM : SheetSize.FIT_CONTENT,
-      detents: this.activeSheet() === 'organize'
+      detents: this.activeSheet() === 'organize' || this.activeSheet() === 'albums' || this.activeSheet() === 'trash'
         ? [SheetSize.MEDIUM, SheetSize.LARGE] : undefined,
       scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       dragBar: true,

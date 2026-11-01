@@ -6,6 +6,7 @@ import { SheetStyle } from '../theme/SheetStyle';
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { IconButton, PillButton } from './Widgets';
 import { ImageTagDialog } from './ImageTagDialog';
+import { UserAlbum } from '../model/LibraryAsset';
 
 @ComponentV2
 export struct PreviewTools {
@@ -125,6 +126,28 @@ export struct PreviewTools {
           this.metadataRow('动态范围', 'range')
           this.metadataRow('文件大小', 'bytes')
           this.metadataRow('下载时间', 'downloadedAt')
+          if (this.asset.libraryId.length > 0) {
+            Text('应用内原件可用').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+            if (this.vm.receiptMessage.length > 0 && this.vm.receiptMessage !== '原件保存在应用内') {
+              Text(this.vm.receiptMessage).fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+            }
+            if (this.vm.exportedAt > 0) {
+              Text('曾导出 · ' + new Date(this.vm.exportedAt).toLocaleString())
+                .fontSize(Font.caption).fontColor(TransparentGlass.secondary())
+            }
+            if (this.vm.receiptStatus === 'failed' || this.vm.receiptStatus === 'cancelled'
+              || this.vm.receiptStatus === 'interrupted') {
+              PillButton({ label: '重试另存', small: true, variant: 'tonal',
+                onAction: (): void => {
+                  if (this.vm.receiptStatus !== 'interrupted') { this.vm.retryDelivery(); return; }
+                  this.getUIContext().showAlertDialog({ title: '再次另存',
+                    message: '上次保存结果未确认。请先检查目标位置，避免产生重复副本。',
+                    primaryButton: { value: '取消', action: (): void => {} },
+                    secondaryButton: { value: '仍要另存', action: (): void => { this.vm.retryDelivery(); } }
+                  });
+                } })
+            }
+          }
           if (this.vm.isLivepicStill()) {
             Text('实况照片：网页只提供静图，动态部分不可用')
               .fontSize(Font.caption).fontColor(TransparentGlass.secondary()).width('100%')
@@ -159,6 +182,14 @@ export struct PreviewTools {
             }
             Text(this.vm.tags.length > 0 ? this.vm.tags.join('、') : '尚无标签')
               .fontSize(Font.caption).fontColor(TransparentGlass.secondary()).width('100%')
+            if (this.vm.albums.length > 0) {
+              Text('加入相册').fontSize(Font.aux).fontColor(TransparentGlass.secondary())
+              ForEach(this.vm.albums, (album: UserAlbum) => {
+                PillButton({ label: (this.vm.albumIds.includes(album.id) ? '✓ ' : '+ ') + album.name,
+                  small: true, variant: this.vm.albumIds.includes(album.id) ? 'primary' : 'tonal',
+                  onAction: (): void => { this.vm.toggleAlbum(album.id); } })
+              }, (album: UserAlbum) => album.id)
+            }
           } else {
             Text('下载后可收藏和添加标签').fontSize(Font.caption).fontColor(TransparentGlass.secondary())
           }

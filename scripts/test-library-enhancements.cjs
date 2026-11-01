@@ -1336,6 +1336,7 @@ function libraryVmHarness(config = {}) {
   const mocks = {
     [sourceFile('service/DownloadStore')]: { DownloadStore: FakeStore },
     [sourceFile('service/LibraryCatalog')]: { LIBRARY_CATALOG: h.catalog },
+    [sourceFile('service/TrashStore')]: { TRASH_STORE: { list: () => [], purgeExpired: () => 0 }, TrashEntry: class {} },
     [sourceFile('service/LibraryAnalysis')]: { LibraryAnalysis: FakeAnalysis },
     [sourceFile('service/ZipArchiveService')]: { ZipArchiveService: class {}, ZipExtractResult: class {} },
     [sourceFile('service/FileActions')]: {},

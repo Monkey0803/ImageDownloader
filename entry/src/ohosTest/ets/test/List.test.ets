@@ -20,6 +20,7 @@ import pageExpansionTest from './PageExpansion.test';
 import saveReceiptTest from './SaveReceipt.test';
 import batchViewTest from './BatchView.test';
 import libraryCatalogTest from './LibraryCatalog.test';
+import trashStoreTest from './TrashStore.test';
 
 import libraryVisionTest from './LibraryVision.test';
 import imageEditTest from './ImageEdit.test';
@@ -56,6 +57,7 @@ export default function testsuite() {
   saveReceiptTest();
   batchViewTest();
   libraryCatalogTest();
+  trashStoreTest();
   libraryVisionTest();
   imageEditTest();
   editRegistrationTest();

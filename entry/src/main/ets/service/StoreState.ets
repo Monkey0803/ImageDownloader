@@ -57,6 +57,7 @@ class DownloadWire {
   processed: number = 0;
   total: number = 0;
   size: number = 0;
+  exportedAt: number = 0;
   error: string = '';
   createdAt: number = 0;
   finishedAt: number = 0;
@@ -83,6 +84,7 @@ class ZipWire {
   imageCount: number = 0;
   failedCount: number = 0;
   size: number = 0;
+  exportedAt: number = 0;
   createdAt: number = 0;
   thumbs: string[] = [];
 }
@@ -150,6 +152,7 @@ export class StoreState {
       out.processed = item.processed;
       out.total = item.total;
       out.size = item.size;
+      out.exportedAt = item.exportedAt;
       out.error = item.error;
       out.createdAt = item.createdAt;
       out.finishedAt = item.finishedAt;
@@ -177,6 +180,7 @@ export class StoreState {
       out.imageCount = zip.imageCount;
       out.failedCount = zip.failedCount;
       out.size = zip.size;
+      out.exportedAt = zip.exportedAt;
       out.createdAt = zip.createdAt;
       out.thumbs = zip.thumbs;
       return out;
@@ -257,6 +261,7 @@ export class StoreState {
       item.processed = orNumber(entry.processed, 0);
       item.total = orNumber(entry.total, 0);
       item.size = orNumber(entry.size, 0);
+      item.exportedAt = orNumber(entry.exportedAt, 0);
       item.error = orString(entry.error, '');
       item.createdAt = orNumber(entry.createdAt, 0);
       item.finishedAt = orNumber(entry.finishedAt, item.createdAt);
@@ -285,6 +290,7 @@ export class StoreState {
       zip.imageCount = orNumber(entry.imageCount, 0);
       zip.failedCount = orNumber(entry.failedCount, 0);
       zip.size = orNumber(entry.size, 0);
+      zip.exportedAt = orNumber(entry.exportedAt, 0);
       zip.createdAt = orNumber(entry.createdAt, 0);
       // `??` 同时兜 undefined 与 null（`=== undefined` 放不过 null，见 model/Models.ets 的说明）。
       zip.thumbs = entry.thumbs ?? [];

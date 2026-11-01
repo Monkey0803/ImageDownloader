@@ -1,5 +1,5 @@
 import { PreviewAsset } from '../model/PreviewAsset';
-import { AnalysisToken, LibraryIndex } from '../model/LibraryAsset';
+import { AnalysisToken, LibraryIndex, UserAlbum } from '../model/LibraryAsset';
 import { DownloadItem } from '../model/Models';
 import { DownloadStore } from '../service/DownloadStore';
 import { ImageMetadata, ImageTools } from '../service/ImageTools';
@@ -19,6 +19,11 @@ export class PreviewToolsViewModel {
   @Trace codes: string[] = [];
   @Trace favorite: boolean = false;
   @Trace tags: string[] = [];
+  @Trace albums: UserAlbum[] = [];
+  @Trace albumIds: string[] = [];
+  @Trace exportedAt: number = 0;
+  @Trace receiptMessage: string = '';
+  @Trace receiptStatus: string = '';
 
   private asset: PreviewAsset = new PreviewAsset();
   private generation: number = 0;
@@ -26,10 +31,12 @@ export class PreviewToolsViewModel {
   private recognitionToken: AnalysisToken | undefined = undefined;
   private superResolutionToken: AnalysisToken | undefined = undefined;
   private catalogListener: () => void = (): void => { this.refreshMeta(); };
+  private storeListener: () => void = (): void => { this.refreshMeta(); };
 
   start(asset: PreviewAsset): void {
     this.alive = true;
     LIBRARY_CATALOG.subscribe(this.catalogListener);
+    DownloadStore.subscribe(this.storeListener);
     this.load(asset);
   }
 
@@ -41,6 +48,7 @@ export class PreviewToolsViewModel {
     this.superResolutionToken?.cancel();
     this.superResolutionToken = undefined;
     LIBRARY_CATALOG.unsubscribe(this.catalogListener);
+    DownloadStore.unsubscribe(this.storeListener);
   }
 
   load(asset: PreviewAsset): void {
@@ -70,10 +78,31 @@ export class PreviewToolsViewModel {
 
   private refreshMeta(): void {
     const id: string = this.asset.libraryId;
-    if (id.length === 0) { this.favorite = false; this.tags = []; return; }
+    if (id.length === 0) {
+      this.favorite = false; this.tags = []; this.albumIds = []; this.albums = [];
+      this.exportedAt = 0; this.receiptMessage = ''; this.receiptStatus = ''; return;
+    }
     const meta = LIBRARY_CATALOG.getMeta(id);
     this.favorite = meta.favorite;
     this.tags = meta.tags;
+    this.albumIds = meta.albumIds;
+    this.albums = LIBRARY_CATALOG.userAlbums();
+    const item: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean => entry.id === id);
+    this.exportedAt = item?.exportedAt ?? 0;
+    this.receiptMessage = item?.receipt?.message ?? '';
+    this.receiptStatus = item?.receipt?.status ?? '';
+  }
+
+  async toggleAlbum(albumId: string): Promise<void> {
+    if (this.asset.libraryId.length === 0) { return; }
+    try { await LIBRARY_CATALOG.setAlbum([this.asset.libraryId], albumId, !this.albumIds.includes(albumId)); this.refreshMeta(); }
+    catch (error) { this.noticeGroup = 'manage'; this.notice = '相册归类失败'; }
+  }
+
+  retryDelivery(): void {
+    const item: DownloadItem | undefined = DownloadStore.downloads.find((entry: DownloadItem): boolean =>
+      entry.id === this.asset.libraryId);
+    if (item !== undefined) { DownloadStore.retryDelivery(item); }
   }
 
   async toggleFavorite(): Promise<void> {

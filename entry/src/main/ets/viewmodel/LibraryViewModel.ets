@@ -4,7 +4,7 @@ import { DownloadStore } from '../service/DownloadStore';
 import { ActionOutcome, ExportEntry, exportFile, exportFiles, shareFile, shareFiles } from '../service/FileActions';
 import { UiPort } from '../service/UiPort';
 import { LibraryQuery } from '../service/LibraryQuery';
-import { AnalysisProgress, AnalysisToken, LibrarySearchEntry, LibrarySearchOptions, SimilarGroup } from '../model/LibraryAsset';
+import { AnalysisProgress, AnalysisToken, LibrarySearchEntry, LibrarySearchOptions, SimilarGroup, UserAlbum } from '../model/LibraryAsset';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { LibraryAnalysis } from '../service/LibraryAnalysis';
 import { LibraryText } from '../util/LibraryText';
@@ -12,6 +12,7 @@ import { ContentScanResult, DuplicateFinder, DuplicateGroup } from '../service/D
 import { ScreenMetrics } from '../theme/Metrics';
 import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveService';
 import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
+import { TRASH_STORE, TrashEntry } from '../service/TrashStore';
 
 export class LibraryDateGroup {
   label: string = '';
@@ -42,6 +43,9 @@ export class LibraryViewModel {
   @Trace catalogReady: boolean = false;
   @Trace catalogError: string = '';
   @Trace catalogEntries: LibrarySearchEntry[] = [];
+  @Trace albums: UserAlbum[] = [];
+  @Trace albumFilter: string = '*';
+  @Trace trashEntries: TrashEntry[] = [];
   @Trace ocrScope: string = 'current';
   @Trace ocrAnalyzing: boolean = false;
   @Trace ocrProgress: AnalysisProgress = new AnalysisProgress();
@@ -248,6 +252,7 @@ export class LibraryViewModel {
     this.catalogReady = !LIBRARY_CATALOG.loading && LIBRARY_CATALOG.loadError.length === 0;
     this.catalogError = LIBRARY_CATALOG.loadError;
     this.catalogEntries = LIBRARY_CATALOG.entries(this.downloads);
+    this.albums = LIBRARY_CATALOG.userAlbums();
   }
 
   async refreshCatalog(): Promise<void> {
@@ -310,6 +315,7 @@ export class LibraryViewModel {
   clearFilters(): void {
     this.query = ''; this.sourceQuery = ''; this.formatFilter = '';
     this.collectionFilter = '*';
+    this.albumFilter = '*';
     this.searchScope = 'all'; this.favoritesOnly = false; this.tagFilter = '';
     this.focusedIds = [];
   }
@@ -323,6 +329,7 @@ export class LibraryViewModel {
     }
     this.sourceQuery = '';
     this.collectionFilter = '*';
+    this.albumFilter = '*';
     this.formatFilter = '';
     this.searchScope = 'all';
     this.favoritesOnly = false;
@@ -393,6 +400,7 @@ export class LibraryViewModel {
     options.tag = this.tagFilter;
     return LibraryQuery.search(this.downloads, this.catalogEntries, options).filter((item: DownloadItem): boolean =>
       (this.collectionFilter === '*' || item.collectionId === this.collectionFilter)
+        && (this.albumFilter === '*' || LIBRARY_CATALOG.getMeta(item.id).albumIds.includes(this.albumFilter))
         && (this.focusedIds.length === 0 || this.focusedIds.includes(item.id)));
   }
 
@@ -496,6 +504,7 @@ export class LibraryViewModel {
     const before: string = this.duplicateSignature(this.downloads);
     this.downloads = DownloadStore.downloads.slice();
     this.zips = DownloadStore.zips.slice();
+    this.trashEntries = TRASH_STORE.list();
     if (this.collectionFilter !== '*' && !this.collections.some((group: CollectionSummary): boolean =>
       group.id === this.collectionFilter)) { this.collectionFilter = '*'; }
     const nextCatalogSignature: string = this.downloads.filter((item: DownloadItem): boolean =>
@@ -582,7 +591,24 @@ export class LibraryViewModel {
   exportSelected(): void {
     const entries: ExportEntry[] = this.selectedEntries();
     if (entries.length === 0) { return; }
-    exportFiles(this.ui.context(), entries).then((outcome: ActionOutcome): void => this.report(outcome));
+    const zipIds: string[] = this.isZips() ? this.archives.filter((zip: ZipItem): boolean =>
+      this.isSelected(zip.id)).map((zip: ZipItem): string => zip.id) : [];
+    const ids: string[] = this.isZips() ? [] : this.images.filter((item: DownloadItem): boolean =>
+      this.isSelected(item.id)).map((item: DownloadItem): string => item.id);
+    exportFiles(this.ui.context(), entries).then((outcome: ActionOutcome): void => {
+      for (const index of outcome.exportedIndices ?? []) {
+        const image: DownloadItem | undefined = this.downloads.find((item: DownloadItem): boolean => item.id === ids[index]);
+        if (image !== undefined) { image.exportedAt = Date.now(); }
+      }
+      if (zipIds.length > 0) {
+        for (const index of outcome.exportedIndices ?? []) {
+          const zip: ZipItem | undefined = this.zips.find((item: ZipItem): boolean => item.id === zipIds[index]);
+          if (zip !== undefined) { zip.exportedAt = Date.now(); }
+        }
+      }
+      if ((outcome.exportedIndices ?? []).length > 0) { DownloadStore.notify(); }
+      this.report(outcome);
+    });
   }
 
   shareSelected(): void {
@@ -599,12 +625,12 @@ export class LibraryViewModel {
     const selectedZips: ZipItem[] = this.archives.filter((item: ZipItem): boolean => ids.includes(item.id));
     const count: number = deletingZips ? selectedZips.length : selectedImages.length;
     if (count === 0) { return; }
-    this.ui.confirm('删除所选文件', '将删除 ' + count.toString()
-      + ' 个应用内文件及对应记录，已导出的副本不受影响。', '删除', (): void => {
+    this.ui.confirm('移入最近删除', '将 ' + count.toString()
+      + ' 个应用内文件移入最近删除，30 天内可恢复。已导出的副本不受影响。', '移入', (): void => {
       if (deletingZips) {
         let failed: number = 0;
         selectedZips.forEach((item: ZipItem): void => {
-          if (!DownloadStore.deleteZip(item)) { failed++; }
+          if (!DownloadStore.trashZip(item)) { failed++; }
         });
         if (failed > 0) {
           this.endSelection();
@@ -614,7 +640,7 @@ export class LibraryViewModel {
       } else {
         let failed: number = 0;
         selectedImages.forEach((item: DownloadItem): void => {
-          if (!DownloadStore.deleteDownload(item)) { failed++; }
+          if (!DownloadStore.trashDownload(item)) { failed++; }
         });
         if (failed > 0) {
           this.endSelection();
@@ -623,7 +649,8 @@ export class LibraryViewModel {
         }
       }
       this.endSelection();
-      this.ui.say('已删除 ' + count.toString() + ' 个文件');
+      this.trashEntries = TRASH_STORE.list();
+      this.ui.say('已移入最近删除 ' + count.toString() + ' 个文件');
     });
   }
 
@@ -717,14 +744,70 @@ export class LibraryViewModel {
   }
 
   confirmDeleteZip(item: ZipItem): void {
-    this.ui.confirm('删除压缩包', '将同时删除压缩包文件和记录，已导出的副本不受影响。', '删除', (): void => {
-      this.ui.say(DownloadStore.deleteZip(item) ? '已删除压缩包' : '文件未能删除，记录已保留，请重试');
+    this.ui.confirm('移入最近删除', '压缩包将保留 30 天；已导出的副本不受影响。', '移入', (): void => {
+      this.ui.say(DownloadStore.trashZip(item) ? '已移入最近删除' : '文件未能移入最近删除，记录已保留');
+      this.trashEntries = TRASH_STORE.list();
     });
   }
 
   exportZip(item: ZipItem): void {
     exportFile(this.ui.context(), item.path, item.name).then((outcome: ActionOutcome): void => {
+      if (outcome.ok) { item.exportedAt = Date.now(); DownloadStore.notify(); }
       this.report(outcome);
+    });
+  }
+
+  existingTags(): string[] {
+    return Array.from(new Set(this.catalogEntries.flatMap((entry: LibrarySearchEntry): string[] => entry.tags)))
+      .sort((a: string, b: string): number => a.localeCompare(b));
+  }
+
+  async createAlbum(name: string): Promise<void> {
+    try { await LIBRARY_CATALOG.createAlbum(name); this.catalogChanged(); this.ui.say('相册已创建'); }
+    catch (error) { this.ui.say(String(error)); }
+  }
+
+  async renameAlbum(id: string, name: string): Promise<void> {
+    try { await LIBRARY_CATALOG.renameAlbum(id, name); this.catalogChanged(); this.ui.say('相册已改名'); }
+    catch (error) { this.ui.say(String(error)); }
+  }
+
+  deleteAlbum(id: string): void {
+    this.ui.confirm('删除相册', '只删除相册归类，图片文件仍留在图库。', '删除相册', (): void => {
+      LIBRARY_CATALOG.deleteAlbum(id).then((): void => {
+        if (this.albumFilter === id) { this.albumFilter = '*'; }
+        this.catalogChanged(); this.ui.say('相册已删除，图片仍在图库');
+      }).catch((): void => this.ui.say('相册删除失败'));
+    });
+  }
+
+  async setSelectedAlbum(albumId: string, member: boolean): Promise<void> {
+    const ids: string[] = this.images.filter((item: DownloadItem): boolean => this.isSelected(item.id))
+      .map((item: DownloadItem): string => item.id);
+    if (ids.length === 0) { return; }
+    try { await LIBRARY_CATALOG.setAlbum(ids, albumId, member); this.catalogChanged(); this.ui.say(member ? '已加入相册' : '已移出相册'); }
+    catch (error) { this.ui.say('相册归类失败'); }
+  }
+
+  refreshTrash(): void { TRASH_STORE.purgeExpired(); this.trashEntries = TRASH_STORE.list(); }
+  async restoreTrash(id: string): Promise<void> {
+    try {
+      this.ui.say(await DownloadStore.restoreTrash(id) ? '已恢复到图库' : '恢复失败，请检查文件');
+    } catch (error) { this.ui.say('恢复失败，最近删除中的文件仍保留'); }
+    this.trashEntries = TRASH_STORE.list();
+  }
+  permanentlyDeleteTrash(id: string): void {
+    this.ui.confirm('永久删除', '此操作无法恢复，已导出的外部副本不受影响。', '永久删除', (): void => {
+      this.ui.say(DownloadStore.purgeTrash(id) ? '已永久删除' : '删除失败，请重试');
+      this.trashEntries = TRASH_STORE.list();
+    });
+  }
+  clearTrash(): void {
+    this.ui.confirm('清空最近删除', '将永久删除最近删除中的全部应用内文件，无法恢复。', '清空', (): void => {
+      let failed: number = 0;
+      for (const entry of TRASH_STORE.list()) { if (!DownloadStore.purgeTrash(entry.id)) { failed++; } }
+      this.trashEntries = TRASH_STORE.list();
+      this.ui.say(failed === 0 ? '最近删除已清空' : failed.toString() + ' 个文件未能删除');
     });
   }
 

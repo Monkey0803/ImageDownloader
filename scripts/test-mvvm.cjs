@@ -17,7 +17,7 @@ function viewerHarness() {
     subscribe: (listener) => listeners.add(listener),
     unsubscribe: (listener) => listeners.delete(listener),
     renameDownload: (item, name) => { item.name = name; listeners.forEach((listener) => listener()); return true; },
-    deleteDownload: (item) => {
+    trashDownload: (item) => {
       const index = records.indexOf(item);
       if (index < 0) return false;
       records.splice(index, 1);
@@ -92,7 +92,9 @@ test('preview tools ignore metadata from a previously selected image', async () 
   class ImageMetadata { constructor() { this.width = 0; this.height = 0; } }
   const load = loader({
     [modulePath('model/LibraryAsset')]: { AnalysisToken: class { cancel() {} } },
-    [modulePath('service/DownloadStore')]: { DownloadStore: { downloads: [], exists: () => false } },
+    [modulePath('service/DownloadStore')]: { DownloadStore: {
+      downloads: [], exists: () => false, subscribe: () => {}, unsubscribe: () => {}
+    } },
     [modulePath('service/ImageTools')]: { ImageMetadata, ImageTools: {
       metadata: (file) => new Promise((resolve) => pending.set(file, resolve)),
       copy: async () => {}, link: () => '', open: async () => {}
@@ -103,7 +105,7 @@ test('preview tools ignore metadata from a previously selected image', async () 
     [modulePath('service/LibraryCatalog')]: { LIBRARY_CATALOG: {
       subscribe: (listener) => listeners.add(listener),
       unsubscribe: (listener) => listeners.delete(listener),
-      getMeta: () => ({ favorite: false, tags: [] })
+      getMeta: () => ({ favorite: false, tags: [], albumIds: [] }), userAlbums: () => []
     } },
     [modulePath('service/LibraryAnalysis')]: { LibraryAnalysis: {} },
     [modulePath('service/MediaFormat')]: { MediaFormat: { isLivepicStill: () => false } }
@@ -133,13 +135,16 @@ test('preview tools cancel library OCR when the selected image changes', async (
   const downloads = [{ id: 'first', status: 'completed', path: '/first' }];
   const load = loader({
     [modulePath('model/LibraryAsset')]: { AnalysisToken },
-    [modulePath('service/DownloadStore')]: { DownloadStore: { downloads } },
+    [modulePath('service/DownloadStore')]: { DownloadStore: {
+      downloads, subscribe: () => {}, unsubscribe: () => {}
+    } },
     [modulePath('service/ImageTools')]: { ImageMetadata, ImageTools: {
       metadata: async () => new ImageMetadata()
     } },
     [modulePath('service/ImageSuperResolution')]: { ImageSuperResolution: {} },
     [modulePath('service/LibraryCatalog')]: { LIBRARY_CATALOG: {
-      subscribe: () => {}, unsubscribe: () => {}, getMeta: () => ({ favorite: false, tags: [] }),
+      subscribe: () => {}, unsubscribe: () => {}, getMeta: () => ({ favorite: false, tags: [], albumIds: [] }),
+      userAlbums: () => [],
       getIndex: () => undefined
     } },
     [modulePath('service/LibraryAnalysis')]: { LibraryAnalysis: {

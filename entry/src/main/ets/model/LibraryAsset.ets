@@ -13,6 +13,13 @@ export class LibraryMeta {
   id: string = '';
   favorite: boolean = false;
   tags: string[] = [];
+  albumIds: string[] = [];
+}
+
+export class UserAlbum {
+  id: string = '';
+  name: string = '';
+  createdAt: number = 0;
 }
 
 export class VisualFeature {
@@ -42,6 +49,7 @@ export class LibrarySearchEntry {
   id: string = '';
   favorite: boolean = false;
   tags: string[] = [];
+  albumIds: string[] = [];
   text: string = '';
   ocrStatus: string = 'unindexed';
 }

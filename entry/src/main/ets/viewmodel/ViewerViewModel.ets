@@ -127,7 +127,7 @@ export class ViewerViewModel {
     const nextIds: string[] = this.slides.slice(this.index + 1).map((slide: ViewerSlide): string => slide.id);
     const previousIds: string[] = this.slides.slice(0, this.index).reverse()
       .map((slide: ViewerSlide): string => slide.id);
-    if (!DownloadStore.deleteDownload(item)) { throw new Error('文件未能删除，记录已保留，请重试'); }
+    if (!DownloadStore.trashDownload(item)) { throw new Error('图片或图库信息暂不可用，记录已保留，请重试'); }
     const neighbor: string | undefined = nextIds.find((id: string): boolean => this.order.includes(id))
       ?? previousIds.find((id: string): boolean => this.order.includes(id));
     if (neighbor === undefined) { return true; }
@@ -163,6 +163,9 @@ export class ViewerViewModel {
 
   async export(context: common.UIAbilityContext): Promise<ActionOutcome> {
     const item: DownloadItem | undefined = this.item();
-    return item === undefined ? { ok: false, message: '' } : await exportFile(context, item.path, item.name);
+    if (item === undefined) { return { ok: false, message: '' }; }
+    const outcome: ActionOutcome = await exportFile(context, item.path, item.name);
+    if (outcome.ok) { item.exportedAt = Date.now(); DownloadStore.notify(); }
+    return outcome;
   }
 }

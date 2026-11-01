@@ -24,6 +24,8 @@ export interface ActionOutcome {
   /** 存相册时用于区分首次取消与部分完成；其它文件操作不填写。 */
   savedCount?: number;
   remainingCount?: number;
+  /** Files actually copied by a batch export, in input order. */
+  exportedIndices?: number[];
   /**
    * 用户在系统弹窗上主动取消（目前只有「保存到相册」的确认框会走到这里）。
    *
@@ -181,12 +183,14 @@ export async function exportFiles(context: common.UIAbilityContext, entries: Exp
     for (let index: number = 0; index < entries.length; index++) {
       const outcome: ActionOutcome = await copyInto(entries[index].path, targets[index]);
       if (!outcome.ok) {
-        return { ok: false, message: '已导出 ' + copied.toString() + '/' + entries.length.toString()
+        return { ok: false, exportedIndices: entries.slice(0, copied).map((entry: ExportEntry, index: number): number => index),
+          message: '已导出 ' + copied.toString() + '/' + entries.length.toString()
           + ' 个文件；剩余文件失败：' + outcome.message };
       }
       copied++;
     }
-    return { ok: true, message: '已导出 ' + copied.toString() + ' 个文件' };
+    return { ok: true, exportedIndices: entries.map((entry: ExportEntry, index: number): number => index),
+      message: '已导出 ' + copied.toString() + ' 个文件' };
   } catch (error) {
     return { ok: false, message: '批量导出失败：' + String(error) };
   }

@@ -130,6 +130,8 @@ export struct ShotTile {
   @Require @Param image: DownloadItem;
   @Param favorite: boolean = false;
   @Param tags: string[] = [];
+  @Param albumNames: string[] = [];
+  @Param exportedAt: number = 0;
   @Param snippet: string = '';
   /** @Prop：密度是运行时切换的（标题栏那颗九宫格按钮），普通成员刷不进来。 */
   @Param dense: boolean = false;
@@ -235,6 +237,15 @@ export struct ShotTile {
               .fontSize(11).fontColor(Palette.fontSecondary)
               .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
           }
+        }
+        if (!this.dense && this.albumNames.length > 0) {
+          Text(this.albumNames.slice(0, 2).join(' · ')).fontSize(11).fontColor(Palette.fontSecondary)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        if (!this.dense && this.exportedAt > 0) {
+          Text('曾导出 · ' + formatMoment(this.exportedAt, Date.now()))
+            .fontSize(11).fontColor(Palette.fontTertiary)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         if (this.snippet.length > 0) {
           Text(this.snippet).fontSize(11).fontColor(Palette.fontSecondary)
@@ -376,8 +387,15 @@ export struct TaskCard {
           if (this.task.recoveryMessage.length > 0 && this.isActive()) {
             Text(this.task.recoveryMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
           }
-          if (this.task.status === 'completed' && this.receiptText().length > 0) {
-            Text(this.receiptText()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          if (this.task.status === 'completed') {
+            Text('应用内原件可用').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            if (this.receiptText().length > 0) {
+              Text(this.receiptText()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            }
+            if (this.task.exportedAt > 0) {
+              Text('曾导出 · ' + formatMoment(this.task.exportedAt, Date.now()))
+                .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            }
             if (this.task.receipt.status === 'failed' || this.task.receipt.status === 'cancelled'
               || this.task.receipt.status === 'interrupted') {
               PillButton({ label: '重试另存', variant: 'ghost', small: true,
@@ -704,6 +722,10 @@ export struct ArchiveCard {
           if (this.zip.receipt.message.length > 0) {
             Text(this.zip.receipt.message).fontSize(Font.caption).fontColor(Palette.fontSecondary)
           }
+          if (this.zip.exportedAt > 0) {
+            Text('曾导出 · ' + formatMoment(this.zip.exportedAt, Date.now()))
+              .fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          }
           if (!this.selecting && (this.zip.receipt.status === 'failed' || this.zip.receipt.status === 'interrupted')) {
             PillButton({ label: '重试另存', variant: 'ghost', small: true,
               onAction: (): void => { this.onRetryDelivery(this.zip); } })
@@ -904,10 +926,13 @@ export struct ImageViewer {
   @Local private actionDockHeight: number = 80;
   @Local private backgroundMode: string = 'auto';
   @Local private fitCommand: string = '';
+  @Local private moreOpen: boolean = false;
+  @Local private dockWidth: number = 360;
   private fitSequence: number = 0;
   @Monitor('index')
   private onCurrentIndexChanged(monitor: IMonitor): void {
     this.zoomed = false;
+    this.moreOpen = false;
   }
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   /** 滑动换图时把新下标交回预览页（V2 里双向数据流的标准写法）。 */
@@ -997,6 +1022,24 @@ export struct ImageViewer {
   @Builder
   private actionDock(actions: AnimationDockActions) {
     Column() {
+      if (this.moreOpen && this.actionable) {
+        Column({ space: Space.s8 }) {
+          if (this.dockWidth < 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
+            PillButton({ label: '适合屏幕', block: true, variant: 'tonal',
+              onAction: (): void => { this.moreOpen = false; this.requestFit('screen'); } })
+            PillButton({ label: '原始像素', block: true, variant: 'tonal',
+              onAction: (): void => { this.moreOpen = false; this.requestFit('native'); } })
+          }
+          if (this.renameAllowed) {
+            PillButton({ label: '重命名', block: true, variant: 'tonal',
+              onAction: (): void => { this.moreOpen = false; this.onRename(); } })
+          }
+          PillButton({ label: '导出到系统目录', block: true, variant: 'tonal',
+            onAction: (): void => { this.moreOpen = false; this.onExport(); } })
+          PillButton({ label: '移入最近删除', block: true, variant: 'danger',
+            onAction: (): void => { this.moreOpen = false; this.onDelete(); } })
+        }.width('100%').padding(Space.s12).backgroundColor('#EE222222').borderRadius(Radius.r6)
+      }
       if (actions.notice.length > 0 || this.hint.length > 0) {
         Text(actions.notice.length > 0 ? actions.notice : this.hint)
           .fontSize(Font.aux)
@@ -1008,12 +1051,9 @@ export struct ImageViewer {
       }
       if (this.actionable) {
         Row() {
-          if (this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
+          if (this.dockWidth >= 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
             this.action('scan', '适合屏幕', false, (): void => { this.requestFit('screen'); })
             this.action('image', '原始像素', false, (): void => { this.requestFit('native'); })
-          }
-          if (this.renameAllowed) {
-            this.action('pencil', '重命名', false, this.onRename)
           }
           if (actions.available) {
             if (actions.canPause) {
@@ -1023,8 +1063,7 @@ export struct ImageViewer {
           }
           this.action('download', '存相册', false, this.onSaveToGallery)
           this.action('share', '分享', false, this.onShare)
-          this.action('export', '导出', false, this.onExport)
-          this.action('trash', '删除', true, this.onDelete)
+          this.action('list', '更多', false, (): void => { this.moreOpen = !this.moreOpen; })
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceAround)
@@ -1036,6 +1075,7 @@ export struct ImageViewer {
       .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
         // 底部渐变层额外留了 24vp 渐隐头，缩放控件要一起让开。
         this.actionDockHeight = Number(newSize.height) + Space.s24;
+        this.dockWidth = Number(newSize.width);
       })
   }
 
@@ -1059,10 +1099,10 @@ export struct ImageViewer {
                 label: slide.label, active: this.foreground && slideIndex === this.index && !this.panels.comparison, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
                 showFitControls: false, fitCommand: this.fitCommand,
                 backgroundMode: this.backgroundMode,
-                onTapImage: (): void => { this.controlsShown = !this.controlsShown; },
+                onTapImage: (): void => { this.controlsShown = !this.controlsShown; this.moreOpen = false; },
                 onZoomChange: (value: boolean): void => { this.zoomed = value; } })
             } else {
-              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
+              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; this.moreOpen = false; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
                 allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
                 dockedControls: slide.animated,
                 bottomActions: (actions: AnimationDockActions): void => { this.actionDock(actions); } })
@@ -1073,6 +1113,7 @@ export struct ImageViewer {
           .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
             if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
               this.controlsShown = !this.controlsShown;
+              this.moreOpen = false;
             }
           }))
         }, (slide: ViewerSlide) => slide.id)
@@ -1092,7 +1133,7 @@ export struct ImageViewer {
               showCounter: this.slideCounter().length > 0, emphasized: true,
               detailsLabel: '图片详情与工具',
               onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
-              onDetails: (): void => { this.panels.tools = true; },
+              onDetails: (): void => { this.moreOpen = false; this.panels.tools = true; },
               onClose: (): void => { this.onClose(); } })
           }
           .width('100%')

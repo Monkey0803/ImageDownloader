@@ -1,12 +1,13 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { DownloadItem } from '../model/Models';
-import { AssetStamp, LibraryIndex, LibraryMeta, LibrarySearchEntry, VisualFeature } from '../model/LibraryAsset';
+import { AssetStamp, LibraryIndex, LibraryMeta, LibrarySearchEntry, UserAlbum, VisualFeature } from '../model/LibraryAsset';
 import { LibraryText } from '../util/LibraryText';
 
 class CatalogWire {
-  version: number = 1;
+  version: number = 2;
   metas: LibraryMeta[] = [];
+  albums: UserAlbum[] = [];
 }
 
 /** User metadata is small; recognition text and visual features live in per-image shards. */
@@ -16,6 +17,7 @@ export class LibraryCatalog {
   private initTask: Promise<void> | undefined = undefined;
   private pending: Promise<void> = Promise.resolve();
   private metas: Map<string, LibraryMeta> = new Map();
+  private albums: Map<string, UserAlbum> = new Map();
   private indexes: Map<string, LibraryIndex> = new Map();
   private active: Map<string, AssetStamp> = new Map();
   private listeners: Set<() => void> = new Set();
@@ -31,6 +33,7 @@ export class LibraryCatalog {
     this.initTask = this.load().catch((): void => {
       this.loadError = '图库整理信息读取失败';
       this.metas.clear();
+      this.albums.clear();
       this.indexes.clear();
       this.initTask = undefined;
       this.emit();
@@ -50,13 +53,19 @@ export class LibraryCatalog {
       const catalogPath: string = this.dir + '/library-catalog.json';
       if (fs.accessSync(catalogPath)) {
         const wire: CatalogWire = JSON.parse(fs.readTextSync(catalogPath));
-        if (wire.version !== 1 || !Array.isArray(wire.metas)) {
+        if ((wire.version !== 1 && wire.version !== 2) || !Array.isArray(wire.metas)) {
           throw new Error('图库目录版本不受支持');
         }
         for (const raw of wire.metas) {
           if (typeof raw.id !== 'string' || raw.id.length === 0) { continue; }
           const meta: LibraryMeta = this.restoreMeta(raw);
           this.metas.set(meta.id, meta);
+        }
+        for (const raw of wire.albums ?? []) {
+          if (typeof raw.id !== 'string' || typeof raw.name !== 'string' || raw.name.trim().length === 0) { continue; }
+          const album: UserAlbum = new UserAlbum();
+          album.id = raw.id; album.name = raw.name; album.createdAt = raw.createdAt || 0;
+          this.albums.set(album.id, album);
         }
       }
       let loaded: number = 0;
@@ -88,6 +97,7 @@ export class LibraryCatalog {
     meta.favorite = raw.favorite === true;
     meta.tags = Array.isArray(raw.tags) ? LibraryText.tags(raw.tags.filter((tag: string): boolean =>
       typeof tag === 'string')) : [];
+    meta.albumIds = Array.isArray(raw.albumIds) ? raw.albumIds.filter((id: string): boolean => typeof id === 'string') : [];
     return meta;
   }
 
@@ -154,6 +164,7 @@ export class LibraryCatalog {
   private saveMetas(next: Map<string, LibraryMeta>): void {
     const wire: CatalogWire = new CatalogWire();
     wire.metas = Array.from(next.values()).map((meta: LibraryMeta): LibraryMeta => this.restoreMeta(meta));
+    wire.albums = Array.from(this.albums.values());
     this.writeAtomic(this.dir + '/library-catalog.json', JSON.stringify(wire));
     this.metas = next;
     this.emit();
@@ -177,6 +188,92 @@ export class LibraryCatalog {
     return current === undefined ? new LibraryMeta() : this.restoreMeta(current);
   }
 
+  userAlbums(): UserAlbum[] { return Array.from(this.albums.values()).sort((a: UserAlbum, b: UserAlbum): number => a.createdAt - b.createdAt); }
+
+  private saveAlbums(next: Map<string, UserAlbum>): void {
+    const wire: CatalogWire = new CatalogWire();
+    wire.metas = Array.from(this.metas.values()).map((meta: LibraryMeta): LibraryMeta => this.restoreMeta(meta));
+    wire.albums = Array.from(next.values());
+    this.writeAtomic(this.dir + '/library-catalog.json', JSON.stringify(wire));
+    this.albums = next;
+    this.emit();
+  }
+
+  async createAlbum(rawName: string): Promise<void> {
+    await this.ready();
+    return this.enqueue((): void => {
+      const name: string = rawName.trim();
+      if (name.length === 0 || name.length > 40 || this.userAlbums().some((album: UserAlbum): boolean =>
+        album.name.toLowerCase() === name.toLowerCase())) { throw new Error('相册名称为空、过长或已存在'); }
+      const album: UserAlbum = new UserAlbum();
+      album.id = 'album-' + Date.now().toString() + '-' + this.albums.size.toString();
+      album.name = name; album.createdAt = Date.now();
+      const next: Map<string, UserAlbum> = new Map(this.albums); next.set(album.id, album);
+      this.saveAlbums(next);
+    });
+  }
+
+  async renameAlbum(id: string, rawName: string): Promise<void> {
+    await this.ready();
+    return this.enqueue((): void => {
+      const old: UserAlbum | undefined = this.albums.get(id);
+      const name: string = rawName.trim();
+      if (old === undefined || name.length === 0 || name.length > 40 || this.userAlbums().some(
+        (album: UserAlbum): boolean => album.id !== id && album.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error('相册名称为空、过长或已存在');
+      }
+      const album: UserAlbum = new UserAlbum(); album.id = id; album.name = name; album.createdAt = old.createdAt;
+      const next: Map<string, UserAlbum> = new Map(this.albums); next.set(id, album); this.saveAlbums(next);
+    });
+  }
+
+  async deleteAlbum(id: string): Promise<void> {
+    await this.ready();
+    return this.enqueue((): void => {
+      if (!this.albums.has(id)) { return; }
+      const next: Map<string, LibraryMeta> = new Map(this.metas);
+      for (const key of next.keys()) {
+        const value: LibraryMeta | undefined = next.get(key);
+        if (value === undefined) { continue; }
+        if (value.albumIds.includes(id)) {
+          const meta: LibraryMeta = this.restoreMeta(value);
+          meta.albumIds = meta.albumIds.filter((albumId: string): boolean => albumId !== id);
+          next.set(key, meta);
+        }
+      }
+      const albums: Map<string, UserAlbum> = new Map(this.albums); albums.delete(id);
+      const wire: CatalogWire = new CatalogWire(); wire.metas = Array.from(next.values()); wire.albums = Array.from(albums.values());
+      this.writeAtomic(this.dir + '/library-catalog.json', JSON.stringify(wire));
+      this.metas = next; this.albums = albums; this.emit();
+    });
+  }
+
+  async setAlbum(ids: string[], albumId: string, member: boolean): Promise<void> {
+    await this.ready();
+    return this.enqueue((): void => {
+      if (!this.albums.has(albumId)) { throw new Error('相册已不存在'); }
+      const next: Map<string, LibraryMeta> = new Map(this.metas);
+      for (const id of ids) {
+        if (!this.active.has(id)) { continue; }
+        const meta: LibraryMeta = this.getMeta(id); meta.id = id;
+        meta.albumIds = member ? Array.from(new Set(meta.albumIds.concat(albumId)))
+          : meta.albumIds.filter((value: string): boolean => value !== albumId);
+        next.set(id, meta);
+      }
+      this.saveMetas(next);
+    });
+  }
+
+  async restoreMetaSnapshot(id: string, snapshot: LibraryMeta): Promise<void> {
+    await this.ready();
+    return this.enqueue((): void => {
+      const next: Map<string, LibraryMeta> = new Map(this.metas);
+      const meta: LibraryMeta = this.restoreMeta(snapshot); meta.id = id;
+      meta.albumIds = meta.albumIds.filter((albumId: string): boolean => this.albums.has(albumId));
+      next.set(id, meta); this.saveMetas(next);
+    });
+  }
+
   getIndex(id: string): LibraryIndex | undefined {
     const current: LibraryIndex | undefined = this.indexes.get(id);
     return current === undefined ? undefined : this.restoreIndex(current);
@@ -190,6 +287,7 @@ export class LibraryCatalog {
       const index: LibraryIndex | undefined = this.getIndex(item.id);
       const entry: LibrarySearchEntry = new LibrarySearchEntry();
       entry.id = item.id; entry.favorite = meta.favorite; entry.tags = meta.tags;
+      entry.albumIds = meta.albumIds;
       entry.text = index === undefined ? '' : index.text;
       entry.ocrStatus = index === undefined ? 'unindexed' : index.ocrStatus;
       result.push(entry);
