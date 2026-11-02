@@ -13,6 +13,7 @@ import { ScreenMetrics } from '../theme/Metrics';
 import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveService';
 import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 import { TRASH_STORE, TrashEntry } from '../service/TrashStore';
+import { TapShare } from '../service/TapShare';
 
 export class LibraryDateGroup {
   label: string = '';
@@ -63,6 +64,7 @@ export class LibraryViewModel {
   @Trace density: number = 2;
   /** 'images' | 'zips' */
   @Trace segment: string = LIBRARY_IMAGES;
+  @Trace tapSharing: boolean = false;
   @Trace extractZipId: string = '';
   @Trace extractTarget: string = '';
   @Trace extractEncrypted: boolean = false;
@@ -313,6 +315,7 @@ export class LibraryViewModel {
   }
 
   clearFilters(): void {
+    this.stopTapShare();
     this.query = ''; this.sourceQuery = ''; this.formatFilter = '';
     this.collectionFilter = '*';
     this.albumFilter = '*';
@@ -322,6 +325,7 @@ export class LibraryViewModel {
 
   /** 重置次级筛选与布局，保留首页搜索框里的关键词。 */
   resetOptions(): void {
+    this.stopTapShare();
     if (this.isZips()) {
       this.sortOrder = 'newest';
       this.collectionFilter = '*';
@@ -533,6 +537,7 @@ export class LibraryViewModel {
 
   /** 关键词变了：只重算搜索相关的结果，不动统计。 */
   setQuery(value: string): void {
+    this.stopTapShare();
     this.query = value;
   }
 
@@ -541,6 +546,7 @@ export class LibraryViewModel {
   }
 
   setSegment(value: string): void {
+    this.stopTapShare();
     this.segment = value;
     this.selecting = false;
     this.selectedIds = [];
@@ -551,6 +557,7 @@ export class LibraryViewModel {
   }
 
   endSelection(): void {
+    this.stopTapShare();
     this.selecting = false;
     this.selectedIds = [];
   }
@@ -560,12 +567,14 @@ export class LibraryViewModel {
   }
 
   toggleSelection(id: string): void {
+    this.stopTapShare();
     this.selectedIds = this.isSelected(id)
       ? this.selectedIds.filter((selected: string): boolean => selected !== id)
       : this.selectedIds.concat(id);
   }
 
   selectVisible(): void {
+    this.stopTapShare();
     const ids: string[] = this.isZips()
       ? this.archives.map((item: ZipItem): string => item.id)
       : this.images.map((item: DownloadItem): string => item.id);
@@ -573,6 +582,7 @@ export class LibraryViewModel {
   }
 
   clearVisibleSelection(): void {
+    this.stopTapShare();
     const ids: string[] = this.isZips()
       ? this.archives.map((item: ZipItem): string => item.id)
       : this.images.map((item: DownloadItem): string => item.id);
@@ -589,6 +599,7 @@ export class LibraryViewModel {
   }
 
   exportSelected(): void {
+    this.stopTapShare();
     const entries: ExportEntry[] = this.selectedEntries();
     if (entries.length === 0) { return; }
     const zipIds: string[] = this.isZips() ? this.archives.filter((zip: ZipItem): boolean =>
@@ -612,13 +623,35 @@ export class LibraryViewModel {
   }
 
   shareSelected(): void {
+    this.stopTapShare();
     const entries: ExportEntry[] = this.selectedEntries();
     if (entries.length === 0) { return; }
     shareFiles(this.ui.context(), entries, this.isZips())
       .then((outcome: ActionOutcome): void => this.report(outcome));
   }
 
+  startTapShare(): void {
+    const entries: ExportEntry[] = this.selectedEntries();
+    if (entries.length === 0) { this.ui.say('请先选择图片或压缩包'); return; }
+    if (!TapShare.start(entries, this.isZips(), (message: string): void => {
+      this.tapSharing = false;
+      this.ui.say(message);
+    })) {
+      this.ui.say('本机暂不支持碰一碰分享，请使用系统分享');
+      return;
+    }
+    this.tapSharing = true;
+    this.ui.say('请将手机轻碰接收设备；离开图库即取消');
+  }
+
+  stopTapShare(): void {
+    if (!this.tapSharing) { return; }
+    TapShare.stop();
+    this.tapSharing = false;
+  }
+
   deleteSelected(): void {
+    this.stopTapShare();
     const deletingZips: boolean = this.isZips();
     const ids: string[] = this.selectedIds.slice();
     const selectedImages: DownloadItem[] = this.images.filter((item: DownloadItem): boolean => ids.includes(item.id));

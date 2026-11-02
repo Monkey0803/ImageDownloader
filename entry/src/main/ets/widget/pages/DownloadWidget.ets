@@ -7,14 +7,21 @@ struct DownloadWidget {
   @Local progress: string = '';
   @Local percent: string = '0';
   @Local layout: string = 'wide';
+  @Local targetId: string = '';
+  @Local targetKind: string = '';
 
   private openTasks(): void {
     postCardAction(this, {
       action: 'router',
       bundleName: 'com.example.imagedownloader',
       abilityName: 'EntryAbility',
-      params: { 'widgetPage': 'tasks' }
+      params: { 'widgetPage': 'tasks', 'widgetTargetId': this.targetId,
+        'widgetTargetKind': this.targetKind }
     });
+  }
+
+  private refresh(): void {
+    postCardAction(this, { action: 'message', params: { message: 'refresh' } });
   }
 
   build() {
@@ -71,16 +78,19 @@ struct DownloadWidget {
       }
 
       Blank()
-      Text('点击查看任务')
-        .fontSize(11)
-        .fontColor($r('app.color.font_tertiary'))
-        .width('100%')
+      Row({ space: 8 }) {
+        Text(this.targetId.length > 0 ? '查看当前任务' : '查看任务')
+          .fontSize(11).fontColor($r('app.color.font_tertiary'))
+          .layoutWeight(1).onClick((): void => this.openTasks())
+        Text('刷新')
+          .fontSize(11).fontColor($r('app.color.brand'))
+          .onClick((): void => this.refresh())
+      }.width('100%')
     }
     .padding(16)
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.card'))
     .borderRadius(18)
-    .onClick((): void => this.openTasks())
   }
 }

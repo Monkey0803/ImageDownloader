@@ -24,6 +24,7 @@ import { WidgetLaunch } from '../service/WidgetLaunch';
 import { PreviewReadingStore } from '../service/PreviewReadingStore';
 import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
+import { FloatDownload } from '../service/FloatDownload';
 
 const DOMAIN = 0x0000;
 
@@ -68,6 +69,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    FloatDownload.stop();
     PREVIEW_LIFECYCLE.setForeground(false);
     PreviewReadingStore.flush();
     // 页面已经不在了，但商店里可能还挂着「待存相册」的防抖定时器与合并写盘的定时器：

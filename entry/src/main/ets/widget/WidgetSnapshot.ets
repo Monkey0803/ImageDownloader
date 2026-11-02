@@ -9,6 +9,8 @@ export class WidgetSnapshot {
   progress: string = '';
   percent: string = '0';
   layout: string = 'wide';
+  targetId: string = '';
+  targetKind: string = '';
 
   static fromSavedText(raw: string): WidgetSnapshot {
     const parsed: SavedState | undefined = StoreState.parse(raw);
@@ -29,8 +31,9 @@ export class WidgetSnapshot {
       const priority: number = WidgetSnapshot.priority(item.status);
       if (priority < 99) {
         count++;
-        if (priority < chosenPriority || (priority === chosenPriority &&
-          (chosen === undefined || item.createdAt > chosen.createdAt))) {
+        if (!item.taskHidden && item.batchId.length === 0 &&
+          (priority < chosenPriority || (priority === chosenPriority &&
+          (chosen === undefined || item.createdAt > chosen.createdAt)))) {
           chosen = item;
           chosenPriority = priority;
         }
@@ -46,6 +49,8 @@ export class WidgetSnapshot {
     }
     snapshot.count = count.toString();
     if (chosen !== undefined) {
+      snapshot.targetId = chosen.id;
+      snapshot.targetKind = 'task';
       snapshot.status = WidgetSnapshot.statusText(chosen.status);
       snapshot.name = hideName ? '任务名称已隐藏' : (chosen.name.length > 0 ? chosen.name.slice(0, 80) : '未命名任务');
       if (chosen.total > 0 && Number.isFinite(chosen.total) && Number.isFinite(chosen.processed)) {
@@ -56,6 +61,8 @@ export class WidgetSnapshot {
         snapshot.progress = snapshot.status;
       }
     } else if (chosenBatch !== undefined) {
+      snapshot.targetId = chosenBatch.id;
+      snapshot.targetKind = 'batch';
       snapshot.status = chosenBatch.status === 'packing' ? '正在打包' : '批次准备中';
       snapshot.name = hideName ? '任务名称已隐藏' :
         (chosenBatch.name.length > 0 ? chosenBatch.name.slice(0, 80) : '未命名批次');

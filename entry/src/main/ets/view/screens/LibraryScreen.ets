@@ -304,6 +304,16 @@ export struct LibraryScreen {
           onAction: (): void => { this.library.deleteSelected(); } })
       }
       .width('100%')
+      Row({ space: Space.s8 }) {
+        PillButton({ label: this.library.tapSharing ? '取消碰一碰' : '碰一碰分享', variant: 'ghost', small: true,
+          onAction: (): void => {
+            if (this.library.tapSharing) { this.library.stopTapShare(); }
+            else { this.library.startTapShare(); }
+          } })
+        if (this.library.tapSharing) {
+          Text('轻碰接收设备').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+        }
+      }.width('100%')
       if (!this.library.isZips()) {
         Row({ space: Space.s8 }) {
           PillButton({ label: '收藏', variant: 'ghost', small: true,

@@ -727,6 +727,7 @@ caseTest('edited registration keeps copies out of download task lists and badges
     [ets('service/DownloadStore')]: { DownloadStore: { downloads: [edited, original], batches: [], zips: [],
       collections: [], concurrency: 3 } },
     [ets('service/UiPort')]: { UiPort: class {} },
+    [ets('service/FloatDownload')]: { FloatDownload: {}, FLOAT_DOWNLOAD_STATE: {} },
     [ets('theme/Metrics')]: { ScreenMetrics: {} },
     [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
   });
@@ -746,6 +747,7 @@ caseTest('task status filter ignores hidden cards but retains failures', () => {
     [ets('service/DownloadStore')]: { DownloadStore: { downloads: [done, failed], batches: [], zips: [],
       collections: [], concurrency: 3 } },
     [ets('service/UiPort')]: { UiPort: class {} },
+    [ets('service/FloatDownload')]: { FloatDownload: {}, FLOAT_DOWNLOAD_STATE: {} },
     [ets('theme/Metrics')]: { ScreenMetrics: {} },
     [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
   });
@@ -776,6 +778,7 @@ caseTest('retry all failures respects source filter and skips changed records', 
     '@kit.CoreFileKit': { fileUri: { getUriFromPath: path => path } },
     [ets('service/DownloadStore')]: { DownloadStore: store },
     [ets('service/UiPort')]: { UiPort: class {} },
+    [ets('service/FloatDownload')]: { FloatDownload: {}, FLOAT_DOWNLOAD_STATE: {} },
     [ets('theme/Metrics')]: { ScreenMetrics: {} },
     [ets('theme/Tokens')]: { formatBytes: bytes => bytes + ' B' }
   });
@@ -1335,6 +1338,7 @@ function libraryVmHarness(config = {}) {
   }
   const mocks = {
     [sourceFile('service/DownloadStore')]: { DownloadStore: FakeStore },
+    [sourceFile('service/TapShare')]: { TapShare: { start: () => false, stop: () => {} } },
     [sourceFile('service/LibraryCatalog')]: { LIBRARY_CATALOG: h.catalog },
     [sourceFile('service/TrashStore')]: { TRASH_STORE: { list: () => [], purgeExpired: () => 0 }, TrashEntry: class {} },
     [sourceFile('service/LibraryAnalysis')]: { LibraryAnalysis: FakeAnalysis },

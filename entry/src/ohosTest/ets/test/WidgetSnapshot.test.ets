@@ -26,6 +26,7 @@ export default function widgetSnapshotTest(): void {
       expect(snapshot.status).assertEqual('下载中');
       expect(snapshot.name).assertEqual('running.png');
       expect(snapshot.progress).assertEqual('25%');
+      expect(snapshot.targetKind).assertEqual('task');
     });
 
     it('hides_name_when_privacy_is_enabled_and_handles_unknown_total', 0, () => {
@@ -47,6 +48,19 @@ export default function widgetSnapshotTest(): void {
       expect(snapshot.status).assertEqual('正在打包');
       expect(snapshot.name).assertEqual('图片批次');
       expect(snapshot.progress).assertEqual('正在打包');
+      expect(snapshot.targetKind).assertEqual('batch');
+    });
+
+    it('targets_visible_batch_when_its_running_member_is_not_a_task_row', 0, () => {
+      const batch: BatchItem = new BatchItem();
+      batch.id = 'batch-1';
+      batch.status = 'downloading';
+      const member: DownloadItem = task('member.png', 'running', 1);
+      member.id = 'task-1';
+      member.batchId = batch.id;
+      const snapshot: WidgetSnapshot = WidgetSnapshot.from([member], [batch], false);
+      expect(snapshot.targetId).assertEqual(batch.id);
+      expect(snapshot.targetKind).assertEqual('batch');
     });
   });
 }

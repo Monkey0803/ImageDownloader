@@ -133,6 +133,7 @@ struct Index {
 
   onPageHide(): void {
     this.pageVisible = false;
+    this.library.stopTapShare();
     this.discover.browserPanel = '';
     this.discover.cancelScan(this.previewOpen);
     this.library.cancelAnalysis();
@@ -178,6 +179,7 @@ struct Index {
    * 商店回调不摘的话，之后每次数据变化都会打到已经销毁的组件上。
    */
   aboutToDisappear(): void {
+    this.library.stopTapShare();
     this.discover.stopBatchPages();
     this.library.cancelAnalysis();
     this.library.cancelSimilar();
@@ -208,6 +210,11 @@ struct Index {
     if (!this.pageVisible || !WidgetLaunch.takeTasks()) { return; }
     this.browserOpen = true;
     this.currentTab = TAB_TASKS;
+    const id: string = WidgetLaunch.takeTargetId();
+    const kind: string = WidgetLaunch.takeTargetKind();
+    if (id.length > 0 && (kind === 'task' || kind === 'batch')) {
+      this.tasks.focusFromWidget(id, kind);
+    }
   }
 
   private hostContext(): common.UIAbilityContext {
@@ -513,7 +520,9 @@ struct Index {
           badge: this.tasks.running,
           onSelect: (index: number): void => {
             if (index !== TAB_DISCOVER) { this.discover.browserPanel = ''; this.discover.cancelScan(); }
-            if (index !== TAB_LIBRARY) { this.library.cancelAnalysis(); this.library.cancelSimilar(); }
+            if (index !== TAB_LIBRARY) {
+              this.library.cancelAnalysis(); this.library.cancelSimilar(); this.library.stopTapShare();
+            }
             this.currentTab = index;
             if (index === TAB_LIBRARY) {
               this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));

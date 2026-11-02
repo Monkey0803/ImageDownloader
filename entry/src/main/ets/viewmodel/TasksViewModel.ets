@@ -7,6 +7,7 @@ import { ScreenMetrics } from '../theme/Metrics';
 import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 import { TaskRow, TaskRows } from './TaskRows';
 import { formatBytes } from '../theme/Tokens';
+import { FloatDownload, FLOAT_DOWNLOAD_STATE } from '../service/FloatDownload';
 
 /**
  * 「任务」页的 ViewModel：下载队列 + 打包批次。
@@ -58,6 +59,15 @@ export class TasksViewModel {
   @Trace queueSummary: string = '';
   @Trace failureSummary: string = '';
 
+  floatActive(): boolean { return FLOAT_DOWNLOAD_STATE.active || FLOAT_DOWNLOAD_STATE.starting; }
+
+  toggleFloat(): void {
+    if (this.floatActive()) { FloatDownload.stop(); return; }
+    FloatDownload.start(this.ui.context()).then((problem: string): void => {
+      if (problem.length > 0) { this.ui.say(problem); }
+    });
+  }
+
   attach(ui: UiPort): void {
     this.ui = ui;
   }
@@ -76,6 +86,19 @@ export class TasksViewModel {
       yOffset: 0,
       animation: { duration: 320, curve: Curve.FastOutSlowIn }
     });
+  }
+
+  focusFromWidget(id: string, kind: string): void {
+    this.collectionFilter = '*';
+    this.statusFilter = 'all';
+    this.sync();
+    const key: string = kind + '|' + id;
+    let index: number = -1;
+    for (let row: number = 0; row < this.rows.totalCount(); row++) {
+      if (this.rows.getData(row).key === key) { index = row + 1; break; }
+    }
+    if (index < 0) { this.ui.say('该任务已不在任务列表'); return; }
+    setTimeout((): void => { this.scroller.scrollToIndex(index, true, ScrollAlign.START); }, 0);
   }
 
   /** 数据变了：重新生成每个分组的数组，让 ForEach 正确观察到跨分组的任务。 */

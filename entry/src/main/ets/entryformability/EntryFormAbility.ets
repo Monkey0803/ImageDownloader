@@ -18,6 +18,13 @@ export default class EntryFormAbility extends FormExtensionAbility {
     WidgetForms.updateOne(this.context.filesDir, formId);
   }
 
+  onFormEvent(formId: string, message: string): void {
+    try {
+      const event: Record<string, string> = JSON.parse(message) as Record<string, string>;
+      if (event.message === 'refresh') { WidgetForms.updateOne(this.context.filesDir, formId); }
+    } catch (error) {}
+  }
+
   onRemoveForm(formId: string): void {
     WidgetForms.remove(this.context.filesDir, formId);
   }
