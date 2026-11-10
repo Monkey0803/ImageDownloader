@@ -9,6 +9,7 @@ import { Palette, Space } from '../theme/Tokens';
 import { SheetStyle } from '../theme/SheetStyle';
 import { ToastLatch } from '../util/Toast';
 import { ImageViewer } from '../view/Cards';
+import { AppSheet } from '../view/AppSheet';
 import { ViewerRequest, ViewerViewModel } from '../viewmodel/ViewerViewModel';
 import { EmptyState, PillButton, RenameDialog, ToastPill } from '../view/Widgets';
 
@@ -39,7 +40,6 @@ struct Viewer {
    * `show()` 一律空操作，所以这里不需要再自己记一个 destroyed 标志。
    */
   private toast: ToastLatch = new ToastLatch();
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
   @Local private vm: ViewerViewModel = new ViewerViewModel();
   @Local private notice: string = '';
   @Local private renaming: boolean = false;
@@ -240,16 +240,12 @@ struct Viewer {
         .hitTestBehavior(HitTestMode.None)
       }
 
+      AppSheet({ visible: this.renaming, initialSize: SheetSize.FIT_CONTENT,
+        onDismiss: (): void => { this.renaming = false; } }) {
+        this.renameContent()
+      }
     }
     .width('100%')
     .height('100%')
-    .bindSheet(this.renaming, this.renameContent(), {
-      height: SheetSize.FIT_CONTENT,
-      dragBar: true,
-      showClose: false,
-      backgroundColor: SheetStyle.background(),
-      systemMaterial: this.sheetMaterial,
-      onDisappear: (): void => { this.renaming = false; }
-    })
   }
 }

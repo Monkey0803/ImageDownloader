@@ -7,6 +7,7 @@ import { Thumb } from './Thumb';
 import { PillButton, PictureSelectionButton, Segmented, SettingSelect, MODE_OPTIONS } from './Widgets';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS, ScreenMetrics } from '../theme/Metrics';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 export const BATCH_PAGE_NAME: string = 'batch';
 const NAME_IDS: string[] = ['original', 'numbered'];
@@ -125,8 +126,15 @@ export struct BatchFlowHost {
     Scroll() {
       Column({ space: Space.s12 }) {
         Row({ space: Space.s8 }) {
-          PillButton({ label: '粘贴多条', icon: 'paste', variant: 'tonal', small: true,
-            onAction: (): void => { this.discover.pasteBatch(); } })
+          PasteButton({ icon: PasteIconStyle.LINES, text: PasteDescription.PASTE,
+            buttonType: ButtonType.Capsule })
+            .iconSize(16).fontSize(14).iconColor(Palette.brand).fontColor(Palette.brand)
+            .backgroundColor(Palette.brandSoft).width(104).height(40)
+            .onClick((_event: ClickEvent, result: PasteButtonOnClickResult,
+              error?: BusinessError<void>): void => {
+              if (result === PasteButtonOnClickResult.SUCCESS) { this.discover.pasteBatch(); }
+              else { this.discover.pasteAuthorizationFailed(error?.code ?? 0); }
+            })
           if (this.discover.batchText.length > 0) {
             PillButton({ label: '清空', variant: 'ghost', small: true,
               onAction: (): void => { this.discover.setBatchText(''); } })

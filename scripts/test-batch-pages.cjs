@@ -82,7 +82,7 @@ test('retrying one failed page retains selections on other sources', async () =>
   assert.equal(BatchPageGroups.downloads(groups)[0].pageUrl, 'https://a.test/two.html');
 });
 
-test('Weibo extractor verifies the requested post and ignores avatars and retweeted pictures', async () => {
+test('Weibo extractor verifies the requested post and includes visible repost pictures', async () => {
   const protocolLoad = loader({ '@kit.ArkWeb': { webview: {} }, '@kit.NetworkKit': { http: {} } });
   const { BatchPageProtocol } = protocolLoad(path.join(root, 'service/BatchPageProtocol.ets'));
   const context = {
@@ -101,7 +101,8 @@ test('Weibo extractor verifies the requested post and ignores avatars and retwee
   await new Promise(r => setImmediate(r));
   const result = JSON.parse(vm.runInNewContext(script, context));
   assert.equal(result.scopeFound, true);
-  assert.deepEqual(result.images.map(x => x.url), ['https://cdn.test/original.jpg']);
+  assert.deepEqual(result.images.map(x => x.url),
+    ['https://cdn.test/original.jpg', 'https://cdn.test/retweet.jpg']);
   assert.equal(result.title, '正文标题');
   context.fetch = async () => ({ ok: true, json: async () => ({ mblogid: 'wrong', pics: [{ url: 'https://cdn.test/wrong.jpg' }] }) });
   context.window = {};
@@ -109,6 +110,30 @@ test('Weibo extractor verifies the requested post and ignores avatars and retwee
   const wrong = JSON.parse(vm.runInNewContext(script, context));
   assert.equal(wrong.images.length, 0);
   assert.ok(wrong.error.includes('目标微博'));
+});
+
+test('reposted Weibo live photo keeps its still and motion together', () => {
+  const protocolLoad = loader({ '@kit.ArkWeb': { webview: {} }, '@kit.NetworkKit': { http: {} } });
+  const { BatchPageProtocol } = protocolLoad(path.join(root, 'service/BatchPageProtocol.ets'));
+  const target = 'https://m.weibo.cn/status/RqIuoFw2L';
+  const context = {
+    window: { __imageDownloaderBatchPost: { target: 'RqIuoFw2L', error: '', value: {
+      mblogid: 'RqIuoFw2L', text_raw: '转发微博', pics: [],
+      user: { avatar_large: 'https://cdn.test/avatar.jpg' },
+      retweeted_status: {
+        pic_ids: ['live1'], pic_infos: { live1: { large: { url: 'https://wx1.sinaimg.cn/large/live1.jpg' } } },
+        live_photo: ['https://video.weibo.com/media/play?livephoto=live1.mov']
+      }
+    } } }, URL,
+    location: { href: target, hostname: 'm.weibo.cn' },
+    document: { title: '微博正文', body: { innerText: '' }, images: [] }
+  };
+  const result = JSON.parse(vm.runInNewContext(BatchPageProtocol.script(target, 'original'), context));
+  assert.equal(result.scopeFound, true);
+  assert.deepEqual(result.images.map(x => [x.url, x.motion]), [[
+    'https://wx1.sinaimg.cn/large/live1.jpg',
+    'https://video.weibo.com/media/play?livephoto=live1.mov'
+  ]]);
 });
 
 test('Weibo visitor pages stay pending for the credential redirect without collecting images', () => {
@@ -121,6 +146,44 @@ test('Weibo visitor pages stay pending for the credential redirect without colle
   assert.equal(result.images.length, 0);
   assert.equal(result.pending, true);
   assert.equal(result.error, '');
+});
+
+test('address bar scanner uses the requested Weibo post instead of page decoration', async () => {
+  const scannerLoad = loader({
+    '@kit.ArkWeb': { webview: {} }, '@kit.NetworkKit': { http: {} },
+    [path.join(root, 'service/ScanUpgrader.ets')]: { ScanUpgrader: { apply: async () => {} } },
+    [path.join(root, 'service/WeiboLivePhotos.ets')]: { WeiboLivePhotos: { apply: async () => {} } }
+  });
+  const { PageScanner } = scannerLoad(path.join(root, 'service/PageScanner.ets'));
+  const target = 'https://weibo.com/3340517690/RqIuoFw2L';
+  const context = {
+    window: { __imageDownloaderBatchPost: { target: 'RqIuoFw2L', error: '', value: {
+      mblogid: 'RqIuoFw2L', pics: [], retweeted_status: {
+        pics: [{ large: { url: 'https://wx1.sinaimg.cn/large/live1.jpg' } }],
+        live_photo: ['https://video.weibo.com/media/play?livephoto=live1.mov']
+      }
+    } } }, URL,
+    location: { href: target, hostname: 'weibo.com' },
+    document: { title: '微博', body: { innerText: '' }, images: [{ src: 'https://cdn.test/avatar.jpg' }] }
+  };
+  const controller = { runJavaScriptExt: async script => ({
+    getString: () => vm.runInNewContext(script, context)
+  }) };
+  const scanner = new PageScanner();
+  let images = [];
+  const settled = new Promise((resolve, reject) => {
+    scanner.start(controller, 'display', {
+      onProgress: data => { images = data.images; },
+      onSettled: resolve, onAborted: () => reject(new Error('aborted')),
+      onError: message => reject(new Error(message))
+    }, target);
+  });
+  assert.equal(await settled, 1);
+  assert.deepEqual(images.map(x => [x.url, x.motion]), [[
+    'https://wx1.sinaimg.cn/large/live1.jpg',
+    'https://video.weibo.com/media/play?livephoto=live1.mov'
+  ]]);
+  scanner.cancel();
 });
 
 function viewModelHarness() {

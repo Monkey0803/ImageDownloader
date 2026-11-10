@@ -3,6 +3,7 @@ import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
+import { AppSheet } from '../AppSheet';
 import { IconButton, MODE_OPTIONS, PillButton, Segmented } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
@@ -69,6 +70,7 @@ export struct SelectionDock {
   }
 
   build() {
+    Stack() {
     Row({ space: Space.s10 }) {
       Column({ space: 1 }) {
         Text('可加入 ' + this.discover.eligibleSelectedCount().toString() + ' 张')
@@ -119,12 +121,11 @@ export struct SelectionDock {
     .backgroundColor(Palette.glassStrong)
     .backdropBlur(30)
     .shadow(Shadow.float())
-    .bindSheet(this.reviewOpen, this.reviewSheet(), {
-      height: SheetSize.FIT_CONTENT,
-      dragBar: true,
-      showClose: false,
-      onDisappear: (): void => { this.reviewOpen = false; }
-    })
+    AppSheet({ visible: this.reviewOpen, initialSize: SheetSize.FIT_CONTENT,
+      useMaterial: false, onDismiss: (): void => { this.reviewOpen = false; } }) {
+      this.reviewSheet()
+    }
+    }.width('100%')
   }
 }
 

@@ -17,6 +17,7 @@ import { ActionOutcome, activateFolder } from './FileActions';
 import { Delivery, DeliveryTarget } from './Delivery';
 import { LivePhoto, LivePhotoContent } from './LivePhoto';
 import { StillFrames } from './StillFrames';
+import { GalleryCoverInfo } from './GalleryCoverInfo';
 import { WidgetForms } from '../widget/WidgetForms';
 import { WidgetSnapshot } from '../widget/WidgetSnapshot';
 import { EditResult, EditTicket } from '../model/ImageEditDocument';
@@ -442,6 +443,7 @@ export class DownloadStore {
       throw new Error('图库记录保存失败');
     }
     DownloadStore.notify();
+    DownloadStore.backfillCoverSizes().catch((): void => {});
   }
 
   /** Register a finalized PNG as an independent gallery item after durable state write. */
@@ -491,6 +493,7 @@ export class DownloadStore {
     item.collectionFolder = source.collectionFolder;
     item.url = ''; item.kind = 'image'; item.animated = false;
     item.status = 'completed'; item.size = result.bytes;
+    item.imageWidth = result.width; item.imageHeight = result.height;
     item.processed = result.bytes; item.total = result.bytes;
     item.createdAt = Date.now(); item.finishedAt = item.createdAt;
     const catalogSnapshot: DownloadItem[] = DownloadStore.downloads;
@@ -1081,21 +1084,18 @@ export class DownloadStore {
     });
     task.on('response', (response: request.agent.HttpResponse): void => {
       if (!DownloadStore.acceptsAgentEvent(item, task.tid)) { return; }
-      if (response.statusCode >= 400) { item.error = 'HTTP ' + response.statusCode.toString(); }
       if (item.recoveryMessage === '正在确认继续位置') {
         item.recoveryMessage = response.statusCode === 206 ? '服务器已接受分段请求'
           : response.statusCode === 200 ? '本次从头重新下载' : '继续位置尚未确认';
         DownloadStore.notify();
       }
       const contentTypes: string[] | undefined = response.headers.get('content-type') ?? response.headers.get('Content-Type');
+      item.error = DownloadStore.responseError(response.statusCode, contentTypes?.[0] ?? '', item.kind);
+      if (response.statusCode >= 400) { return; }
       // 实况照片包不是图片：服务器一般回 application/octet-stream 或 application/zip，
       // 这里不能按「不是 image/ 就判失败」来卡，也不能按图片 Content-Type 改扩展名
       // （把 `.livp` 改成 `.zip` / `.jpg` 会让解包与用户拿到的文件名都对不上）。
       const isLivePhoto: boolean = item.kind === 'livephoto';
-      if (!isLivePhoto && contentTypes !== undefined && contentTypes.length > 0
-        && !contentTypes[0].toLowerCase().startsWith('image/')) {
-        item.error = '服务器返回的不是图片';
-      }
       const values: string[] | undefined = response.headers.get('content-disposition') ?? response.headers.get('Content-Disposition');
       if (!item.userNamed && values !== undefined && values.length > 0) {
         const match: RegExpExecArray | null = new RegExp("filename\\*?=(?:UTF-8'')?\\\"?([^\\\";]+)", 'i').exec(values[0]);
@@ -1119,6 +1119,14 @@ export class DownloadStore {
         DownloadStore.fail(item, '下载失败，请检查链接或登录状态');
       }
     });
+  }
+
+  static responseError(statusCode: number, contentType: string, kind: string): string {
+    if (statusCode >= 400) { return 'HTTP ' + statusCode.toString(); }
+    if (kind !== 'livephoto' && contentType.length > 0 && !contentType.toLowerCase().startsWith('image/')) {
+      return '服务器返回的不是图片';
+    }
+    return '';
   }
 
   /** 旧任务在重试后可能迟到；已结束任务的进度与响应也不能再改写记录。 */
@@ -1290,20 +1298,41 @@ export class DownloadStore {
 
   /** 合成失败：把静图改回普通图片名字与类型，保留文件，只提示动态部分没拿到。 */
   private static degradeLivePhoto(item: DownloadItem, stillPath: string, extension: string,
-    message: string): void {
+    message: string): boolean {
+    if (!DownloadStore.exists(stillPath)) { return false; }
     const dir: string = stillPath.substring(0, stillPath.lastIndexOf('/'));
-    const name: string = Naming.withExtension(item.name, extension);
+    const name: string = DownloadStore.uniqueName(Naming.withExtension(item.name, extension), dir);
     const target: string = dir + '/' + name;
-    try {
-      if (target !== stillPath) { fs.renameSync(stillPath, target); }
-    } catch (error) {
-    }
+    // 改名失败时仍保留静图的真实路径，不能把记录指向不存在的目标文件。
+    const savedPath: string = target === stillPath || DownloadStore.moveFile(stillPath, target)
+      ? target : stillPath;
+    if (!DownloadStore.exists(savedPath)) { return false; }
     item.kind = 'image';
     item.motionUrl = '';
-    item.name = name;
-    item.path = target;
+    item.name = savedPath.substring(savedPath.lastIndexOf('/') + 1);
+    item.path = savedPath;
     item.note = message;
     DownloadStore.pendingNotice = message;
+    return true;
+  }
+
+  /** A process exit during live-photo packing can leave the still image under its temporary name. */
+  private static recoverInterruptedLivePhoto(item: DownloadItem): boolean {
+    if (item.kind !== 'livephoto' || item.motionUrl.length === 0 || DownloadStore.exists(item.path)) { return false; }
+    const dir: string = item.path.substring(0, item.path.lastIndexOf('/'));
+    const urlExtension: string = MediaFormat.extensionOf(item.url);
+    const extension: string = urlExtension.length > 0 ? urlExtension : 'jpg';
+    const tempStill: string = dir + '/' + item.id + '.still.' + extension;
+    if (!DownloadStore.exists(tempStill)) { return false; }
+    if (!DownloadStore.degradeLivePhoto(item, tempStill, extension, '实况照片合成中断，已恢复静图')) {
+      return false;
+    }
+    item.stillPath = '';
+    item.motionPath = '';
+    item.auxSize = 0;
+    try { item.size = fs.statSync(item.path).size; } catch (error) {}
+    item.animated = StillFrames.isAnimatedFile(item.path);
+    return true;
   }
 
   /** 下载一个附属文件（实况照片的动态部分）；失败只返回 false，不抛。 */
@@ -1378,7 +1407,8 @@ export class DownloadStore {
         item.stillPath = content.stillPath;
         item.motionPath = content.motionPath;
         item.auxSize = content.auxSize;
-        item.hdr = await DownloadStore.hdrOf(content.stillPath);
+        const info: GalleryCoverInfo = await GalleryCoverInfo.read(content.stillPath);
+        item.hdr = info.hdr; item.imageWidth = info.width; item.imageHeight = info.height;
         item.note = '';
         return;
       }
@@ -1386,27 +1416,40 @@ export class DownloadStore {
       item.motionPath = '';
       item.auxSize = 0;
       item.hdr = false;
+      item.imageWidth = 0; item.imageHeight = 0;
       item.note = content.message;
       DownloadStore.pendingNotice = content.message;
       return;
     }
     item.animated = StillFrames.isAnimatedFile(item.path);
-    item.hdr = await DownloadStore.hdrOf(item.path);
+    const info: GalleryCoverInfo = await GalleryCoverInfo.read(item.path);
+    item.hdr = info.hdr; item.imageWidth = info.width; item.imageHeight = info.height;
   }
 
-  /** 只读一次 ImageInfo，判断源文件是否带 HDR；失败按 SDR 处理，不影响下载结果。 */
-  private static async hdrOf(path: string): Promise<boolean> {
-    if (path.length === 0) { return false; }
-    let source: image.ImageSource | undefined = undefined;
+  /** Read old records in the background; failed or missing files remain square placeholders. */
+  private static coverBackfillRunning: boolean = false;
+  private static async backfillCoverSizes(): Promise<void> {
+    if (DownloadStore.coverBackfillRunning) { return; }
+    DownloadStore.coverBackfillRunning = true;
     try {
-      source = image.createImageSource(path);
-      const info: image.ImageInfo = await source.getImageInfo();
-      return info.isHdr === true;
-    } catch (error) {
-      return false;
-    } finally {
-      if (source !== undefined) { try { await source.release(); } catch (error) {} }
-    }
+      let changed: number = 0;
+      for (const item of DownloadStore.downloads.slice()) {
+        if (!DownloadStore.initialized) { break; }
+        if (item.status !== 'completed' || item.imageWidth > 0 && item.imageHeight > 0) { continue; }
+        const path: string = item.kind === 'livephoto' ? item.stillPath : item.path;
+        if (!DownloadStore.exists(path)) { continue; }
+        const info: GalleryCoverInfo = await GalleryCoverInfo.read(path);
+        if (!DownloadStore.downloads.includes(item) || item.status !== 'completed'
+          || (item.kind === 'livephoto' ? item.stillPath : item.path) !== path) {
+          continue;
+        }
+        if (info.width <= 0 || info.height <= 0) { continue; }
+        item.imageWidth = info.width; item.imageHeight = info.height;
+        changed++;
+        if (changed >= 8) { DownloadStore.notifyProgress(); changed = 0; }
+      }
+      if (changed > 0) { DownloadStore.notifyProgress(); }
+    } finally { DownloadStore.coverBackfillRunning = false; }
   }
 
   /**
@@ -1697,6 +1740,7 @@ export class DownloadStore {
     await DownloadStore.restoreContent();
     DownloadStore.notify();
     DownloadStore.pump();
+    DownloadStore.backfillCoverSizes().catch((): void => {});
   }
 
   /** 系统 WAITING 可能没有字节进度回调；前台定时核对状态，后台仍由系统下载服务负责。 */
@@ -1802,6 +1846,8 @@ export class DownloadStore {
       if (item.status !== 'completed') { continue; }
       try {
         if (item.kind === 'livephoto') {
+          if (DownloadStore.recoverInterruptedLivePhoto(item)) { continue; }
+          if (!DownloadStore.exists(item.path)) { continue; }
           if (DownloadStore.livePhotoReady(item)) { continue; }
           // 上一次可能是「包不合法」那种永久失败：note 非空表示已经判定过结论，包也还在，
           // 就不必每次启动都重解一遍。

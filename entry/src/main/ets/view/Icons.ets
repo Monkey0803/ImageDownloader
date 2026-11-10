@@ -77,6 +77,7 @@ const SYMBOL_RES: Record<string, Resource> = {
   'close': $r('sys.symbol.xmark'),
   'download': $r('sys.symbol.arrow_down_circle'),
   'image': $r('sys.symbol.picture'),
+  'livephoto': $r('sys.symbol.livephoto'),
   'layers': $r('sys.symbol.rectangle_on_rectangle'),
   'archive': $r('sys.symbol.externaldrive'),
   'sliders': $r('sys.symbol.slider_horizontal_2'),

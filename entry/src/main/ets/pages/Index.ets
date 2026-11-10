@@ -17,6 +17,7 @@ import { TasksViewModel } from '../viewmodel/TasksViewModel';
 import { Layout, Palette, Space } from '../theme/Tokens';
 import { ScreenMetrics } from '../theme/Metrics';
 import { SheetStyle } from '../theme/SheetStyle';
+import { AppSheet } from '../view/AppSheet';
 import { ToastLatch } from '../util/Toast';
 import { DiscoverScreen } from '../view/screens/DiscoverScreen';
 import { BrowserLibrarySheet } from '../view/BrowserLibrarySheet';
@@ -73,7 +74,6 @@ struct Index {
   @Local private previewPanels: PreviewOverlayState = new PreviewOverlayState();
   @Local private previewOpen: boolean = false;
   @Local private notice: string = '';
-  private browserSheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   /**
    * 商店的刷新回调。
@@ -569,24 +569,23 @@ struct Index {
       if (this.previewOpen && this.device.peeking) {
         PrivacyVeil({ device: this.device })
       }
-    }
-    .width('100%')
-    .height('100%')
-    .bindSheet((this.currentTab === TAB_DISCOVER && this.browserOpen
-      && !this.device.peeking && this.discover.browserPanel.length > 0)
-      || (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0),
-      this.activeSheetContent(), {
-        height: this.library.renameId.length > 0 ? SheetSize.FIT_CONTENT : this.browserSheetHeight(),
-        dragBar: true,
-        showClose: false,
-        // ArkWeb 可能播放视频/动画，收藏历史面板用不透明背景。
-        backgroundColor: this.library.renameId.length > 0 ? SheetStyle.background() : Palette.card,
-        systemMaterial: this.library.renameId.length > 0 ? this.browserSheetMaterial : undefined,
-        onDisappear: (): void => {
+      AppSheet({
+        visible: (this.currentTab === TAB_DISCOVER && this.browserOpen
+          && !this.device.peeking && this.discover.browserPanel.length > 0)
+          || (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0),
+        initialSize: this.library.renameId.length > 0 ? SheetSize.FIT_CONTENT : this.browserSheetHeight(),
+        useMaterial: this.library.renameId.length > 0,
+        opaqueBackground: this.library.renameId.length === 0,
+        onDismiss: (): void => {
           this.discover.browserPanel = '';
           this.library.cancelRename();
         }
-      })
+      }) {
+        this.activeSheetContent()
+      }
+    }
+    .width('100%')
+    .height('100%')
     .backgroundColor(Palette.bg)
   }
 }

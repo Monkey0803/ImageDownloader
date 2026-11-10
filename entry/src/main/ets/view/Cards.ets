@@ -14,13 +14,17 @@ import { DownloadItem, PictureItem, ZipItem } from '../model/Models';
 import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
 import { MediaFormat } from '../service/MediaFormat';
-import { SheetStyle } from '../theme/SheetStyle';
+import { DownloadStore } from '../service/DownloadStore';
+import { AppSheet } from './AppSheet';
+import { AppMenu } from './AppMenu';
+import { MenuItemSpec, MenuSpec } from './MenuSpec';
 import {
   Font, formatBytes, formatMoment, kindOf, Palette, percentOf, Radius, Shadow, Space
 } from '../theme/Tokens';
 import { Glyph } from './Icons';
 import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
 import { Thumb } from './Thumb';
+import { GalleryAspect } from '../util/GalleryAspect';
 import { AnimatedPreviewImage, AnimationDockActions, AnimationToolbarAction, ZoomablePreviewImage } from './ImageSurface';
 import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 import { PreviewAsset, ViewerSlide } from '../model/PreviewAsset';
@@ -35,6 +39,8 @@ export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
 @ComponentV2
 export struct SelectTile {
   @Require @Param picture: PictureItem;
+  @Param thumbnailSource: string = '';
+  @Param sourcePage: string = '';
   @Param index: number = 0;
   @Param downloadState: string = 'new';
   /** 图片点击进入预览；角上的选择按钮由父组件处理。 */
@@ -42,6 +48,8 @@ export struct SelectTile {
   };
   @Event onDimensions: (url: string, width: number, height: number) => void =
     (url: string, width: number, height: number): void => {};
+  @Event onThumbnail: (uid: string, url: string, uri: string) => void =
+    (uid: string, url: string, uri: string): void => {};
 
   /**
    * 发现页的角标：实况照片包写「实况」，GIF / WebP 写格式名。
@@ -62,10 +70,18 @@ export struct SelectTile {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Thumb({ src: this.picture.url, label: kindOf(this.picture.name), badge: this.badge(),
+      Thumb({ src: this.thumbnailSource || this.picture.url, referer: this.sourcePage,
+        label: kindOf(this.picture.name), badge: this.badge(),
         fallbackText: '预览不可用',
         onDimensions: (url: string, width: number, height: number): void => {
-          this.onDimensions(url, width, height);
+          if (url === (this.thumbnailSource || this.picture.url)) {
+            this.onDimensions(this.picture.url, width, height);
+          }
+        },
+        onReady: (url: string, uri: string): void => {
+          if (url === (this.thumbnailSource || this.picture.url)) {
+            this.onThumbnail(this.picture.uid, this.picture.url, uri);
+          }
         } })
 
       // 图片网格不在系统材质生效区域，选择反馈使用普通静态蒙层。
@@ -128,13 +144,6 @@ export struct SelectTile {
 @ComponentV2
 export struct ShotTile {
   @Require @Param image: DownloadItem;
-  @Param favorite: boolean = false;
-  @Param tags: string[] = [];
-  @Param albumNames: string[] = [];
-  @Param exportedAt: number = 0;
-  @Param snippet: string = '';
-  /** @Prop：密度是运行时切换的（标题栏那颗九宫格按钮），普通成员刷不进来。 */
-  @Param dense: boolean = false;
   @Param selecting: boolean = false;
   @Param selected: boolean = false;
   @Event onOpen: (image: DownloadItem) => void = () => {
@@ -161,6 +170,10 @@ export struct ShotTile {
     return this.image.path;
   }
 
+  private missingOriginal(): boolean {
+    return this.image.status === 'completed' && !DownloadStore.exists(this.image.path);
+  }
+
   private badge(): string {
     if (this.image.kind === 'livephoto') {
       return '实况';
@@ -173,15 +186,22 @@ export struct ShotTile {
   }
 
   build() {
-    Column({ space: Space.s4 }) {
+    Column() {
       Stack() {
-        Thumb({
-          src: fileUri.getUriFromPath(this.coverPath()),
-          label: kindOf(this.image.name),
-          firstFramePath: this.firstFramePath(),
-          badge: this.badge(),
-          badgeTopLeft: true
-        })
+        if (this.missingOriginal()) {
+          Text('文件缺失').fontSize(Font.aux).fontColor(Palette.fontSecondary)
+            .width('100%').height('100%').textAlign(TextAlign.Center)
+            .backgroundColor(Palette.cardSunken)
+        } else {
+          Thumb({
+            src: fileUri.getUriFromPath(this.coverPath()),
+            label: kindOf(this.image.name),
+            firstFramePath: this.firstFramePath(),
+            badge: this.badge(),
+            badgeTopLeft: true,
+            preferredAspect: 1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight)
+          })
+        }
         Row()
           .width('100%')
           .height('100%')
@@ -204,57 +224,15 @@ export struct ShotTile {
         }
       }
       .width('100%')
-      .aspectRatio(1)
+      .aspectRatio(1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight))
       .borderRadius(Radius.r6)
       .clip(true)
+      .accessibilityText(this.image.name)
+      .accessibilitySelected(this.selecting && this.selected)
       .onClick(() => {
         this.onOpen(this.image);
       })
 
-      Column({ space: 1 }) {
-        Text(this.image.name)
-          .fontSize(this.dense ? 11 : Font.aux)
-          .lineHeight(this.dense ? 15 : Font.auxLine)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Palette.fontPrimary)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        if (!this.dense) {
-          Text(formatBytes(this.image.size) + ' · ' + formatMoment(this.image.finishedAt, Date.now()))
-            .fontSize(11)
-            .lineHeight(16)
-            .fontColor(Palette.fontTertiary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        if (this.favorite || this.tags.length > 0) {
-          Row({ space: Space.s4 }) {
-            if (this.favorite) {
-              Glyph({ glyph: 'bookmarkFill', glyphSize: 12,
-                glyphTone: Palette.brand, glyphWeight: 1.5 })
-            }
-            Text(this.tags.slice(0, 2).join(' · '))
-              .fontSize(11).fontColor(Palette.fontSecondary)
-              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-        }
-        if (!this.dense && this.albumNames.length > 0) {
-          Text(this.albumNames.slice(0, 2).join(' · ')).fontSize(11).fontColor(Palette.fontSecondary)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        if (!this.dense && this.exportedAt > 0) {
-          Text('曾导出 · ' + formatMoment(this.exportedAt, Date.now()))
-            .fontSize(11).fontColor(Palette.fontTertiary)
-            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        if (this.snippet.length > 0) {
-          Text(this.snippet).fontSize(11).fontColor(Palette.fontSecondary)
-            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .padding({ left: Space.s2, right: Space.s2 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -818,6 +796,8 @@ export struct LivePhotoSlide {
    *  名字避开 `motionPath` —— 那是 ArkUI 通用属性（路径动画），会报成员冲突。 */
   @Param stillFile: string = '';
   @Param motionFile: string = '';
+  @Param posterUri: string = '';
+  @Event onReady: () => void = (): void => {};
   @Local private movingPhoto: photoAccessHelper.MovingPhoto | undefined = undefined;
   /** 动态部分装不起来时的那句说明；空串不显示。 */
   @Local private problem: string = '';
@@ -856,10 +836,13 @@ export struct LivePhotoSlide {
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Contain)
+          .transition(TransitionEffect.asymmetric(TransitionEffect.OPACITY, TransitionEffect.IDENTITY)
+            .animation({ duration: 180, curve: Curve.EaseOut }))
           .muted(false)
           .autoPlay(true)
           .repeatPlay(true)
           .onPrepared((): void => {
+            this.onReady();
             this.controller.startPlayback();
           })
           .onError((): void => {
@@ -869,7 +852,11 @@ export struct LivePhotoSlide {
             this.controller.startPlayback();
           })
       } else {
-        Thumb({ src: fileUri.getUriFromPath(this.stillFile), fit: ImageFit.Contain })
+        if (this.posterUri.length > 0) {
+          Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
+        } else {
+          Thumb({ src: fileUri.getUriFromPath(this.stillFile), fit: ImageFit.Contain })
+        }
       }
 
       if (this.problem.length > 0) {
@@ -908,7 +895,6 @@ export struct LivePhotoSlide {
  */
 @ComponentV2
 export struct ImageViewer {
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.dialogMaterial();
   @Require @Param panels: PreviewOverlayState;
   @Param foreground: boolean = true;
   /** 可以左右滑的那一批图；只有一张时就是普通大图。 */
@@ -926,13 +912,11 @@ export struct ImageViewer {
   @Local private actionDockHeight: number = 80;
   @Local private backgroundMode: string = 'auto';
   @Local private fitCommand: string = '';
-  @Local private moreOpen: boolean = false;
   @Local private dockWidth: number = 360;
   private fitSequence: number = 0;
   @Monitor('index')
   private onCurrentIndexChanged(monitor: IMonitor): void {
     this.zoomed = false;
-    this.moreOpen = false;
   }
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   /** 滑动换图时把新下标交回预览页（V2 里双向数据流的标准写法）。 */
@@ -979,6 +963,42 @@ export struct ImageViewer {
     this.fitCommand = mode + ':' + this.fitSequence.toString();
   }
 
+  private moreMenuSpec(): MenuSpec {
+    const items: MenuItemSpec[] = [];
+    if (this.dockWidth < 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
+      items.push(new MenuItemSpec('fit-screen', '适合屏幕', (): void => this.requestFit('screen'))
+        .withIcon('scan'));
+      items.push(new MenuItemSpec('fit-native', '原始像素', (): void => this.requestFit('native'))
+        .withIcon('image'));
+    }
+    if (this.renameAllowed) {
+      items.push(new MenuItemSpec('rename', '重命名', (): void => this.onRename()).withIcon('pencil'));
+    }
+    items.push(new MenuItemSpec('export', '导出到系统目录', (): void => this.onExport()).withIcon('export'));
+    items.push(new MenuItemSpec('delete', '移入最近删除', (): void => this.onDelete())
+      .withIcon('trash').markDanger());
+    return new MenuSpec(items);
+  }
+
+  @Builder
+  private moreMenu() {
+    AppMenu(this.moreMenuSpec());
+  }
+
+  @Builder
+  private moreAction() {
+    Button({ type: ButtonType.Normal }) {
+      Column({ space: Space.s6 }) {
+        Glyph({ glyph: 'list', glyphSize: 21, glyphTone: '#E6FFFFFF', glyphWeight: 1.7 })
+        Text('更多').fontSize(11).minFontSize(9).maxFontSize(11).maxLines(1)
+          .fontColor('#E6FFFFFF')
+      }.padding({ top: Space.s6, bottom: Space.s6 })
+    }
+    .layoutWeight(1).height(52).padding({ left: 2, right: 2 }).backgroundColor(Color.Transparent)
+    .accessibilityText('更多操作').borderRadius(Radius.r6)
+    .bindMenu(this.moreMenu(), { placement: Placement.TopRight })
+  }
+
   @Builder
   private action(glyph: string, label: string, danger: boolean, act: () => void): void {
     Button({ type: ButtonType.Normal }) {
@@ -1022,24 +1042,6 @@ export struct ImageViewer {
   @Builder
   private actionDock(actions: AnimationDockActions) {
     Column() {
-      if (this.moreOpen && this.actionable) {
-        Column({ space: Space.s8 }) {
-          if (this.dockWidth < 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
-            PillButton({ label: '适合屏幕', block: true, variant: 'tonal',
-              onAction: (): void => { this.moreOpen = false; this.requestFit('screen'); } })
-            PillButton({ label: '原始像素', block: true, variant: 'tonal',
-              onAction: (): void => { this.moreOpen = false; this.requestFit('native'); } })
-          }
-          if (this.renameAllowed) {
-            PillButton({ label: '重命名', block: true, variant: 'tonal',
-              onAction: (): void => { this.moreOpen = false; this.onRename(); } })
-          }
-          PillButton({ label: '导出到系统目录', block: true, variant: 'tonal',
-            onAction: (): void => { this.moreOpen = false; this.onExport(); } })
-          PillButton({ label: '移入最近删除', block: true, variant: 'danger',
-            onAction: (): void => { this.moreOpen = false; this.onDelete(); } })
-        }.width('100%').padding(Space.s12).backgroundColor('#EE222222').borderRadius(Radius.r6)
-      }
       if (actions.notice.length > 0 || this.hint.length > 0) {
         Text(actions.notice.length > 0 ? actions.notice : this.hint)
           .fontSize(Font.aux)
@@ -1063,7 +1065,7 @@ export struct ImageViewer {
           }
           this.action('download', '存相册', false, this.onSaveToGallery)
           this.action('share', '分享', false, this.onShare)
-          this.action('list', '更多', false, (): void => { this.moreOpen = !this.moreOpen; })
+          this.moreAction()
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceAround)
@@ -1099,10 +1101,10 @@ export struct ImageViewer {
                 label: slide.label, active: this.foreground && slideIndex === this.index && !this.panels.comparison, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
                 showFitControls: false, fitCommand: this.fitCommand,
                 backgroundMode: this.backgroundMode,
-                onTapImage: (): void => { this.controlsShown = !this.controlsShown; this.moreOpen = false; },
+                onTapImage: (): void => { this.controlsShown = !this.controlsShown; },
                 onZoomChange: (value: boolean): void => { this.zoomed = value; } })
             } else {
-              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; this.moreOpen = false; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
+              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
                 allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
                 dockedControls: slide.animated,
                 bottomActions: (actions: AnimationDockActions): void => { this.actionDock(actions); } })
@@ -1113,7 +1115,6 @@ export struct ImageViewer {
           .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
             if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
               this.controlsShown = !this.controlsShown;
-              this.moreOpen = false;
             }
           }))
         }, (slide: ViewerSlide) => slide.id)
@@ -1130,10 +1131,11 @@ export struct ImageViewer {
         Column() {
           Column() {
             PreviewHeader({ title: this.current()?.name ?? '', counter: this.slideCounter(),
+              showLivePhoto: (this.current()?.animated ?? false) || (this.current()?.motionPath.length ?? 0) > 0,
               showCounter: this.slideCounter().length > 0, emphasized: true,
               detailsLabel: '图片详情与工具',
               onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
-              onDetails: (): void => { this.moreOpen = false; this.panels.tools = true; },
+              onDetails: (): void => { this.panels.tools = true; },
               onClose: (): void => { this.onClose(); } })
           }
           .width('100%')
@@ -1163,18 +1165,16 @@ export struct ImageViewer {
         PreviewCompare({ assets: this.slides, currentId: this.current()!.id, backgroundMode: this.backgroundMode,
           onClose: (): void => { this.panels.comparison = false; } })
       }
+      AppSheet({ visible: this.panels.tools && this.current() !== undefined,
+        initialSize: SheetSize.MEDIUM, scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        useMaterial: this.detailsMaterialAllowed(),
+        opaqueBackground: !this.detailsMaterialAllowed(),
+        onDismiss: (): void => { this.panels.tools = false; } }) {
+        this.toolsContent()
+      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#000000')
-    .bindSheet(this.panels.tools && this.current() !== undefined, this.toolsContent(), {
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      dragBar: true,
-      showClose: false,
-      backgroundColor: this.detailsMaterialAllowed() ? SheetStyle.background() : Palette.card,
-      systemMaterial: this.detailsMaterialAllowed() ? this.sheetMaterial : undefined,
-      onDisappear: (): void => { this.panels.tools = false; }
-    })
   }
 }

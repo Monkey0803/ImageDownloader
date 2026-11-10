@@ -4,6 +4,7 @@ import { image } from '@kit.ImageKit';
 import { util } from '@kit.ArkTS';
 import { describe, it, expect } from '@ohos/hypium';
 import { LibraryImageReader } from '../../../main/ets/service/LibraryImageReader';
+import { GalleryCoverInfo } from '../../../main/ets/service/GalleryCoverInfo';
 
 class FixtureCase {
   name: string = '';
@@ -50,6 +51,9 @@ export default function libraryFixturesTest() {
               expect(value.length > 0).assertTrue();
             }
           } finally { await source.release(); }
+          const cover: GalleryCoverInfo = await GalleryCoverInfo.read(path);
+          expect(cover.width).assertEqual(entry.orientation >= 5 ? entry.height : entry.width);
+          expect(cover.height).assertEqual(entry.orientation >= 5 ? entry.width : entry.height);
           if (entry.name === 'edit-oracle.png') {
             const oracle: image.ImageSource = image.createImageSource(path);
             let frame: image.PixelMap | undefined = undefined;

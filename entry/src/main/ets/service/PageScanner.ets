@@ -3,6 +3,7 @@ import { ImageCandidate } from './ImageCandidates';
 import { ScanImage } from './PictureFactory';
 import { ScanUpgrader } from './ScanUpgrader';
 import { WeiboLivePhotos } from './WeiboLivePhotos';
+import { BatchPageProtocol, BatchPageStep } from './BatchPageProtocol';
 
 /** 一次扫描的结果：页面标题、页面真实地址、扫到的图片。 */
 export interface ScanData {
@@ -352,24 +353,28 @@ export class PageScanner {
    *
    * 页面销毁时调 `cancel()` 就够了：重扫最多 8×500ms，页面没了还继续 `runJavaScriptExt` 是白跑。
    */
-  async start(controller: webview.WebviewController, quality: string, events: ScanEvents): Promise<void> {
+  async start(controller: webview.WebviewController, quality: string, events: ScanEvents,
+    requestedUrl: string = ''): Promise<void> {
     this.invalidate();
     this.seen = -1;
     this.stable = 0;
-    await this.probe(controller, quality, this.generation, 0, events);
+    await this.probe(controller, quality, this.generation, 0, events, requestedUrl);
   }
 
   private async probe(controller: webview.WebviewController, quality: string, generation: number,
-    attempt: number, events: ScanEvents): Promise<void> {
+    attempt: number, events: ScanEvents, requestedUrl: string): Promise<void> {
     this.cancel();
     if (generation !== this.generation) {
       return;
     }
     let raw: string = '';
     const strategy: SourceOrderStrategy = ScanStrategies.of(quality);
+    const weiboDetail: boolean = BatchPageProtocol.weiboId(requestedUrl).length > 0;
     try {
       const result: webview.JsMessageExt =
-        await controller.runJavaScriptExt(ScanProtocol.script(strategy.order(), strategy.arbitrate()));
+        await controller.runJavaScriptExt(weiboDetail
+          ? BatchPageProtocol.script(requestedUrl, quality)
+          : ScanProtocol.script(strategy.order(), strategy.arbitrate()));
       if (generation !== this.generation) {
         // 结果属于上一个页面：交给当前这一轮扫描处理，这里直接丢掉。
         return;
@@ -382,16 +387,31 @@ export class PageScanner {
       events.onError('扫描失败，请等待页面加载后重试');
       return;
     }
-    const data: ScanData = ScanProtocol.parse(raw);
+    const step: BatchPageStep | undefined = weiboDetail ? BatchPageProtocol.parse(raw) : undefined;
+    if (step !== undefined && step.error.length > 0) {
+      events.onError(step.error);
+      return;
+    }
+    if (step !== undefined && (step.pending || !step.scopeFound)) {
+      if (attempt >= 12) {
+        events.onError('无法读取目标微博，请打开网页确认登录或验证后重试');
+        return;
+      }
+      this.timer = setTimeout((): void => {
+        this.timer = -1;
+        this.probe(controller, quality, generation, attempt + 1, events, requestedUrl);
+      }, 900);
+      return;
+    }
+    const data: ScanData = step ?? ScanProtocol.parse(raw);
     // about:blank and error pages report a non-http URL; scanning one would
     // both mislabel the page and overwrite the address the user typed.
     if (!data.url.startsWith('http://') && !data.url.startsWith('https://')) {
       events.onAborted();
       return;
     }
-    // 微博的实况照片：静图在 <img> 里，动态视频要单独取正文接口。补完再发进度，
-    // 这样地址栏扫描得到的结果和批量页一样，能按实况照片下载。
-    await WeiboLivePhotos.apply(data.url, data.images);
+    // 通用扫描得到的微博图片仍需补动态地址；详情页协议已从正文接口取到静图和动态地址。
+    if (!weiboDetail) { await WeiboLivePhotos.apply(data.url, data.images); }
     if (generation !== this.generation) {
       return;
     }
@@ -412,7 +432,7 @@ export class PageScanner {
       // 页面还没渲染完：继续显示「正在扫描」，过一会儿再看一次。
       this.timer = setTimeout((): void => {
         this.timer = -1;
-        this.probe(controller, quality, generation, attempt + 1, events);
+        this.probe(controller, quality, generation, attempt + 1, events, requestedUrl);
       }, PageScanner.RETRY_DELAY);
       return;
     }

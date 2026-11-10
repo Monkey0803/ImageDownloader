@@ -18,12 +18,15 @@ import { Glyph } from './Icons';
 
 const PREVIEW_FIRST_FRAME_TIMEOUT_MS: number = 15000;
 const PREVIEW_SOURCE_UNAVAILABLE: string = '图片源不可用，请检查文件或网络后重试';
+const PREVIEW_IMAGE_REVEAL: TransitionEffect = TransitionEffect.asymmetric(
+  TransitionEffect.OPACITY, TransitionEffect.IDENTITY).animation({ duration: 180, curve: Curve.EaseOut });
 
 /** Retain the last decoded frame while upgrading detail; never decode multiple revisions concurrently. */
 @ComponentV2
 export struct LocalPreviewImage {
   @Require @Param path: string;
   @Require @Param fallbackUri: string;
+  @Param posterUri: string = '';
   @Param label: string = 'IMG';
   @Param active: boolean = true;
   @Param renderZoom: number = 1;
@@ -132,16 +135,21 @@ export struct LocalPreviewImage {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.frame !== undefined) {
-        Image(this.frame).width('100%').height('100%').objectFit(ImageFit.Contain)
-          .dynamicRangeMode(this.hdr ? DynamicRangeMode.HIGH : DynamicRangeMode.STANDARD)
+      if (this.active && this.posterUri.length > 0) {
+        Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
           .scale({ x: this.renderZoom, y: this.renderZoom }).translate({ x: this.renderX, y: this.renderY })
-      } else if (this.active && this.fallbackUri.length > 0) {
+      } else if (this.active && this.frame === undefined && this.fallbackUri.length > 0) {
         Thumb({ src: this.fallbackUri, label: this.label, fit: ImageFit.Contain, fallbackText: '预览不可用' })
           .width('100%').height('100%')
           .scale({ x: this.renderZoom, y: this.renderZoom }).translate({ x: this.renderX, y: this.renderY })
       }
-      if (this.loading && this.frame === undefined) {
+      if (this.frame !== undefined) {
+        Image(this.frame).width('100%').height('100%').objectFit(ImageFit.Contain)
+          .dynamicRangeMode(this.hdr ? DynamicRangeMode.HIGH : DynamicRangeMode.STANDARD)
+          .scale({ x: this.renderZoom, y: this.renderZoom }).translate({ x: this.renderX, y: this.renderY })
+          .transition(PREVIEW_IMAGE_REVEAL)
+      }
+      if (this.loading && this.frame === undefined && this.posterUri.length === 0) {
         LoadingProgress().width(28).height(28).color(Palette.white).hitTestBehavior(HitTestMode.None)
       }
       if (this.loading && this.frame !== undefined) {
@@ -210,7 +218,9 @@ export struct AnimatedPreviewImage {
   @Param backgroundMode: string = 'auto';
   @Require @Param src: string;
   @Event onTapImage: () => void = (): void => {};
+  @Event onReady: () => void = (): void => {};
   @Param localPath: string = '';
+  @Param posterUri: string = '';
   @Param name: string = '图片';
   @Param controlsVisible: boolean = true;
   @Param controlsBottom: number = 80;
@@ -313,6 +323,7 @@ export struct AnimatedPreviewImage {
       this.imageWidth = info.width;
       this.imageHeight = info.height;
       this.transparent = info.transparent;
+      if (!this.loaded) { this.onReady(); }
       this.loaded = true;
     }, (): void => {
       this.failLoad(token, PREVIEW_SOURCE_UNAVAILABLE);
@@ -366,6 +377,8 @@ export struct AnimatedPreviewImage {
   private remoteImage(attempt: number, source: string) {
     // API 26 reloadKey retries the unchanged source URL.
     Image(source, undefined, attempt.toString()).width('100%').height('100%').objectFit(ImageFit.Contain)
+      .opacity(this.posterUri.length > 0 && !this.loaded ? 0 : 1)
+      .animation({ duration: 180, curve: Curve.EaseOut })
       .translate({ y: this.pullDistance * 0.65 })
       .onComplete((event): void => {
         if (!this.acceptsLoad(attempt) || source !== this.src) { return; }
@@ -373,6 +386,7 @@ export struct AnimatedPreviewImage {
           this.clearFirstFrameTimer();
           this.imageWidth = event.width;
           this.imageHeight = event.height;
+          if (!this.loaded) { this.onReady(); }
           this.loaded = true;
         }
       })
@@ -384,18 +398,22 @@ export struct AnimatedPreviewImage {
   @Builder
   private animationCanvas() {
     Stack({ alignContent: Alignment.Center }) {
+      if (this.active && this.posterUri.length > 0) {
+        Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
+      }
       if (this.loaded && ((this.backgroundMode === 'auto' && this.transparent) || this.backgroundMode === 'checker')) {
         PreviewCheckerboard().width(this.fitted().width).height(this.fitted().height)
       }
       if (this.active && this.animationFrame !== undefined) {
         Image(this.animationFrame).width('100%').height('100%').objectFit(ImageFit.Contain)
           .translate({ y: this.pullDistance * 0.65 })
+          .transition(PREVIEW_IMAGE_REVEAL)
       } else if (this.active && !this.failed && this.localPath.length === 0) {
         ForEach([this.loadAttempt], (attempt: number) => {
           this.remoteImage(attempt, this.src)
         }, (attempt: number): string => attempt.toString())
       }
-      if (this.active && !this.loaded && !this.failed) {
+      if (this.active && !this.loaded && !this.failed && this.posterUri.length === 0) {
         LoadingProgress().width(28).height(28).color(Palette.white).hitTestBehavior(HitTestMode.None)
       }
       if (this.failed) {
@@ -487,16 +505,19 @@ export struct ZoomablePreviewImage {
   @Param imageId: string = '';
   @Require @Param path: string;
   @Require @Param fallbackUri: string;
+  @Param posterUri: string = '';
   @Param label: string = 'IMG';
   @Param active: boolean = true;
   @Param controlsVisible: boolean = true;
   @Param controlsBottom: number = 80;
   @Param showFitControls: boolean = true;
+  @Param compactFitControls: boolean = false;
   @Param fitCommand: string = '';
   @Param readingKey: string = '';
   @Param allowDismiss: boolean = false;
   @Event onDismiss: () => void = (): void => {};
   @Event onTapImage: () => void = (): void => {};
+  @Event onReady: () => void = (): void => {};
   @Event onZoomChange: (zoomed: boolean) => void = (zoomed: boolean): void => {};
   @Local private zoomFactor: number = 1;
   @Local private fitMode: string = 'screen';
@@ -716,7 +737,7 @@ export struct ZoomablePreviewImage {
           PreviewCheckerboard().width(this.fitted().width).height(this.fitted().height)
             .scale({ x: this.zoomFactor, y: this.zoomFactor }).translate({ x: this.dragX, y: this.dragY })
         }
-        LocalPreviewImage({ path: this.path, fallbackUri: this.fallbackUri,
+        LocalPreviewImage({ path: this.path, fallbackUri: this.fallbackUri, posterUri: this.posterUri,
           label: this.label, active: this.active,
           renderZoom: this.zoomFactor, renderX: this.dragX, renderY: this.dragY,
           onMetadata: (width: number, height: number, transparent: boolean, isHdr: boolean): void => {
@@ -727,6 +748,7 @@ export struct ZoomablePreviewImage {
             this.restoreReading();
             this.apply(this.fitMode === 'native' ? this.nativeScale()
               : this.fitMode === 'width' ? this.widthScale() : this.zoomFactor, { x: this.dragX, y: this.dragY });
+            this.onReady();
           } })
           .width('100%').height('100%')
         PreviewRegionImage({ sourcePath: this.path, originalWidth: this.imageWidth, originalHeight: this.imageHeight,
@@ -823,7 +845,8 @@ export struct ZoomablePreviewImage {
   @Builder
   private readingControl() {
     if (this.controlsVisible && this.imageWidth > 0 &&
-      (this.showFitControls || (this.longImage() && this.widthScale() > 1.05))) {
+      (this.showFitControls || (this.compactFitControls && (this.fitMode !== 'screen' || this.zoomFactor > 1.001))
+        || (this.longImage() && this.widthScale() > 1.05))) {
       Column({ space: Space.s4 }) {
         Row({ space: Space.s8 }) {
         if (this.showFitControls) {
@@ -831,6 +854,9 @@ export struct ZoomablePreviewImage {
             onAction: (): void => { this.animateTo(1, { x: 0, y: 0 }, 'screen'); } })
           PreviewButton({ label: '原始像素', small: true, variant: 'tonal',
             onAction: (): void => { this.animateTo(this.nativeScale(), { x: 0, y: 0 }, 'native'); } })
+        } else if (this.compactFitControls && (this.fitMode !== 'screen' || this.zoomFactor > 1.001)) {
+          PreviewButton({ label: '适合屏幕', small: true, variant: 'tonal',
+            onAction: (): void => { this.animateTo(1, { x: 0, y: 0 }, 'screen'); } })
         }
         if (this.longImage() && this.widthScale() > 1.05) {
           PreviewButton({ label: this.zoomFactor > 1.001 ? '查看全图' : '适合宽度', small: true, variant: 'tonal',
@@ -851,7 +877,10 @@ export struct ZoomablePreviewImage {
             PreviewButton({ label: '底部', small: true, variant: 'tonal', onAction: (): void => { this.seekReading(100); } })
           }.width('100%')
         }
-      }.width('100%').constraintSize({ maxWidth: 560 }).padding(Space.s8).borderRadius(Radius.r8).backgroundColor('#E61C1C1E')
+      }.width(this.showFitControls || (this.longImage() && this.widthScale() > 1.05) ? '100%' : 120)
+        .constraintSize({ maxWidth: 560 }).padding(Space.s8).borderRadius(Radius.r8)
+        .backgroundColor(this.showFitControls || (this.longImage() && this.widthScale() > 1.05)
+          ? '#E61C1C1E' : Color.Transparent)
         .margin({ bottom: this.controlsBottom + 8 })
     }
   }

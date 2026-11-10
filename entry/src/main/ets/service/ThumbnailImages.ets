@@ -28,11 +28,36 @@ interface ThumbnailEntry { path: string; bytes: number; width: number; height: n
 /** Grid-only, unauthenticated thumbnails. Crop before scaling so long-image details stay legible. */
 export class ThumbnailImages {
   private static cache: Map<string, ThumbnailEntry> = new Map<string, ThumbnailEntry>();
+  private static retained: Map<string, number> = new Map<string, number>();
   private static pending: Map<string, ThumbnailJob> = new Map<string, ThumbnailJob>();
   private static queue: (() => void)[] = [];
   private static running: number = 0;
   private static sequence: number = 0;
   private static directory: string = '';
+
+  /** Keep a grid thumbnail alive while a preview is using its file URI. */
+  static retain(uri: string): boolean {
+    for (const entry of ThumbnailImages.cache.values()) {
+      if (fileUri.getUriFromPath(entry.path) !== uri) { continue; }
+      try {
+        if (fs.statSync(entry.path).size <= 0) { return false; }
+      } catch (error) { return false; }
+      ThumbnailImages.retained.set(entry.path, (ThumbnailImages.retained.get(entry.path) ?? 0) + 1);
+      return true;
+    }
+    return false;
+  }
+
+  static release(uri: string): void {
+    for (const entry of ThumbnailImages.cache.values()) {
+      if (fileUri.getUriFromPath(entry.path) !== uri) { continue; }
+      const count: number = ThumbnailImages.retained.get(entry.path) ?? 0;
+      if (count <= 1) { ThumbnailImages.retained.delete(entry.path); }
+      else { ThumbnailImages.retained.set(entry.path, count - 1); }
+      ThumbnailImages.trim();
+      return;
+    }
+  }
 
   static async load(uri: string, cacheDir: string, aspect: number, contain: boolean,
     request: ThumbnailRequest, referer: string = ''): Promise<ThumbnailResult> {
@@ -182,6 +207,7 @@ export class ThumbnailImages {
     for (const entry of ThumbnailImages.cache.values()) { bytes += entry.bytes; }
     for (const entry of ThumbnailImages.cache.entries()) {
       if (ThumbnailImages.cache.size <= 64 && bytes <= 32 * 1024 * 1024) { break; }
+      if (ThumbnailImages.retained.has(entry[1].path)) { continue; }
       ThumbnailImages.cache.delete(entry[0]); bytes -= entry[1].bytes;
       ThumbnailImages.remove(entry[1].path);
     }

@@ -14,6 +14,7 @@ import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveServic
 import { CollectionGroups, CollectionSummary } from '../service/CollectionGroups';
 import { TRASH_STORE, TrashEntry } from '../service/TrashStore';
 import { TapShare } from '../service/TapShare';
+import { LibraryFlowRow, LibraryFlowRows } from './LibraryFlowRows';
 
 export class LibraryDateGroup {
   label: string = '';
@@ -34,6 +35,10 @@ export class LibraryDateGroup {
 export class LibraryViewModel {
   private ui: UiPort = new UiPort();
   private scroller: Scroller = new Scroller();
+  private firstVisibleFlowIndex: number = 0;
+  readonly flowRows: LibraryFlowRows = new LibraryFlowRows();
+  @Trace flowSections: WaterFlowSections = new WaterFlowSections();
+  private flowSectionSignature: string = '';
 
   @Trace downloads: DownloadItem[] = [];
   @Trace zips: ZipItem[] = [];
@@ -85,6 +90,68 @@ export class LibraryViewModel {
   private analysisGeneration: number = 0;
   private similarToken: AnalysisToken | undefined = undefined;
   private similarGeneration: number = 0;
+
+  @Monitor('downloads', 'zips', 'query', 'searchScope', 'favoritesOnly', 'tagFilter',
+    'catalogEntries', 'albums', 'albumFilter', 'sourceQuery', 'collectionFilter', 'formatFilter',
+    'sortOrder', 'density', 'segment', 'focusedIds', 'selecting', 'selectedIds', 'catalogReady')
+  private onFlowInputsChanged(monitor: IMonitor): void { this.updateFlowRows(); }
+
+  private updateFlowRows(): void {
+    const rows: LibraryFlowRow[] = [];
+    const sections: SectionOptions[] = [];
+    const controls: LibraryFlowRow = new LibraryFlowRow();
+    controls.key = 'controls'; controls.kind = 'controls'; rows.push(controls);
+    sections.push({ itemsCount: 1, crossCount: 1 });
+    if (this.isZips()) {
+      if (this.archives.length === 0) {
+        const empty: LibraryFlowRow = new LibraryFlowRow();
+        empty.key = 'empty|archives'; empty.kind = 'empty'; rows.push(empty);
+        sections.push({ itemsCount: 1, crossCount: 1 });
+      } else {
+        for (const archive of this.archives) {
+          const row: LibraryFlowRow = new LibraryFlowRow();
+          row.key = 'archive|' + archive.id; row.kind = 'archive'; row.archive = archive;
+          row.state = archive.name + '|' + archive.size.toString() + '|' + this.selecting.toString()
+            + '|' + this.isSelected(archive.id).toString(); rows.push(row);
+        }
+        sections.push({ itemsCount: this.archives.length, crossCount: 1, rowsGap: 12 });
+      }
+    } else if (this.images.length === 0) {
+      const empty: LibraryFlowRow = new LibraryFlowRow();
+      empty.key = 'empty|images'; empty.kind = 'empty'; rows.push(empty);
+      sections.push({ itemsCount: 1, crossCount: 1 });
+    } else {
+      for (const group of this.imageDateGroups()) {
+        if (group.label.length > 0) {
+          const heading: LibraryFlowRow = new LibraryFlowRow();
+          heading.key = 'heading|' + group.label; heading.kind = 'heading';
+          heading.title = group.label; heading.count = group.items.length; rows.push(heading);
+          sections.push({ itemsCount: 1, crossCount: 1, margin: { top: 16 } });
+        }
+        if (group.items.length === 0) { continue; }
+        for (const image of group.items) {
+          const row: LibraryFlowRow = new LibraryFlowRow();
+          row.key = 'image|' + image.id; row.kind = 'image'; row.image = image;
+          row.state = image.path + '|' + image.stillPath + '|' + image.imageWidth.toString()
+            + '|' + image.imageHeight.toString() + '|' + this.selecting.toString()
+            + '|' + this.isSelected(image.id).toString(); rows.push(row);
+        }
+        sections.push({ itemsCount: group.items.length, crossCount: this.density,
+          columnsGap: this.density === 3 ? 6 : 12, rowsGap: this.density === 3 ? 6 : 12,
+          margin: { top: group.label.length > 0 ? 8 : 16 } });
+      }
+    }
+    const signature: string = sections.map((section: SectionOptions): string =>
+      section.itemsCount.toString() + ':' + section.crossCount?.toString() + ':'
+        + section.columnsGap?.toString() + ':' + section.rowsGap?.toString()).join('|');
+    if (signature !== this.flowSectionSignature) {
+      const next: WaterFlowSections = new WaterFlowSections();
+      next.splice(0, 0, sections);
+      this.flowSectionSignature = signature;
+      this.flowSections = next;
+    }
+    this.flowRows.replace(rows);
+  }
 
   startSimilar(scope: string = 'current'): void {
     if (this.similarAnalyzing) { return; }
@@ -492,8 +559,10 @@ export class LibraryViewModel {
     return this.scroller;
   }
 
-  markScrolled(): void {
-    this.scrolled = this.scroller.currentOffset().yOffset > ScreenMetrics.scrollThreshold();
+  markScrolled(firstVisible?: number): void {
+    if (firstVisible !== undefined) { this.firstVisibleFlowIndex = firstVisible; }
+    this.scrolled = this.firstVisibleFlowIndex > 0
+      || this.scroller.currentOffset().yOffset > ScreenMetrics.scrollThreshold();
   }
 
   scrollToTop(): void {
@@ -533,6 +602,7 @@ export class LibraryViewModel {
       this.contentChecked = false;
       this.contentReport = new ContentScanResult();
     }
+    this.updateFlowRows();
   }
 
   /** 关键词变了：只重算搜索相关的结果，不动统计。 */

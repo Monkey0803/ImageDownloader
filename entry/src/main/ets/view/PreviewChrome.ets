@@ -30,6 +30,8 @@ export struct PreviewHeader {
   @Require @Param title: string;
   @Param counter: string = '';
   @Param showCounter: boolean = true;
+  @Param showTitle: boolean = true;
+  @Param showLivePhoto: boolean = false;
   @Param counterActive: boolean = true;
   @Param emphasized: boolean = false;
   @Param detailsLabel: string = '图片详情';
@@ -39,11 +41,22 @@ export struct PreviewHeader {
 
   build() {
     Row({ space: this.emphasized ? Space.s4 : Space.s8 }) {
-      Text(this.title)
-        .fontSize(Font.body)
-        .fontWeight(this.emphasized ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(Palette.white)
-        .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
+      if (this.showTitle) {
+        Text(this.title)
+          .fontSize(Font.body)
+          .fontWeight(this.emphasized ? FontWeight.Medium : FontWeight.Normal)
+          .fontColor(Palette.white)
+          .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
+      } else {
+        Blank()
+      }
+      if (this.showLivePhoto) {
+        Row() {
+          Glyph({ glyph: 'livephoto', glyphSize: 21, glyphTone: Palette.white })
+        }
+        .height(40).alignItems(VerticalAlign.Center)
+        .accessibilityText('动态图片')
+      }
       if (this.showCounter) {
         Text(this.counter)
           .fontSize(Font.aux)

@@ -1,58 +1,60 @@
-import {
-  abilityAccessCtrl, bundleManager, common, PermissionRequestResult, Permissions
-} from '@kit.AbilityKit';
 import { BusinessError, pasteboard } from '@kit.BasicServicesKit';
 
+export type ClipboardReadProblem = 'permission' | 'non-text' | 'unavailable';
+
+export class ClipboardReadError extends Error {
+  readonly problem: ClipboardReadProblem;
+
+  constructor(problem: ClipboardReadProblem) {
+    super(problem);
+    this.problem = problem;
+  }
+}
+
 /**
- * 系统剪贴板读取（**门面**：把权限申请 + 授权检查 + 取数这三步盖成一个 `readText`）。
- *
- * `ohos.permission.READ_PASTEBOARD` 是 user_grant，所以在用户第一次点「粘贴」时才申请，
- * 不在启动时打扰。顺序是平台要求的，不能换：check → request → **hasData** → getData。
+ * 只在系统 PasteButton 成功授予本次临时读取权限后调用。
+ * 顺序为 hasData → getData，避免空剪贴板时无意义的读取。
  * 先 `getData` 不查 `hasData` 会被 CodeLinter 的
  * `@correctness/paste-board-for-user-grant-check` 报出来；而且剪贴板里没东西时，
- * 授权弹窗本身就会失败。
- *
- * 取不到授权时抛 Error，由调用方决定怎么提示（提示文案属于界面，不属于这一层）。
+ * 系统读取可能报错。错误只在日志里保留阶段和错误码，不记录剪贴板内容。
  */
 export class Clipboard {
+  private static failure(stage: string, error: Object): ClipboardReadError {
+    const code: number = (error as BusinessError).code;
+    console.error('clipboard ' + stage + ' failed, code=' + String(code));
+    return new ClipboardReadError(code === 201 ? 'permission' : 'unavailable');
+  }
+
+  static readProblemMessage(error: Object): string {
+    if (error instanceof ClipboardReadError) {
+      if (error.problem === 'permission') { return '剪贴板授权已失效，请再次点击粘贴'; }
+      if (error.problem === 'non-text') { return '剪贴板内容不是文字'; }
+    }
+    return '剪贴板暂时无法读取，请重试';
+  }
+
   static async writeText(value: string): Promise<void> {
     await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, value));
   }
 
-  static async readText(context: common.UIAbilityContext): Promise<string> {
-    const manager: abilityAccessCtrl.AtManager = abilityAccessCtrl.createAtManager();
-    let tokenId: number = 0;
-    try {
-      const info: bundleManager.BundleInfo = await bundleManager.getBundleInfoForSelf(
-        bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
-      tokenId = info.appInfo.accessTokenId;
-    } catch (error) {
-      console.error('bundle info failed: ' + String((error as BusinessError).code));
-    }
-    let granted: boolean = false;
-    if (tokenId !== 0) {
-      try {
-        const status: abilityAccessCtrl.GrantStatus =
-          await manager.checkAccessToken(tokenId, 'ohos.permission.READ_PASTEBOARD' as Permissions);
-        granted = status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
-      } catch (error) {
-        console.error('checkAccessToken failed: ' + String((error as BusinessError).code));
-      }
-    }
-    if (!granted) {
-      const result: PermissionRequestResult =
-        await manager.requestPermissionsFromUser(context, ['ohos.permission.READ_PASTEBOARD' as Permissions]);
-      granted = result.authResults.length > 0
-        && result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
-    }
-    if (!granted) {
-      throw new Error('未获得剪贴板读取权限');
-    }
+  static async readText(): Promise<string> {
     const board: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
-    if (!await board.hasData()) {
-      return '';
+    try {
+      if (!await board.hasData()) { return ''; }
+    } catch (error) { throw Clipboard.failure('hasData', error); }
+    let data: pasteboard.PasteData;
+    try {
+      data = await board.getData();
+    } catch (error) { throw Clipboard.failure('getData', error); }
+    let value: string;
+    let plainText: boolean;
+    try {
+      value = data.getPrimaryText();
+      plainText = data.hasMimeType(pasteboard.MIMETYPE_TEXT_PLAIN);
+    } catch (error) { throw Clipboard.failure('inspectData', error); }
+    if (value.length === 0 && !plainText) {
+      throw new ClipboardReadError('non-text');
     }
-    const data: pasteboard.PasteData = await board.getData();
-    return data.getPrimaryText();
+    return value;
   }
 }

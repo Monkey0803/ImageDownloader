@@ -105,7 +105,7 @@ entry/src/main/ets/
 ├─ service/LibraryAnalysis.ets 按需文字识别与相似候选分析
 ├─ service/LibraryImageReader.ets EXIF 统一解码；EditExport/EditJournal.ets 编辑导出与恢复
 ├─ service/PictureFactory.ets PictureItem 的构造与按 url 合并
-├─ service/Clipboard.ets      剪贴板读取（含权限申请顺序）
+├─ service/Clipboard.ets      PasteButton 临时授权后的剪贴板读取与错误分类
 ├─ service/ThemeController.ets / MaterialSupport.ets  主题映射 / 材质能力探测
 ├─ service/UiPort.ets         ViewModel 反向依赖界面的唯一出口
 ├─ service/GripSensor.ets     智感握姿：订阅系统握持手感知
@@ -134,7 +134,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 - 订阅状态由 `service/GripSensor.ets` 统一持有（`hand` / `supported` / `problem`），开关和订阅同生共死，
   不做常驻监听；开关本身随 `DownloadStore` 的状态文件持久化，重启后自动恢复订阅。
 - 权限是 `ohos.permission.DETECT_GESTURE`（normal + `system_grant`）：装机即授予，**不需要运行时弹窗，
-  也不需要证书 ACL**，与下面的 `READ_PASTEBOARD` 不是一回事。
+  也不需要证书 ACL**，与防窥权限的签名要求不同。
 - 设备不支持时订阅返回 **801**；这时开关仍按用户意愿保存，但**不弹任何提示** ——
   「未生效：设备不支持智感握姿」写在设置页那一行的说明里（`gripHint()`），要查的时候看得见。
   文档里「设备不支持」与「系统开关未开」两种情况现象相同，应用侧区分不了，错误码只写进日志，不暴露给用户。
@@ -582,11 +582,10 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
 
 工程使用 DevEco Studio SDK 26。`build-profile.json5` 是本机文件，包含调试签名配置，已被 Git 忽略；在新机器上复制 `build-profile.example.json5` 为 `build-profile.json5`，再通过 DevEco Studio 的 **Project Structure → Signing Configs** 配置调试签名。
 
-> **签名证书需要带 ACL**：两个权限在设备端的 `availableLevel` 都是 `system_basic`，比普通应用高一级，
+> **签名证书需要带 ACL**：防窥权限在设备端的 `availableLevel` 是 `system_basic`，比普通应用高一级，
 > 所以 `apl: normal` 的调试证书装不上（`hdc install` 报 `code:9568289 … grant request permissions failed`），
-> 必须在 Signing Configs 里让证书的 `allowed-acls` 同时包含：
+> 必须在 Signing Configs 里让证书的 `allowed-acls` 包含：
 >
-> - `ohos.permission.READ_PASTEBOARD`（地址栏「粘贴」，`user_grant`，首次点粘贴还会弹一次授权框）
 > - `ohos.permission.DLP_GET_HIDE_STATUS`（防窥保护，`system_grant`，**没有授权框**，但同样需要 ACL）
 >
 > 「没有授权框」很容易让人以为不需要 ACL，装不上时也容易误判成代码问题。重签后可用
@@ -613,8 +612,8 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
 
 **当前只做 phone**（`module.json5` 的 `deviceTypes` 为 `["phone"]`），已在 HarmonyOS 7.0.0(26.0.0) 手机模拟器上完成功能验证。
 
-地址栏「粘贴」已在真机（PLR-AL00）验证通过：点击 → 系统弹出 `READ_PASTEBOARD` 授权框（文案取
-`pasteboard_reason`）→ 授权后经 `PasteboardService` 读到剪贴板文本 → 填入地址栏并打开。
+历史版本曾通过申请 `READ_PASTEBOARD` 完成地址栏粘贴。当前版本改由系统 `PasteButton` 在每次点击时临时授权，
+授权成功后经 `Clipboard` 读取文本；该版本的真机结果另见本轮验收记录。
 
 智感握姿在真机（PLR-AL00，HarmonyOS 7.0.0.109）上订阅成功、能拿到握持手状态；镜像布局用
 「把手识别结果临时钉成左手」的构建截图确认过（见 `.screenshots/grip-left-mirror-*.jpeg`，

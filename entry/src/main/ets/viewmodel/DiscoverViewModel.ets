@@ -27,7 +27,6 @@ import { LocalPreview, LocalPreviewFile } from '../service/LocalPreview';
 import { UiPort } from '../service/UiPort';
 import { ScreenMetrics } from '../theme/Metrics';
 import { formatBytes } from '../theme/Tokens';
-import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
  * 「发现」页的 ViewModel：地址栏 + 内嵌浏览器 + 扫描结果 + 选择与入队。
@@ -88,7 +87,30 @@ export class DiscoverViewModel {
   private scroller: Scroller = new Scroller();
   private scanner: PageScanner = new PageScanner();
   private preview: AuthenticatedPreview = new AuthenticatedPreview();
+  private thumbnailByUid: Map<string, string> = new Map<string, string>();
   private inspectionGeneration: number = 0;
+
+  rememberThumbnail(uid: string, url: string, uri: string): void {
+    if (!this.pictures.some((item: PictureItem): boolean => item.uid === uid && item.url === url)) { return; }
+    this.thumbnailByUid.delete(uid);
+    this.thumbnailByUid.set(uid, uri);
+    while (this.thumbnailByUid.size > 128) {
+      const oldest: string | undefined = this.thumbnailByUid.keys().next().value;
+      if (oldest === undefined) { break; }
+      this.thumbnailByUid.delete(oldest);
+    }
+  }
+
+  thumbnailFor(uid: string): string { return this.thumbnailByUid.get(uid) ?? ''; }
+
+  gridThumbnailSource(item: PictureItem): string {
+    const local: LocalPreviewFile | undefined = LocalPreview.find(item.url, item.kind, this.downloadSnapshot);
+    const path: string = item.kind === 'livephoto' ? local?.stillPath ?? '' : local?.path ?? '';
+    if (path.length > 0) {
+      try { return fileUri.getUriFromPath(path); } catch (error) {}
+    }
+    return item.url;
+  }
   private expansion: PageExpansion = new PageExpansion();
   private expansionGeneration: number = 0;
   @Trace expanding: boolean = false;
@@ -556,14 +578,14 @@ export class DiscoverViewModel {
   async pasteAddress(): Promise<void> {
     let text: string = '';
     try {
-      text = await Clipboard.readText(this.ui.context());
+      text = await Clipboard.readText();
     } catch (error) {
-      this.ui.say('读取剪贴板失败：' + String((error as BusinessError).message));
+      this.ui.say(Clipboard.readProblemMessage(error));
       return;
     }
     const link: string = text.trim();
     if (link.length === 0) {
-      this.ui.say('剪贴板里没有文字');
+      this.ui.say('剪贴板为空');
       return;
     }
     this.address = link;
@@ -572,11 +594,21 @@ export class DiscoverViewModel {
 
   async pasteBatch(): Promise<void> {
     try {
-      this.setBatchText(await Clipboard.readText(this.ui.context()));
+      const text: string = await Clipboard.readText();
+      if (text.trim().length === 0) {
+        this.ui.say('剪贴板为空');
+        return;
+      }
+      this.setBatchText(text);
       this.setBatchPanel(true);
     } catch (error) {
-      this.ui.say('读取剪贴板失败：' + String((error as BusinessError).message));
+      this.ui.say(Clipboard.readProblemMessage(error));
     }
+  }
+
+  pasteAuthorizationFailed(code: number): void {
+    console.error('paste button authorization failed, code=' + code.toString());
+    this.ui.say('无法获取剪贴板临时授权，请重试或手动输入');
   }
 
   /** 文本变化会作废在途探测；已经缓存的确定结论仍按 URL 复用。 */
@@ -1151,7 +1183,7 @@ export class DiscoverViewModel {
         this.ui.say(message);
       }
     };
-    this.scanner.start(this.browser, quality, events);
+    this.scanner.start(this.browser, quality, events, this.address);
   }
 
   /** 页面销毁 / 换页时停掉排队中的重扫（页面没了还继续注入脚本是白跑）。 */

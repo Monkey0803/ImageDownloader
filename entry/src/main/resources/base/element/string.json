@@ -13,14 +13,6 @@
       "value": "图片下载管理"
     },
     {
-      "name": "pasteboard_reason",
-      "value": "读取剪贴板里的链接，粘贴到地址栏后打开"
-    },
-    {
-      "name": "float_view_reason",
-      "value": "在其他应用上方显示用户手动开启的下载进度闪控窗"
-    },
-    {
       "name": "download_widget_name",
       "value": "下载概览"
     },

@@ -2,16 +2,18 @@ import { PreviewAsset } from '../model/PreviewAsset';
 import { PreviewToolsViewModel } from '../viewmodel/PreviewToolsViewModel';
 import { Font, formatBytes, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
-import { SheetStyle } from '../theme/SheetStyle';
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { IconButton, PillButton } from './Widgets';
 import { ImageTagDialog } from './ImageTagDialog';
+import { AppSheet } from './AppSheet';
 import { UserAlbum } from '../model/LibraryAsset';
 
 @ComponentV2
 export struct PreviewTools {
   @Require @Param asset: PreviewAsset;
   @Param backgroundMode: string = 'auto';
+  @Param showFitActions: boolean = false;
+  @Event onFit: (mode: string) => void = (): void => {};
   @Event onBackground: (mode: string) => void = (): void => {};
   @Event onCompare: () => void = (): void => {};
   @Event onEdit: (id: string) => void = (id: string): void => {};
@@ -19,7 +21,6 @@ export struct PreviewTools {
   @Local private vm: PreviewToolsViewModel = new PreviewToolsViewModel();
   @Local private tagDialogOpen: boolean = false;
   @Local private activeTab: string = 'details';
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
   private loadedId: string = '';
   private loadedPath: string = '';
 
@@ -114,7 +115,7 @@ export struct PreviewTools {
           Row({ space: Space.s8 }) {
             Text(this.asset.name.length > 0 ? this.asset.name : '未命名图片')
               .fontSize(Font.body).fontWeight(FontWeight.Medium).fontColor(TransparentGlass.foreground())
-              .layoutWeight(1).maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
               .copyOption(CopyOptions.LocalDevice)
             if (this.asset.name.length > 0) {
               IconButton({ glyph: 'copy', tone: Palette.brand, plain: true, diameter: 40,
@@ -170,6 +171,17 @@ export struct PreviewTools {
   private toolsContent() {
     Scroll() {
       Column({ space: Space.s20 }) {
+        if (this.showFitActions && this.asset.localPath.length > 0 && !this.asset.animated) {
+          Column({ space: Space.s8 }) {
+            this.sectionTitle('显示比例')
+            Row({ space: Space.s8 }) {
+              PillButton({ label: '适合屏幕', small: true, variant: 'tonal',
+                onAction: (): void => { this.onFit('screen'); } })
+              PillButton({ label: '原始像素', small: true, variant: 'tonal',
+                onAction: (): void => { this.onFit('native'); } })
+            }
+          }.width('100%').alignItems(HorizontalAlign.Start)
+        }
         Column({ space: Space.s8 }) {
           this.sectionTitle('收藏与标签')
           if (this.asset.libraryId.length > 0) {
@@ -288,6 +300,7 @@ export struct PreviewTools {
   }
 
   build() {
+    Stack() {
     Column({ space: Space.s12 }) {
       Row() {
         Text('图片详情').fontSize(Font.body).fontColor(TransparentGlass.foreground())
@@ -311,13 +324,10 @@ export struct PreviewTools {
       else { this.toolsContent() }
     }.height('100%').width('100%')
       .padding({ left: Space.s16, right: Space.s16, top: Space.s16 })
-      .bindSheet(this.tagDialogOpen, this.tagContent(), {
-        height: SheetSize.FIT_CONTENT,
-        dragBar: true,
-        showClose: false,
-        backgroundColor: SheetStyle.background(),
-        systemMaterial: this.sheetMaterial,
-        onDisappear: (): void => { this.tagDialogOpen = false; }
-      })
+    AppSheet({ visible: this.tagDialogOpen, initialSize: SheetSize.FIT_CONTENT,
+      onDismiss: (): void => { this.tagDialogOpen = false; } }) {
+      this.tagContent()
+    }
+    }.width('100%').height('100%')
   }
 }

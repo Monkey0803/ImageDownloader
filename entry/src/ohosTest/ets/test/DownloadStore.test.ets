@@ -54,6 +54,16 @@ export default function downloadStoreTest() {
     });
   });
 
+  describe('DownloadStore.responseError', () => {
+    it('keeps_http_failure_when_error_body_is_text', 0, () => {
+      expect(DownloadStore.responseError(503, 'text/plain', 'image')).assertEqual('HTTP 503');
+      expect(DownloadStore.responseError(403, 'text/html', 'image')).assertEqual('HTTP 403');
+      expect(DownloadStore.responseError(200, 'text/html', 'image')).assertEqual('服务器返回的不是图片');
+      expect(DownloadStore.responseError(200, 'image/png', 'image')).assertEqual('');
+      expect(DownloadStore.responseError(200, 'application/zip', 'livephoto')).assertEqual('');
+    });
+  });
+
   describe('DownloadStore.prepareRetry', () => {
     it('resets_failed_and_cancelled_members_without_touching_completed_sibling', 0, () => {
       const failed: DownloadItem = makeDownload('/staging/failed.png');
@@ -431,6 +441,8 @@ export default function downloadStoreTest() {
       item.path = '/data/files/images/still_color.jpg';
       item.status = 'completed';
       item.size = 10138;
+      item.imageWidth = 1200;
+      item.imageHeight = 1800;
       item.kind = 'livephoto';
       item.animated = true;
       item.hdr = true;
@@ -453,6 +465,8 @@ export default function downloadStoreTest() {
       expect(back.downloads[0].originalId).assertEqual('original-p0');
       expect(back.downloads[0].status).assertEqual('completed');
       expect(back.downloads[0].size).assertEqual(10138);
+      expect(back.downloads[0].imageWidth).assertEqual(1200);
+      expect(back.downloads[0].imageHeight).assertEqual(1800);
       expect(back.downloads[0].kind).assertEqual('livephoto');
       expect(back.downloads[0].animated).assertTrue();
       expect(back.downloads[0].hdr).assertTrue();
@@ -490,6 +504,8 @@ export default function downloadStoreTest() {
       expect(safe.downloads[0].name).assertEqual('');
       expect(safe.downloads[0].origin).assertEqual('download');
       expect(safe.downloads[0].processed).assertEqual(0);
+      expect(safe.downloads[0].imageWidth).assertEqual(0);
+      expect(safe.downloads[0].imageHeight).assertEqual(0);
       // finishedAt 丢了就退回 createdAt，否则图库会显示成 1970 年。
       expect(safe.downloads[0].finishedAt).assertEqual(5);
       expect(safe.zips[0].thumbs.length).assertEqual(0);

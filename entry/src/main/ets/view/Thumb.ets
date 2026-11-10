@@ -30,8 +30,11 @@ export struct Thumb {
   /** 图库将类型角标放在左上角，其他缩略图保持原位置。 */
   @Param badgeTopLeft: boolean = false;
   @Param fit: ImageFit = ImageFit.Cover;
+  /** Known cover ratio lets gallery request the correctly cropped thumbnail immediately. */
+  @Param preferredAspect: number = 1;
   @Event onDimensions: (src: string, width: number, height: number) => void =
     (src: string, width: number, height: number): void => {};
+  @Event onReady: (src: string, uri: string) => void = (src: string, uri: string): void => {};
   @Local private thumbnail: string = '';
   private generation: number = 0;
   private alive: boolean = false;
@@ -44,14 +47,18 @@ export struct Thumb {
 
   aboutToAppear(): void {
     this.alive = true;
+    this.aspect = this.preferredAspect > 0 ? this.preferredAspect : 1;
     this.loadFrame();
     this.loadThumbnail();
   }
 
   aboutToDisappear(): void { this.alive = false; this.generation++; this.request?.cancel(); }
 
-  @Monitor('src', 'fit', 'referer')
-  private onSourceChanged(monitor: IMonitor): void { this.loadThumbnail(); }
+  @Monitor('src', 'fit', 'referer', 'preferredAspect')
+  private onSourceChanged(monitor: IMonitor): void {
+    this.aspect = this.preferredAspect > 0 ? this.preferredAspect : 1;
+    this.loadThumbnail();
+  }
 
   private async loadThumbnail(): Promise<void> {
     this.request?.cancel();
@@ -69,6 +76,7 @@ export struct Thumb {
     if (!this.alive || token !== this.generation) { return; }
     this.thumbnail = result.uri;
     this.failed = result.uri.length === 0;
+    if (result.uri.length > 0 && src === this.src) { this.onReady(src, result.uri); }
     if (result.uri.length > 0 && result.width > 0 && result.height > 0) {
       this.onDimensions(src, result.width, result.height);
     }

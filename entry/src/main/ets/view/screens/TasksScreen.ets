@@ -66,9 +66,6 @@ export struct TasksScreen {
           .fontSize(Font.caption).fontColor(Palette.warning).width('100%')
       }
       Row({ space: Space.s8 }) {
-        PillButton({ label: this.tasks.floatActive() ? '关闭闪控窗' : '开启闪控窗', small: true,
-          variant: 'ghost', active: !this.tasks.isEmpty() || this.tasks.floatActive(),
-          onAction: (): void => { this.tasks.toggleFloat(); } })
         if (this.tasks.statusCounts[3] > 0) {
           PillButton({ label: '重试全部失败', small: true, variant: 'tonal',
             onAction: (): void => { this.tasks.retryAllFailed(); } })

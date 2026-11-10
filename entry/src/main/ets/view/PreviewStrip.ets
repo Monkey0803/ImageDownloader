@@ -1,6 +1,7 @@
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { PreviewNavigation } from '../util/PreviewNavigation';
 import { IconButton, PillButton } from './Widgets';
+import { PreviewButton } from './PreviewChrome';
 import { Thumb } from './Thumb';
 
 export interface PreviewThumbnail {
@@ -32,7 +33,12 @@ class ThumbnailDataSource implements IDataSource {
 export struct PreviewStrip {
   @Require @Param items: PreviewThumbnail[];
   @Require @Param currentIndex: number;
+  @Param allCount: number = 0;
+  @Param selectedCount: number = 0;
+  @Param selectedOnly: boolean = false;
+  @Param showBrowseScope: boolean = false;
   @Event onJump: (index: number) => void = (): void => {};
+  @Event onScopeChange: (selected: boolean) => void = (): void => {};
   @Event onClose: () => void = (): void => {};
   private dataSource: ThumbnailDataSource = new ThumbnailDataSource();
   aboutToAppear(): void { this.dataSource.replace(this.items); }
@@ -49,6 +55,17 @@ export struct PreviewStrip {
 
   build() {
     Column({ space: Space.s8 }) {
+      if (this.showBrowseScope) {
+        Row({ space: Space.s8 }) {
+          Text('浏览范围').fontSize(Font.aux).fontColor('#B3FFFFFF')
+          PreviewButton({ label: '全部 ' + this.allCount.toString(),
+            variant: this.selectedOnly ? 'tonal' : 'primary',
+            onAction: (): void => { this.onScopeChange(false); } })
+          PreviewButton({ label: '已选 ' + this.selectedCount.toString(),
+            variant: this.selectedOnly ? 'primary' : 'tonal',
+            onAction: (): void => { this.onScopeChange(true); } })
+        }.width('100%')
+      }
       Row({ space: Space.s8 }) {
         Text('跳转到').fontSize(Font.aux).fontColor(Palette.white)
         TextInput({ text: this.pageDraft, placeholder: '页码' })

@@ -20,6 +20,7 @@ const HMSYMBOL = {
   close: 0xF0056,
   download: 0xF089D,
   image: 0xF0003,
+  livephoto: 0xF05F7,
   layers: 0xF04A2,
   archive: 0xF00DF,
   sliders: 0xF0072,

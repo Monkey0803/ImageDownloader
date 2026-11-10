@@ -9,8 +9,9 @@ import { PreviewCompare } from './PreviewCompare';
 import { PreviewNavigation } from '../util/PreviewNavigation';
 import { PictureItem } from '../model/Models';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
+import { ThumbnailImages } from '../service/ThumbnailImages';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
-import { SheetStyle } from '../theme/SheetStyle';
+import { AppSheet } from './AppSheet';
 import { AnimatedPreviewImage, LivePhotoSlide, PreviewStrip, PreviewThumbnail, ZoomablePreviewImage } from './Cards';
 import { IconButton, PictureSelectionButton } from './Widgets';
 
@@ -18,7 +19,6 @@ import { IconButton, PictureSelectionButton } from './Widgets';
 @ComponentV2
 export struct DiscoverPreview {
   private orientation: PreviewOrientation = new PreviewOrientation();
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.dialogMaterial();
   @Require @Param panels: PreviewOverlayState;
   @Param foreground: boolean = true;
   @Require @Param discover: DiscoverViewModel;
@@ -32,9 +32,40 @@ export struct DiscoverPreview {
   @Local private zoomed: boolean = false;
   @Local private actionDockHeight: number = 80;
   @Local private backgroundMode: string = 'auto';
+  @Local private fitCommand: string = '';
+  private fitSequence: number = 0;
 
   @Local private selectedOnly: boolean = false;
   @Local private browseIds: string[] = [];
+  @Local private posterUri: string = '';
+  private posterUid: string = '';
+  private posterTimer: number = -1;
+
+  private clearPosterTimer(): void {
+    if (this.posterTimer >= 0) { clearTimeout(this.posterTimer); this.posterTimer = -1; }
+  }
+
+  private hidePosterAfterReveal(uid: string): void {
+    if (uid !== this.posterUid || this.posterUri.length === 0) { return; }
+    this.clearPosterTimer();
+    const uri: string = this.posterUri;
+    this.posterTimer = setTimeout((): void => {
+      this.posterTimer = -1;
+      if (uid !== this.posterUid || uri !== this.posterUri) { return; }
+      this.posterUri = '';
+      ThumbnailImages.release(uri);
+    }, 220);
+  }
+
+  private showPoster(uid: string): void {
+    if (uid === this.posterUid) { return; }
+    this.clearPosterTimer();
+    const uri: string = this.discover.thumbnailFor(uid);
+    const next: string = uri.length > 0 && ThumbnailImages.retain(uri) ? uri : '';
+    if (this.posterUri.length > 0) { ThumbnailImages.release(this.posterUri); }
+    this.posterUid = uid;
+    this.posterUri = next;
+  }
 
   @Monitor('foreground')
   private onForegroundChanged(monitor: IMonitor): void {
@@ -68,12 +99,14 @@ export struct DiscoverPreview {
     this.currentIndex = index;
     this.panels.navigation = false;
     if (next.length === 0) {
+      this.showPoster('');
       this.zoomed = false;
       this.panels.tools = false;
       this.discover.closeInspection(true);
     } else if (next[index] !== current) {
       this.zoomed = false;
       this.panels.tools = false;
+      this.showPoster(next[index]);
       this.inspectCurrent();
     }
   }
@@ -82,6 +115,18 @@ export struct DiscoverPreview {
     if (selected === this.selectedOnly) { return; }
     this.selectedOnly = selected;
     this.refreshRange();
+  }
+
+  private requestFit(mode: string): void {
+    this.fitSequence++;
+    this.fitCommand = mode + ':' + this.fitSequence.toString();
+  }
+
+  private toggleCurrentSelection(): void {
+    const item: PictureItem | undefined = this.current();
+    if (item === undefined) { return; }
+    this.discover.togglePicture(item.uid);
+    if (this.selectedOnly) { this.refreshRange(); }
   }
 
   private toggleControls(): void {
@@ -96,10 +141,12 @@ export struct DiscoverPreview {
     this.browseIds = this.ids.slice();
     const at: number = this.browseIds.indexOf(this.startId);
     this.currentIndex = at >= 0 ? at : 0;
+    this.showPoster(this.browseIds[this.currentIndex] ?? '');
     this.inspectCurrent();
   }
 
   aboutToDisappear(): void {
+    this.showPoster('');
     this.orientation.leave();
     SystemBars.leave('discover-preview', this.getUIContext().getHostContext() as common.UIAbilityContext);
   }
@@ -122,6 +169,7 @@ export struct DiscoverPreview {
     this.zoomed = false;
     this.currentIndex = next;
     this.panels.tools = false;
+    this.showPoster(this.browseIds[next]);
     this.inspectCurrent();
   }
 
@@ -200,6 +248,9 @@ export struct DiscoverPreview {
   private toolsContent() {
     if (this.current() !== undefined) {
       PreviewTools({ asset: this.discover.previewAsset(this.current()!), backgroundMode: this.backgroundMode,
+        showFitActions: this.discover.previewUri.length > 0 && !this.discover.previewLocalAnimated
+          && this.discover.previewMotionPath.length === 0,
+        onFit: (mode: string): void => { this.panels.tools = false; this.requestFit(mode); },
         onEdit: (id: string): void => { this.panels.tools = false; this.onEdit(id); },
         onBackground: (mode: string): void => { this.backgroundMode = mode; },
         onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
@@ -210,9 +261,13 @@ export struct DiscoverPreview {
   private detailsMaterialAllowed(): boolean {
     const item: PictureItem | undefined = this.current();
     if (item === undefined || item.kind === 'livephoto') { return false; }
-    // 远程预览可能尚未获得真实动图元数据；仅已落盘且确认为静态的图片启用材质。
     const asset: PreviewAsset = this.discover.previewAsset(item);
-    return asset.downloaded && !asset.animated;
+    if (asset.downloaded) { return !asset.animated; }
+    // 远程图完成预览解码后才知道是否为动图；静态图无需先下载即可显示玻璃面板。
+    return this.discover.inspectedPicture?.uid === item.uid
+      && this.discover.previewUri.length > 0
+      && !this.discover.previewLocalAnimated
+      && this.discover.previewMotionPath.length === 0;
   }
 
   build() {
@@ -220,21 +275,31 @@ export struct DiscoverPreview {
       Swiper() {
         ForEach(this.browseIds, (uid: string, slideIndex: number) => {
           Stack({ alignContent: Alignment.Center }) {
+            if (slideIndex === this.currentIndex && this.posterUid === uid && this.posterUri.length > 0) {
+              Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
+                .hitTestBehavior(HitTestMode.None)
+                .onError((): void => { if (this.posterUid === uid) { this.showPoster(''); } })
+            }
             if (slideIndex === this.currentIndex && this.discover.previewUri.length > 0) {
               if (this.discover.previewMotionPath.length > 0) {
                 LivePhotoSlide({ stillFile: this.discover.previewLocalPath,
-                  motionFile: this.discover.previewMotionPath })
+                  motionFile: this.discover.previewMotionPath,
+                  posterUri: this.posterUid === uid ? this.posterUri : '',
+                  onReady: (): void => { this.hidePosterAfterReveal(uid); } })
               } else if (!this.discover.previewLocalAnimated) {
                 ZoomablePreviewImage({ imageId: uid, path: this.discover.previewLocalPath,
                   readingKey: 'web:' + this.discover.pageUrl.length.toString() + ':' + this.discover.pageUrl + (this.current()?.url ?? uid),
                   allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
                   fallbackUri: this.discover.previewUri,
+                  posterUri: this.posterUid === uid ? this.posterUri : '',
                   active: this.foreground && slideIndex === this.currentIndex && !this.panels.comparison, backgroundMode: this.backgroundMode, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
+                  showFitControls: false, compactFitControls: true, fitCommand: this.fitCommand,
                   onTapImage: (): void => { this.toggleControls(); },
+                  onReady: (): void => { this.hidePosterAfterReveal(uid); },
                   onZoomChange: (value: boolean): void => { this.zoomed = value; } })
                   .width('100%').height('100%')
               } else {
-                AnimatedPreviewImage({ onTapImage: (): void => { this.toggleControls(); }, src: this.discover.previewUri, localPath: this.discover.previewLocalPath, name: this.current()?.name ?? '图片', controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, active: this.foreground && !this.panels.comparison, backgroundMode: this.backgroundMode,
+                AnimatedPreviewImage({ onTapImage: (): void => { this.toggleControls(); }, onReady: (): void => { this.hidePosterAfterReveal(uid); }, src: this.discover.previewUri, localPath: this.discover.previewLocalPath, posterUri: this.posterUid === uid ? this.posterUri : '', name: this.current()?.name ?? '图片', controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, active: this.foreground && !this.panels.comparison, backgroundMode: this.backgroundMode,
                   allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose })
                   .width('100%').height('100%')
               }
@@ -256,26 +321,25 @@ export struct DiscoverPreview {
       if (this.controlsShown) {
         Column() {
           Column() {
-            PreviewHeader({ title: this.current()?.name ?? '',
+            PreviewHeader({ title: this.current()?.name ?? '', showTitle: false,
+              showLivePhoto: this.current()?.kind === 'livephoto'
+                || (this.discover.inspectedPicture?.uid === this.current()?.uid && this.discover.previewLocalAnimated),
               counter: (this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString()
                 + ' / ' + this.browseIds.length.toString(),
               counterActive: this.browseIds.length > 0,
               onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
               onDetails: (): void => { this.panels.tools = !this.panels.tools; },
               onClose: this.onClose })
-            Row({ space: Space.s8 }) {
-              PreviewButton({ label: '全部 ' + this.ids.length.toString(), small: true,
-                variant: !this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(false); } })
-              PreviewButton({ label: '已选 ' + this.selectedIds().length.toString(), small: true,
-                variant: this.selectedOnly ? 'primary' : 'tonal', onAction: (): void => { this.setScope(true); } })
-            }.width('100%').justifyContent(FlexAlign.Center).padding(Space.s8)
           }
           .width('100%')
-          .padding({ bottom: Space.s24 })
+          .padding({ bottom: Space.s12 })
           .linearGradient(PreviewChrome.topGradient())
           .hitTestBehavior(HitTestMode.None)
           if (this.panels.navigation) {
             PreviewStrip({ items: this.thumbnails(), currentIndex: this.currentIndex,
+              showBrowseScope: true, allCount: this.ids.length, selectedCount: this.selectedIds().length,
+              selectedOnly: this.selectedOnly,
+              onScopeChange: (selected: boolean): void => { this.setScope(selected); },
               onJump: (next: number): void => { this.panels.navigation = false; this.pageChanged(next); },
               onClose: (): void => { this.panels.navigation = false; } })
           }
@@ -286,7 +350,8 @@ export struct DiscoverPreview {
                 onAction: (): void => { this.setScope(false); } })
             }
             if (this.current() !== undefined) {
-              if (!this.panels.tools && this.discover.previewUri.length === 0) {
+              if (!this.panels.tools && this.discover.previewUri.length === 0
+                && (!this.discover.previewLoading || this.posterUri.length === 0)) {
                 this.unavailableState(this.current()!)
               }
             }
@@ -295,32 +360,34 @@ export struct DiscoverPreview {
           .justifyContent(FlexAlign.Center)
           .padding({ left: Space.s24, right: Space.s24 })
           .hitTestBehavior(HitTestMode.None)
-          Column() {
+          Column({ space: Space.s8 }) {
             if (this.current() !== undefined) {
-              Row({ space: Space.s12 }) {
+              Row({ space: Space.s16 }) {
                 PreviewButton({ label: this.discover.downloadState(this.current()!) === 'active' ? '已加入任务'
                   : this.discover.downloadState(this.current()!) === 'completed' ? '重新下载' : '下载当前',
-                  icon: 'download', small: true, variant: 'tonal',
+                  icon: 'download', small: true,
+                  variant: this.discover.downloadState(this.current()!) === 'active' ? 'tonal' : 'primary',
                   active: this.discover.downloadState(this.current()!) !== 'active',
                   onAction: (): void => { this.discover.requestInspectedDownload(); } })
-                PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
-                  onAction: (): void => {
-                    const item: PictureItem | undefined = this.current();
-                    if (item !== undefined) {
-                      this.discover.togglePicture(item.uid);
-                      if (this.selectedOnly) { this.refreshRange(); }
-                    }
-                  } })
-                if (this.selectedIds().length > 0) {
-                  PreviewButton({ label: (this.discover.mode === 'zip' ? '打包可加入 ' : '下载可加入 ')
-                    + this.discover.previewEligibleCount(this.ids).toString(), small: true, variant: 'tonal',
-                    active: this.discover.previewEligibleCount(this.ids) > 0,
-                    onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
-                }
+                Row({ space: Space.s6 }) {
+                  PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
+                    onAction: (): void => { this.toggleCurrentSelection(); } })
+                  Text(this.current()!.selected ? '已选入批量' : '选入批量')
+                    .fontSize(Font.caption).fontColor(Palette.white)
+                    .onClick((): void => { this.toggleCurrentSelection(); })
+                }.alignItems(VerticalAlign.Center)
               }.width('100%').justifyContent(FlexAlign.Center)
+              if (this.discover.previewEligibleCount(this.ids) > 0) {
+                PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
+                  + this.discover.previewEligibleCount(this.ids).toString(), small: true, variant: 'tonal',
+                  onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
+              } else if (this.selectedIds().length > 0) {
+                Text('所选图片已下载或正在下载')
+                  .fontSize(Font.aux).fontColor('#B3FFFFFF')
+              }
             }
-            Row().height(Space.s24).width('100%')
-          }.width('100%').padding({ top: Space.s24 })
+          }.width('100%').alignItems(HorizontalAlign.Center)
+            .padding({ top: Space.s12, bottom: Space.s12 })
             .linearGradient(PreviewChrome.bottomGradient())
             .hitTestBehavior(HitTestMode.None)
             .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
@@ -334,17 +401,15 @@ export struct DiscoverPreview {
         PreviewCompare({ assets: this.comparisonAssets(), currentId: this.current()!.uid, backgroundMode: this.backgroundMode,
           onClose: (): void => { this.panels.comparison = false; } })
       }
+      AppSheet({ visible: this.panels.tools && this.current() !== undefined,
+        initialSize: SheetSize.MEDIUM, scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        useMaterial: this.detailsMaterialAllowed(),
+        opaqueBackground: !this.detailsMaterialAllowed(),
+        onDismiss: (): void => { this.panels.tools = false; } }) {
+        this.toolsContent()
+      }
     }
     .width('100%').height('100%')
     .backgroundColor('#000000')
-    .bindSheet(this.panels.tools && this.current() !== undefined, this.toolsContent(), {
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      dragBar: true,
-      showClose: false,
-      backgroundColor: this.detailsMaterialAllowed() ? SheetStyle.background() : Palette.card,
-      systemMaterial: this.detailsMaterialAllowed() ? this.sheetMaterial : undefined,
-      onDisappear: (): void => { this.panels.tools = false; }
-    })
   }
 }

@@ -27,7 +27,9 @@ function png(r, g, b) {
     chunk('IDAT', zlib.deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
 const pictures = { '/a.png': png(32, 110, 210), '/b.png': png(30, 175, 110),
-  '/protected.png': png(210, 80, 45), '/image': png(150, 60, 190) };
+  '/protected.png': png(210, 80, 45), '/protected': png(210, 80, 45),
+  '/image': png(150, 60, 190) };
+let flakyReady = false;
 const pages = {
   '/one.html': '<title>BatchFixtureOne</title><img src="/a.png" width="240"><div style="height:1400px"></div>'
     + '<img id="lazy" data-src="/protected.png" width="240"><script>'
@@ -35,20 +37,42 @@ const pages = {
     + 'addEventListener("scroll",()=>{document.querySelector("#lazy").src="/protected.png"})</script>',
   '/two': '<title>BatchFixtureTwo</title><img src="/b.png" width="240"><img src="/a.png?sign=one" width="240">',
   '/login.html': '<title>请先登录</title><h1>请先登录</h1><p>Fixture login interception</p>',
-  '/empty.html': '<title>BatchFixtureEmpty</title><p>No images</p>'
+  '/empty.html': '<title>BatchFixtureEmpty</title><p>No images</p>',
+  '/recovery.html': '<title>RecoveryFixture</title><img src="/a.png"><img src="/flaky.png">'
 };
+const slowResponses = new Set();
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   console.log(req.method, url.pathname, req.headers.referer || '-');
+  if (url.pathname === '/finish-slow') {
+    for (const pending of slowResponses) { pending.destroy(); }
+    slowResponses.clear();
+    res.writeHead(200); return res.end('finished');
+  }
+  if (url.pathname === '/slow.png') {
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': 1000000 });
+    res.write(pictures['/a.png'].subarray(0, 20));
+    slowResponses.add(res);
+    res.on('close', () => slowResponses.delete(res));
+    return;
+  }
+  if (url.pathname === '/recover') {
+    flakyReady = true;
+    res.writeHead(200); return res.end('ready');
+  }
+  if (url.pathname === '/flaky.png' && !flakyReady) {
+    res.writeHead(503, { 'Content-Type': 'text/plain' }); return res.end('temporary failure');
+  }
   if (url.pathname === '/slow.html') return;
   if (req.method === 'HEAD' && ['/two', '/image'].includes(url.pathname)) { res.writeHead(405); return res.end(); }
-  if (url.pathname === '/protected.png'
+  if ((url.pathname === '/protected.png' || url.pathname === '/protected')
     && !String(req.headers.referer || '').includes('/one.html')) {
     res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Referer required');
   }
-  const body = pictures[url.pathname] || pages[url.pathname];
+  const body = (url.pathname === '/flaky.png' ? pictures['/b.png'] : pictures[url.pathname]) || pages[url.pathname];
   if (!body) { res.writeHead(404); return res.end('missing fixture'); }
-  res.writeHead(200, { 'Content-Type': pictures[url.pathname] ? 'image/png' : 'text/html; charset=utf-8',
+  res.writeHead(200, { 'Content-Type': pictures[url.pathname] || url.pathname === '/flaky.png'
+    ? 'image/png' : 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-store' });
   res.end(req.method === 'HEAD' ? undefined : body);
 });

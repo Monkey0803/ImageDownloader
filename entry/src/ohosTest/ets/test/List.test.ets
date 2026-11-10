@@ -31,6 +31,7 @@ import hdrDecodeTest from './HdrDecode.test';
 import livePhotoTest from './LivePhoto.test';
 import superResolutionTest from './SuperResolution.test';
 import collectionGroupsTest from './CollectionGroups.test';
+import galleryFlowTest from './GalleryFlow.test';
 
 export default function testsuite() {
   if (abilityDelegatorRegistry.getArguments().parameters['-s batchPagesUi'] === 'true') {
@@ -67,4 +68,5 @@ export default function testsuite() {
   livePhotoTest();
   superResolutionTest();
   collectionGroupsTest();
+  galleryFlowTest();
 }

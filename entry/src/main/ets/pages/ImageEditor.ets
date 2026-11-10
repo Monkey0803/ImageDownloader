@@ -9,6 +9,7 @@ import { TransparentGlass } from '../theme/TransparentGlass';
 import { HdsColorPicker } from '@kit.UIDesignKit';
 import { ImageEditorViewModel } from '../viewmodel/ImageEditorViewModel';
 import { ImageEditorCanvas } from '../view/ImageEditorCanvas';
+import { AppSheet } from '../view/AppSheet';
 import { Glyph } from '../view/Icons';
 import { PillButton } from '../view/Widgets';
 
@@ -42,7 +43,6 @@ struct ImageEditor {
   @Local private penWidth: number = 4;
   @Local private notice: string = '';
   private leaving: boolean = false;
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   aboutToAppear(): void {
     const port: EditorRuntimePort = new EditorRuntimePort();
@@ -262,15 +262,11 @@ struct ImageEditor {
         }.width('100%').padding({ left: Space.s12, right: Space.s12,
           bottom: SCREEN_INSETS.safeBottom + Space.s8 })
       }.width('100%').constraintSize({ maxHeight: 180 })
+      AppSheet({ visible: this.colorPickerOpen, initialSize: SheetSize.FIT_CONTENT,
+        onDismiss: (): void => { this.colorPickerOpen = false; } }) {
+        this.colorPickerContent()
+      }
     }
     .width('100%').height('100%').backgroundColor(Palette.bg)
-    .bindSheet(this.colorPickerOpen, this.colorPickerContent(), {
-      height: SheetSize.FIT_CONTENT,
-      dragBar: true,
-      showClose: false,
-      backgroundColor: SheetStyle.background(),
-      systemMaterial: this.sheetMaterial,
-      onDisappear: (): void => { this.colorPickerOpen = false; }
-    })
   }
 }

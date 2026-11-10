@@ -80,6 +80,9 @@ export class DownloadItem {
   @Trace etaSeconds: number = 0;
   /** Final on-disk byte count, recorded when the download completes. */
   @Trace size: number = 0;
+  /** Display-oriented dimensions of the gallery cover; zero means not indexed yet. */
+  @Trace imageWidth: number = 0;
+  @Trace imageHeight: number = 0;
   /** Last confirmed export to a user-selected system location. */
   @Trace exportedAt: number = 0;
   @Trace error: string = '';

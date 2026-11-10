@@ -1,6 +1,7 @@
 import { PictureSelectionButton } from '../Widgets';
 import { BatchFlowHost, BATCH_PAGE_NAME } from '../BatchPagePanel';
 import { PictureItem } from '../../model/Models';
+import { WeiboLivePhotos } from '../../service/WeiboLivePhotos';
 import { TransparentGlass } from '../../theme/TransparentGlass';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
@@ -9,9 +10,11 @@ import { chunkRows, fillerCells } from '../../util/GridMath';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
+import { AppSearch } from '../AppSearch';
 import { SelectTile } from '../Cards';
 import { IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
 const FILTER_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '其他'];
@@ -49,10 +52,19 @@ export struct DiscoverScreen {
   @Event onOpenPreview: (uid: string) => void = (uid: string): void => {};
   @Event onOpenQuickPreview: (uid: string) => void = (uid: string): void => {};
   @Local private filtersOpen: boolean = false;
+  @Local private resultsSearchActive: boolean = false;
   @Local private quickImageUrl: string = '';
   private quickMenuResult: WebContextMenuResult | undefined = undefined;
   /** 批量页的导航栈放在入口这一层：push 发生在点击回调里，走 HDS 默认转场动画。 */
   @Local private batchPages: NavPathStack = new NavPathStack();
+
+  @Monitor('browserOpen')
+  private onBrowserOpenChanged(monitor: IMonitor): void {
+    this.resultsSearchActive = false;
+    if (!this.browserOpen) {
+      this.getUIContext().getFocusController().clearFocus();
+    }
+  }
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
@@ -76,10 +88,14 @@ export struct DiscoverScreen {
           tone: Palette.fontTertiary, accessibilityLabel: '清空输入链接',
           onAction: (): void => { this.discover.address = ''; } })
       }
-      PillButton({
-        icon: 'paste', variant: 'tonal', small: true,
-        onAction: (): void => { this.discover.pasteAddress(); }
-      })
+      PasteButton({ icon: PasteIconStyle.LINES, buttonType: ButtonType.Capsule })
+        .iconSize(18).iconColor(Palette.brand).backgroundColor(Palette.brandSoft)
+        .width(40).height(40)
+        .onClick((_event: ClickEvent, result: PasteButtonOnClickResult,
+          error?: BusinessError<void>): void => {
+          if (result === PasteButtonOnClickResult.SUCCESS) { this.discover.pasteAddress(); }
+          else { this.discover.pasteAuthorizationFailed(error?.code ?? 0); }
+        })
       PillButton({
         icon: 'arrowRight', variant: 'primary', small: true,
         active: this.discover.address.trim().length > 0,
@@ -278,11 +294,16 @@ export struct DiscoverScreen {
               Stack({ alignContent: Alignment.BottomEnd }) {
                 SelectTile({
                   picture: cell,
+                  thumbnailSource: this.discover.gridThumbnailSource(cell),
+                  sourcePage: WeiboLivePhotos.isWeibo(this.discover.pageUrl) ? this.discover.pageUrl : '',
                   index: rowIndex * 3 + colIndex,
                   downloadState: this.discover.downloadState(cell),
                   onOpen: (uid: string): void => { this.onOpenPreview(uid); },
                   onDimensions: (url: string, width: number, height: number): void => {
                     this.discover.recordDimensions(cell.uid, url, width, height);
+                  },
+                  onThumbnail: (uid: string, url: string, uri: string): void => {
+                    this.discover.rememberThumbnail(uid, url, uri);
                   }
                 })
                 PictureSelectionButton({ selected: cell.selected, diameter: 36,
@@ -362,11 +383,9 @@ export struct DiscoverScreen {
       }
       .width('100%')
       Row({ space: Space.s8 }) {
-        TextInput({ placeholder: '筛选来源 URL', text: this.discover.filterUrl })
-          .fontSize(Font.aux).fontColor(Palette.fontPrimary)
-          .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4)
+        AppSearch({ placeholder: '筛选来源 URL', text: this.discover.filterUrl,
+          onChange: (value: string): void => { this.discover.filterUrl = value; } })
           .layoutWeight(1)
-          .onChange((value: string): void => { this.discover.filterUrl = value; })
       }
       .width('100%')
       Text('共 ' + this.discover.pictures.length.toString() + ' 张 · 筛选后 '
@@ -419,10 +438,26 @@ export struct DiscoverScreen {
 
             this.expansionControls()
             this.quickFilters()
-            TextInput({ placeholder: '搜索文件名、图片描述或链接', text: this.discover.filterText })
-              .fontSize(Font.aux).fontColor(Palette.fontPrimary)
-              .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
-              .onChange((value: string): void => { this.discover.filterText = value; })
+            if (this.resultsSearchActive) {
+              AppSearch({ placeholder: '搜索文件名、图片描述或链接', text: this.discover.filterText,
+                focusId: 'discover-results-search', focusOnAppear: true,
+                onChange: (value: string): void => { this.discover.filterText = value; } })
+            } else {
+              Row({ space: Space.s8 }) {
+                Glyph({ glyph: 'search', glyphSize: 16, glyphTone: Palette.fontTertiary })
+                Text(this.discover.filterText || '搜索文件名、图片描述或链接')
+                  .fontSize(Font.aux)
+                  .fontColor(this.discover.filterText ? Palette.fontPrimary : Palette.fontSecondary)
+              }
+              .width('100%')
+              .height(40)
+              .padding({ left: Space.s12, right: Space.s12 })
+              .borderRadius(Radius.r4)
+              .backgroundColor(Palette.cardSunken)
+              .onClick((): void => {
+                this.resultsSearchActive = true;
+              })
+            }
             if (this.discover.selectedTotal > 0) {
               Row({ space: Space.s8 }) {
                 Text('文件命名').fontSize(Font.aux).fontColor(Palette.fontSecondary).layoutWeight(1)
@@ -461,6 +496,8 @@ export struct DiscoverScreen {
       .height('100%')
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
+      .focusable(true)
+      .defaultFocus(true)
       .onDidScroll((): void => {
         this.discover.markScrolled();
       })

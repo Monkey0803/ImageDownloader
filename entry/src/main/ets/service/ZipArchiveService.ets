@@ -8,6 +8,7 @@ import { LivePhoto } from './LivePhoto';
 import { MediaFormat } from './MediaFormat';
 import { Naming } from './Naming';
 import { StillFrames } from './StillFrames';
+import { GalleryCoverInfo } from './GalleryCoverInfo';
 import { FolderChoice, pickFolder } from './FileActions';
 
 export class ZipExtractResult {
@@ -84,6 +85,9 @@ export class ZipArchiveService {
         item.size = fs.statSync(path).size; item.processed = item.size; item.total = item.size;
         item.createdAt = Date.now(); item.finishedAt = item.createdAt;
         item.animated = StillFrames.isAnimatedFile(path);
+        const cover: GalleryCoverInfo = await GalleryCoverInfo.read(path);
+        item.imageWidth = cover.width; item.imageHeight = cover.height;
+        item.hdr = cover.hdr;
         items.push(item);
       }
       if (items.length === 0) { throw new Error('压缩包中没有可加入图库的图片'); }

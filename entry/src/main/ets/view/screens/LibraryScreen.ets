@@ -1,17 +1,17 @@
 import { DownloadItem, ZipItem } from '../../model/Models';
-import { LibraryText } from '../../util/LibraryText';
 import { UserAlbum } from '../../model/LibraryAsset';
 import { CollectionSummary } from '../../service/CollectionGroups';
 import { TrashEntry } from '../../service/TrashStore';
 import { fileUri } from '@kit.CoreFileKit';
-import { LibraryDateGroup, LibraryViewModel } from '../../viewmodel/LibraryViewModel';
+import { LibraryViewModel } from '../../viewmodel/LibraryViewModel';
+import { LibraryFlowRow } from '../../viewmodel/LibraryFlowRows';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
-import { chunkRows, fillerCells } from '../../util/GridMath';
-import { Font, formatBytes, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
+import { Font, formatBytes, Layout, Palette, Radius, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
-import { SheetStyle } from '../../theme/SheetStyle';
 import { TransparentGlass } from '../../theme/TransparentGlass';
 import { Glyph } from '../Icons';
+import { AppSearch } from '../AppSearch';
+import { AppSheet } from '../AppSheet';
 import { ArchiveCard, ShotTile } from '../Cards';
 import { Thumb } from '../Thumb';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
@@ -36,43 +36,18 @@ export struct LibraryScreen {
   @Local private sheet: string = '';
   @Local private albumDraft: string = '';
   @Local private albumRenameId: string = '';
-  private sheetMaterial: SystemUiMaterial | undefined = SheetStyle.material();
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
 
   @Builder
   private searchPill() {
-    Row({ space: Space.s8 }) {
-      Glyph({ glyph: 'search', glyphSize: 18, glyphTone: Palette.fontTertiary, glyphWeight: 1.7 })
-      TextInput({ placeholder: this.library.isZips() ? '搜索压缩包' : '搜索图片', text: this.library.query })
-        .placeholderColor(Palette.fontSecondary)
-        .caretColor(Palette.brand)
-        .fontSize(Font.body)
-        .fontColor(Palette.fontPrimary)
-        .backgroundColor(Color.Transparent)
-        .padding(0)
-        .height(36)
-        .layoutWeight(1)
-        .onChange((value: string): void => {
-          this.library.setQuery(value);
-        })
-      // 有输入才出现的清除按钮：点一下把关键词清空，列表回到全部。
-      if (this.library.query.length > 0) {
-        Glyph({
-          glyph: 'xCircle', glyphSize: 19, glyphTone: Palette.fontTertiary, glyphWeight: 1.7
-        })
-          .onClick((): void => {
-            this.library.setQuery('');
-          })
-      }
-    }
-    .layoutWeight(1)
-    .height(44)
-    .padding({ left: Space.s14, right: Space.s8 })
-    .borderRadius(Radius.full)
-    .backgroundColor(Palette.card)
-    .shadow(Shadow.card())
+    AppSearch({
+      placeholder: this.library.isZips() ? '搜索压缩包' : '搜索图片',
+      text: this.library.query,
+      pill: true,
+      onChange: (value: string): void => { this.library.setQuery(value); }
+    }).layoutWeight(1)
   }
 
   private activeOptionCount(): number {
@@ -331,239 +306,175 @@ export struct LibraryScreen {
   }
 
   @Builder
-  private galleryGrid(items: DownloadItem[]) {
-    Column({ space: Space.s12 }) {
-      ForEach(chunkRows<DownloadItem>(items, this.library.density),
-        (row: DownloadItem[], rowIndex: number) => {
-          Row({ space: this.library.density === 3 ? Space.s6 : Space.s12 }) {
-            ForEach(row, (cell: DownloadItem, colIndex: number) => {
-              Column() {
-                ShotTile({
-                  image: cell,
-                  favorite: this.library.entry(cell.id).favorite,
-                  tags: this.library.entry(cell.id).tags,
-                  exportedAt: cell.exportedAt,
-                  albumNames: this.library.albums.filter((album: UserAlbum): boolean =>
-                    this.library.entry(cell.id).albumIds.includes(album.id))
-                    .map((album: UserAlbum): string => album.name),
-                  snippet: this.library.query.length > 0
-                    ? LibraryText.snippet(this.library.entry(cell.id).text, this.library.query, 64) : '',
-                  dense: this.library.density === 3,
-                  selecting: this.library.selecting,
-                  selected: this.library.isSelected(cell.id),
-                  // 图库进预览可以改名（任务页进来不给改），并带上当前显示的整批图片，
-                  // 预览页里左右滑动就是在这批图之间换（搜索后只在结果里滑）。
-                  onOpen: (item: DownloadItem): void => {
-                    if (this.library.selecting) { this.library.toggleSelection(item.id); }
-                    else { this.library.openImage(item); }
-                  }
-                })
-              }
-              .layoutWeight(1)
-            }, (cell: DownloadItem) => cell.id)
-
-            ForEach(fillerCells(row.length, this.library.density), (pad: number) => {
-              Column().layoutWeight(1)
-            }, (pad: number) => 'pad' + pad.toString())
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Top)
-        }, (row: DownloadItem[], rowIndex: number) => rowIndex.toString()
-          + ':' + row.map((cell: DownloadItem): string => cell.id).join(','))
-    }
-    .width('100%')
-  }
-
-  /** 图片段：网格，空态区分「库是空的」和「搜不到」。 */
-  @Builder
-  private libraryImages() {
-    if (this.library.images.length > 0) {
-      Column({ space: Space.s16 }) {
-        ForEach(this.library.imageDateGroups(), (group: LibraryDateGroup) => {
-          Column({ space: Space.s8 }) {
-            if (group.label.length > 0) {
-              SectionHead({ heading: group.label, meta: group.items.length.toString() + ' 张' })
-            }
-            this.galleryGrid(group.items)
-          }.width('100%')
-        }, (group: LibraryDateGroup) => group.label || 'all')
-      }.width('100%')
-    } else {
-      EmptyState({
-        glyph: 'image',
-        heading: !this.library.catalogReady ? '正在读取图库信息' :
-          this.hasImageFilter()
-            ? '没有匹配的图片' : '图库还是空的',
-        body: !this.library.catalogReady ? '图片文字与标签读取完成后可搜索。' :
-          this.hasImageFilter()
-            ? '换个关键词或清除筛选试试。' : '下载完成的图片会出现在这里。'
+  private flowRow(row: LibraryFlowRow) {
+    if (row.kind === 'controls') {
+      this.flowControls()
+    } else if (row.kind === 'heading') {
+      SectionHead({ heading: row.title, meta: row.count.toString() + ' 张' })
+    } else if (row.kind === 'image' && row.image !== undefined) {
+      ShotTile({
+        image: row.image,
+        selecting: this.library.selecting,
+        selected: this.library.isSelected(row.image.id),
+        onOpen: (item: DownloadItem): void => {
+          if (this.library.selecting) { this.library.toggleSelection(item.id); }
+          else { this.library.openImage(item); }
+        }
       })
-    }
-  }
-
-  /** 压缩包段：卡片列表，空态同样区分「还没有」和「搜不到」。 */
-  @Builder
-  private libraryArchives() {
-    if (this.library.archives.length > 0) {
-      Column({ space: Space.s12 }) {
-        ForEach(this.library.archives, (zip: ZipItem) => {
-          ArchiveCard({
-            zip: zip,
-            onExtract: (item: ZipItem): void => { this.library.startExtract(item); },
-            onRetryDelivery: (item: ZipItem): void => { this.library.retryArchiveDelivery(item); },
-            selecting: this.library.selecting,
-            selected: this.library.isSelected(zip.id),
-            onSelect: (item: ZipItem): void => { this.library.toggleSelection(item.id); },
-            onRename: (item: ZipItem): void => {
-              this.library.startZipRename(item);
-            },
-            onExport: (item: ZipItem): void => {
-              this.library.exportZip(item);
-            },
-            onShare: (item: ZipItem): void => {
-              this.library.shareZip(item);
-            },
-            onDelete: (item: ZipItem): void => {
-              this.library.confirmDeleteZip(item);
-            }
-          })
-        }, (zip: ZipItem) => zip.id)
-      }
-      .width('100%')
-    } else {
+    } else if (row.kind === 'archive' && row.archive !== undefined) {
+      ArchiveCard({
+        zip: row.archive,
+        onExtract: (item: ZipItem): void => { this.library.startExtract(item); },
+        onRetryDelivery: (item: ZipItem): void => { this.library.retryArchiveDelivery(item); },
+        selecting: this.library.selecting,
+        selected: this.library.isSelected(row.archive.id),
+        onSelect: (item: ZipItem): void => { this.library.toggleSelection(item.id); },
+        onRename: (item: ZipItem): void => { this.library.startZipRename(item); },
+        onExport: (item: ZipItem): void => { this.library.exportZip(item); },
+        onShare: (item: ZipItem): void => { this.library.shareZip(item); },
+        onDelete: (item: ZipItem): void => { this.library.confirmDeleteZip(item); }
+      })
+    } else if (row.kind === 'empty' && this.library.isZips()) {
       EmptyState({
         glyph: 'archive',
         heading: this.library.query.length > 0 ? '没有匹配的压缩包' : '还没有压缩包',
-        body: this.library.query.length > 0
-          ? '换一个关键词试试。'
+        body: this.library.query.length > 0 ? '换一个关键词试试。'
           : '可以从系统文件导入 ZIP，或在「发现」中把选中的图片打包。'
       })
+    } else if (row.kind === 'empty') {
+      EmptyState({
+        glyph: 'image',
+        heading: !this.library.catalogReady ? '正在读取图库信息' :
+          this.hasImageFilter() ? '没有匹配的图片' : '图库还是空的',
+        body: !this.library.catalogReady ? '图片文字与标签读取完成后可搜索。' :
+          this.hasImageFilter() ? '换个关键词或清除筛选试试。' : '下载完成的图片会出现在这里。'
+      })
     }
+  }
+
+  @Builder
+  private flowControls() {
+    Column({ space: Space.s16 }) {
+      // 图片 / 压缩包：用系统的 CapsuleSegmentButtonV2，背景板走系统材质
+      // （文档 SegmentButtonV2 → 示例6）；材质由 LibrarySegment 自己按这个布尔量决定
+      // —— 本机不支持沉浸式材质时它同样会退回不透明胶囊。
+      LibrarySegment({
+        selected: this.library.segment,
+        materialOff: !this.settings.lightEffect || this.settings.materialType === 'none',
+        onSelect: (value: string): void => {
+          this.library.setSegment(value);
+        }
+      })
+
+      this.searchTools()
+      if (!this.library.isZips()) {
+        Scroll() {
+          Row({ space: Space.s6 }) {
+            PillButton({ label: this.library.favoritesOnly ? '★ 仅收藏' : '☆ 收藏', small: true,
+              variant: this.library.favoritesOnly ? 'primary' : 'ghost',
+              onAction: (): void => { this.library.favoritesOnly = !this.library.favoritesOnly; } })
+            PillButton({ label: '相册', small: true, variant: 'ghost',
+              onAction: (): void => { this.sheet = 'albums'; } })
+            ForEach(this.library.collections, (group: CollectionSummary) => {
+              PillButton({ label: group.name, small: true,
+                variant: this.library.collectionFilter === group.id ? 'primary' : 'ghost',
+                onAction: (): void => {
+                  this.library.collectionFilter = this.library.collectionFilter === group.id ? '*' : group.id;
+                } })
+            }, (group: CollectionSummary) => group.id)
+            ForEach(this.library.existingTags(), (tag: string) => {
+              PillButton({ label: '#' + tag, small: true,
+                variant: this.library.tagFilter === tag ? 'primary' : 'ghost',
+                onAction: (): void => { this.library.tagFilter = this.library.tagFilter === tag ? '' : tag; } })
+            }, (tag: string) => tag)
+          }
+        }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+      }
+      Row({ space: Space.s8 }) {
+        PillButton({ label: '最近删除 ' + this.library.trashEntries.length.toString(), small: true,
+          variant: 'ghost', onAction: (): void => { this.library.refreshTrash(); this.sheet = 'trash'; } })
+      }
+      if (this.library.query.length > 0 || this.activeOptionCount() > 0 || this.library.focusedIds.length > 0) {
+        Column({ space: Space.s6 }) {
+          Text('当前结果 ' + (this.library.isZips() ? this.library.archives.length : this.library.images.length)
+            .toString() + ' 项').fontSize(Font.caption).fontColor(Palette.fontSecondary)
+          Scroll() {
+            Row({ space: Space.s6 }) {
+            if (this.library.query.length > 0) {
+              PillButton({ label: '搜索：' + this.library.query + ' ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.setQuery(''); } })
+            }
+            if (this.library.collectionFilter !== '*') {
+              PillButton({ label: '来源分组 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.collectionFilter = '*'; } })
+            }
+            if (this.library.albumFilter !== '*') {
+              PillButton({ label: '相册 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.albumFilter = '*'; } })
+            }
+            if (this.library.focusedIds.length > 0) {
+              PillButton({ label: '重复候选 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.focusedIds = []; } })
+            }
+            if (this.library.sourceQuery.length > 0) {
+              PillButton({ label: '来源网页 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.sourceQuery = ''; } })
+            }
+            if (this.library.formatFilter.length > 0) {
+              PillButton({ label: '格式 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.formatFilter = ''; } })
+            }
+            if (this.library.favoritesOnly) {
+              PillButton({ label: '仅收藏 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.favoritesOnly = false; } })
+            }
+            if (this.library.tagFilter.length > 0) {
+              PillButton({ label: '标签 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.tagFilter = ''; } })
+            }
+            if (this.library.searchScope !== 'all') {
+              PillButton({ label: '搜索范围 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.searchScope = 'all'; } })
+            }
+            if (this.library.sortOrder !== 'newest') {
+              PillButton({ label: '排序 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.sortOrder = 'newest'; } })
+            }
+            if (this.library.density !== 2 && !this.library.isZips()) {
+              PillButton({ label: '三列 ×', small: true, variant: 'tonal',
+                onAction: (): void => { this.library.setDensity(2); } })
+            }
+            }
+          }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+        }.width('100%').alignItems(HorizontalAlign.Start)
+      }
+      this.selectionControls()
+      this.selectionActions()
+
+    }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Scroll(this.library.scrollController()) {
-        Column({ space: Space.s16 }) {
-          // 图片 / 压缩包：用系统的 CapsuleSegmentButtonV2，背景板走系统材质
-          // （文档 SegmentButtonV2 → 示例6）；材质由 LibrarySegment 自己按这个布尔量决定
-          // —— 本机不支持沉浸式材质时它同样会退回不透明胶囊。
-          LibrarySegment({
-            selected: this.library.segment,
-            materialOff: !this.settings.lightEffect || this.settings.materialType === 'none',
-            onSelect: (value: string): void => {
-              this.library.setSegment(value);
-            }
-          })
-
-          this.searchTools()
-          if (!this.library.isZips()) {
-            Scroll() {
-              Row({ space: Space.s6 }) {
-                PillButton({ label: this.library.favoritesOnly ? '★ 仅收藏' : '☆ 收藏', small: true,
-                  variant: this.library.favoritesOnly ? 'primary' : 'ghost',
-                  onAction: (): void => { this.library.favoritesOnly = !this.library.favoritesOnly; } })
-                PillButton({ label: '相册', small: true, variant: 'ghost',
-                  onAction: (): void => { this.sheet = 'albums'; } })
-                ForEach(this.library.collections, (group: CollectionSummary) => {
-                  PillButton({ label: group.name, small: true,
-                    variant: this.library.collectionFilter === group.id ? 'primary' : 'ghost',
-                    onAction: (): void => {
-                      this.library.collectionFilter = this.library.collectionFilter === group.id ? '*' : group.id;
-                    } })
-                }, (group: CollectionSummary) => group.id)
-                ForEach(this.library.existingTags(), (tag: string) => {
-                  PillButton({ label: '#' + tag, small: true,
-                    variant: this.library.tagFilter === tag ? 'primary' : 'ghost',
-                    onAction: (): void => { this.library.tagFilter = this.library.tagFilter === tag ? '' : tag; } })
-                }, (tag: string) => tag)
-              }
-            }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
-          }
-          Row({ space: Space.s8 }) {
-            PillButton({ label: '最近删除 ' + this.library.trashEntries.length.toString(), small: true,
-              variant: 'ghost', onAction: (): void => { this.library.refreshTrash(); this.sheet = 'trash'; } })
-          }
-          if (this.library.query.length > 0 || this.activeOptionCount() > 0 || this.library.focusedIds.length > 0) {
-            Column({ space: Space.s6 }) {
-              Text('当前结果 ' + (this.library.isZips() ? this.library.archives.length : this.library.images.length)
-                .toString() + ' 项').fontSize(Font.caption).fontColor(Palette.fontSecondary)
-              Scroll() {
-                Row({ space: Space.s6 }) {
-                if (this.library.query.length > 0) {
-                  PillButton({ label: '搜索：' + this.library.query + ' ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.setQuery(''); } })
-                }
-                if (this.library.collectionFilter !== '*') {
-                  PillButton({ label: '来源分组 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.collectionFilter = '*'; } })
-                }
-                if (this.library.albumFilter !== '*') {
-                  PillButton({ label: '相册 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.albumFilter = '*'; } })
-                }
-                if (this.library.focusedIds.length > 0) {
-                  PillButton({ label: '重复候选 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.focusedIds = []; } })
-                }
-                if (this.library.sourceQuery.length > 0) {
-                  PillButton({ label: '来源网页 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.sourceQuery = ''; } })
-                }
-                if (this.library.formatFilter.length > 0) {
-                  PillButton({ label: '格式 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.formatFilter = ''; } })
-                }
-                if (this.library.favoritesOnly) {
-                  PillButton({ label: '仅收藏 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.favoritesOnly = false; } })
-                }
-                if (this.library.tagFilter.length > 0) {
-                  PillButton({ label: '标签 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.tagFilter = ''; } })
-                }
-                if (this.library.searchScope !== 'all') {
-                  PillButton({ label: '搜索范围 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.searchScope = 'all'; } })
-                }
-                if (this.library.sortOrder !== 'newest') {
-                  PillButton({ label: '排序 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.sortOrder = 'newest'; } })
-                }
-                if (this.library.density !== 2 && !this.library.isZips()) {
-                  PillButton({ label: '三列 ×', small: true, variant: 'tonal',
-                    onAction: (): void => { this.library.setDensity(2); } })
-                }
-                }
-              }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
-            }.width('100%').alignItems(HorizontalAlign.Start)
-          }
-          this.selectionControls()
-          this.selectionActions()
-
-          if (this.library.isZips()) {
-            this.libraryArchives()
-          } else {
-            this.libraryImages()
-          }
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minHeight: ScreenMetrics.height() })
-        .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
-          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
-        })
+      WaterFlow({ scroller: this.library.scrollController(),
+        layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW, sections: this.library.flowSections }) {
+        LazyForEach(this.library.flowRows, (row: LibraryFlowRow) => {
+          FlowItem() {
+            this.flowRow(row)
+          }.width('100%')
+        }, (row: LibraryFlowRow) => row.key)
       }
       .width('100%')
       .height('100%')
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .onDidScroll((): void => {
-        this.library.markScrolled();
+      .padding({
+        left: Layout.pagePad, right: Layout.pagePad,
+        top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+        bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
       })
+      .onDidScroll((): void => { this.library.markScrolled(); })
+      .onScrollIndex((first: number, last: number): void => { this.library.markScrolled(first); })
 
       TitleBar({
         heading: '图库',
@@ -577,27 +488,25 @@ export struct LibraryScreen {
           else { this.library.startSelection(); }
         }
       })
+      AppSheet({
+        visible: this.active && this.activeSheet().length > 0,
+        initialSize: this.activeSheet() === 'organize' || this.activeSheet() === 'albums'
+          || this.activeSheet() === 'trash' || this.activeSheet() === 'filter'
+          ? SheetSize.MEDIUM : SheetSize.FIT_CONTENT,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        onWillDismiss: (action: DismissSheetAction): void => {
+          if (!this.library.extractBusy) { action.dismiss(); }
+        },
+        onDismiss: (): void => {
+          this.sheet = '';
+          this.tagDialogOpen = false;
+          this.library.closeExtract();
+        }
+      }) {
+        this.sheetContent()
+      }
     }
     .width('100%')
     .height('100%')
-    .bindSheet(this.active && this.activeSheet().length > 0, this.sheetContent(), {
-      height: this.activeSheet() === 'organize' || this.activeSheet() === 'albums' || this.activeSheet() === 'trash' ? undefined
-        : this.activeSheet() === 'filter' ? SheetSize.MEDIUM : SheetSize.FIT_CONTENT,
-      detents: this.activeSheet() === 'organize' || this.activeSheet() === 'albums' || this.activeSheet() === 'trash'
-        ? [SheetSize.MEDIUM, SheetSize.LARGE] : undefined,
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      dragBar: true,
-      showClose: false,
-      backgroundColor: SheetStyle.background(),
-      systemMaterial: this.sheetMaterial,
-      onWillDismiss: (action: DismissSheetAction): void => {
-        if (!this.library.extractBusy) { action.dismiss(); }
-      },
-      onDisappear: (): void => {
-        this.sheet = '';
-        this.tagDialogOpen = false;
-        this.library.closeExtract();
-      }
-    })
   }
 }

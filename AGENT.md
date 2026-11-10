@@ -87,7 +87,7 @@ PixelMap、动画播放和屏幕效果服务。详细职责见 `docs/architectur
 - `service/PictureFactory.ets` — `PictureItem` 的构造与按 url 合并（**工厂方法**）。`uid` 必须在这里
   `new` 之后赋值 —— 见 `model/Models.ets` 里 `PictureItem.uid` 的说明。
 - `service/UiPort.ets` — ViewModel 反向依赖界面的唯一出口；默认全是安全空操作。
-- `service/Clipboard.ets` — 「检查授权 → 申请 → hasData → getData」这条平台要求的顺序只在这里。
+- `service/Clipboard.ets` — 只在系统 `PasteButton` 点击授权成功后读取；按 `hasData → getData` 顺序检查，并把失败阶段和错误码写入日志。
 - `service/ThemeController.ets` / `service/MaterialSupport.ets` — 主题映射与设备材质能力探测（只此一份）。
 - `model/SettingsOptions.ets` — `ChoiceSet`（表 + 默认项 + 查询 + `normalize` 归一）与五张选项表；
   `normalizeLocation` / `normalizeQuality` 也在这里 —— 它们是**设置取值的合法性判据**，
@@ -303,14 +303,13 @@ hdc -t <target> shell "aa start -b com.example.imagedownloader -a EntryAbility"
 
 ## 签名 / 权限
 
-**四条权限里两条需要证书 ACL，两条不需要。** 判据是 `PermissionDefinitions.json` 里的
+**当前声明的权限里只有防窥权限需要证书 ACL。** 判据是 `PermissionDefinitions.json` 里的
 `availableLevel`：高于普通应用（`system_basic` / `system_core`）的，声明完还得让证书
 `allowed-acls` 带上它，否则 `hdc install` 直接失败（`code:9568289 … grant request permissions failed`），
 表现是"改完装不上"，很容易误判成代码问题。
 
 | 权限 | grantMode | availableLevel | 要不要 ACL |
 |------|-----------|----------------|-----------|
-| `ohos.permission.READ_PASTEBOARD` | `user_grant` | `system_basic` | **要**（首次点粘贴还会弹一次授权框）|
 | `ohos.permission.DLP_GET_HIDE_STATUS` | `system_grant` | `system_basic` | **要**（**没有授权框**，最容易漏）|
 | `ohos.permission.DETECT_GESTURE` | `system_grant` | `normal` | 不要 |
 | `ohos.permission.FILE_ACCESS_PERSIST` | `system_grant` | `normal` | 不要（`fileShare.persistPermission` / `activatePermission` 用）|

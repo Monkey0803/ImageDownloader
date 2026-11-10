@@ -57,6 +57,8 @@ class DownloadWire {
   processed: number = 0;
   total: number = 0;
   size: number = 0;
+  imageWidth: number = 0;
+  imageHeight: number = 0;
   exportedAt: number = 0;
   error: string = '';
   createdAt: number = 0;
@@ -152,6 +154,8 @@ export class StoreState {
       out.processed = item.processed;
       out.total = item.total;
       out.size = item.size;
+      out.imageWidth = item.imageWidth;
+      out.imageHeight = item.imageHeight;
       out.exportedAt = item.exportedAt;
       out.error = item.error;
       out.createdAt = item.createdAt;
@@ -261,6 +265,8 @@ export class StoreState {
       item.processed = orNumber(entry.processed, 0);
       item.total = orNumber(entry.total, 0);
       item.size = orNumber(entry.size, 0);
+      item.imageWidth = Number.isFinite(entry.imageWidth) && entry.imageWidth > 0 ? entry.imageWidth : 0;
+      item.imageHeight = Number.isFinite(entry.imageHeight) && entry.imageHeight > 0 ? entry.imageHeight : 0;
       item.exportedAt = orNumber(entry.exportedAt, 0);
       item.error = orString(entry.error, '');
       item.createdAt = orNumber(entry.createdAt, 0);

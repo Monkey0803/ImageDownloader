@@ -1,8 +1,9 @@
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { CollectionSummary } from '../service/CollectionGroups';
-import { Font, Palette, Radius, Space } from '../theme/Tokens';
+import { Font, Space } from '../theme/Tokens';
 import { PillButton, SettingSelect } from './Widgets';
+import { AppSearch } from './AppSearch';
 
 const SORT_IDS: string[] = ['newest', 'name', 'size'];
 const SORT_LABELS: string[] = ['时间', '名称', '大小'];
@@ -102,14 +103,10 @@ export struct LibraryFilterSheet {
           }, (scope: string) => scope)
         }.width('100%')
 
-        TextInput({ placeholder: '按来源网页搜索', text: this.library.sourceQuery })
-          .fontSize(Font.aux).fontColor(TransparentGlass.foreground())
-          .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
-          .onChange((value: string): void => { this.library.sourceQuery = value; })
-        TextInput({ placeholder: '按标签筛选', text: this.library.tagFilter })
-          .fontSize(Font.aux).fontColor(TransparentGlass.foreground())
-          .backgroundColor(Palette.cardSunken).borderRadius(Radius.r4).width('100%')
-          .onChange((value: string): void => { this.library.tagFilter = value; })
+        AppSearch({ placeholder: '按来源网页搜索', text: this.library.sourceQuery,
+          onChange: (value: string): void => { this.library.sourceQuery = value; } })
+        AppSearch({ placeholder: '按标签筛选', text: this.library.tagFilter,
+          onChange: (value: string): void => { this.library.tagFilter = value; } })
 
         Row({ space: Space.s8 }) {
           PillButton({ label: this.library.favoritesOnly ? '仅收藏 ✓' : '仅收藏', small: true,

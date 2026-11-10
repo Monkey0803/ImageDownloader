@@ -80,36 +80,40 @@ export class BatchPageProtocol {
         out.scopeFound = true; out.bottom = true;
         const text = String(post.text_raw || post.text || '').replace(/<[^>]*>/g, '').trim();
         if (text) out.title = text.slice(0, 80);
-        const pics = Array.isArray(post.pics) ? post.pics
-          : (post.pic_ids || []).map(key => (post.pic_infos || {})[key]).filter(Boolean);
-        // 微博的实况照片不是 .livp 包：静图在 pics 里，动态部分单独给出（post.live_photo
-        // 与 pics 同序，单条里也可能带 videoSrc）。两路都收，配成「静图 + 视频」由下载层打包。
-        const liveMotions = Array.isArray(post.live_photo) ? post.live_photo : [];
+        // 转发正文里展示的原微博图片也属于当前详情页；只取直接嵌套的一层，不扫头像或推荐内容。
+        const owners = [post, post.retweeted_status].filter(Boolean);
         const seen = new Set();
-        for (let picIndex = 0; picIndex < pics.length; picIndex++) {
-          const pic = pics[picIndex];
-          const candidates = [];
-          const add = item => {
-            const raw = typeof item === 'string' ? item : item && item.url;
-            if (!raw) return;
-            try {
-              const url = new URL(raw, location.href).href;
-              if (/^https?:\\/\\//i.test(url) && !candidates.some(x => x.url === url))
-                candidates.push({ url, declared: Number(item.width) || 0 });
-            } catch (_) {}
-          };
-          if (${JSON.stringify(quality)} === 'display') { add(pic.url); add(pic.bmiddle); }
-          for (const key of ['original','largest','large','url','bmiddle','thumbnail']) add(pic[key]);
-          if (!candidates.length || seen.has(candidates[0].url)) continue;
-          seen.add(candidates[0].url);
-          const motionRaw = typeof pic.videoSrc === 'string' && pic.videoSrc.length > 0
-            ? pic.videoSrc : (typeof liveMotions[picIndex] === 'string' ? liveMotions[picIndex] : '');
-          let motion = '';
-          if (motionRaw) {
-            try { motion = new URL(motionRaw, location.href).href; } catch (_) { motion = motionRaw; }
+        for (const owner of owners) {
+          const pics = Array.isArray(owner.pics) && owner.pics.length > 0 ? owner.pics
+            : (owner.pic_ids || []).map(key => (owner.pic_infos || {})[key]).filter(Boolean);
+          // 实况照片的静图和动态视频分开放在同一层正文，索引必须相对各自的 pics。
+          const liveMotions = Array.isArray(owner.live_photo) ? owner.live_photo : [];
+          for (let picIndex = 0; picIndex < pics.length; picIndex++) {
+            const pic = pics[picIndex];
+            const candidates = [];
+            const add = item => {
+              const raw = typeof item === 'string' ? item : item && item.url;
+              if (!raw) return;
+              try {
+                const url = new URL(raw, location.href).href;
+                if (/^https?:\\/\\//i.test(url) && !candidates.some(x => x.url === url))
+                  candidates.push({ url, declared: Number(item.width) || 0 });
+              } catch (_) {}
+            };
+            if (${JSON.stringify(quality)} === 'display') { add(pic.url); add(pic.bmiddle); }
+            for (const key of ['original','largest','large','url','bmiddle','thumbnail']) add(pic[key]);
+            if (!candidates.length || seen.has(candidates[0].url)) continue;
+            seen.add(candidates[0].url);
+            const motionRaw = typeof pic.videoSrc === 'string' && pic.videoSrc.length > 0
+              ? pic.videoSrc : (typeof pic.video_src === 'string' && pic.video_src.length > 0
+                ? pic.video_src : (typeof liveMotions[picIndex] === 'string' ? liveMotions[picIndex] : ''));
+            let motion = '';
+            if (motionRaw) {
+              try { motion = new URL(motionRaw, location.href).href; } catch (_) { motion = motionRaw; }
+            }
+            out.images.push({ url: candidates[0].url, description: '', candidates,
+              width: 0, height: 0, motion: /^https?:\\/\\//i.test(motion) ? motion : '' });
           }
-          out.images.push({ url: candidates[0].url, description: '', candidates,
-            width: 0, height: 0, motion: /^https?:\\/\\//i.test(motion) ? motion : '' });
         }
         return JSON.stringify(out);
       }
