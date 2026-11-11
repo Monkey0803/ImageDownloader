@@ -47,7 +47,7 @@ export struct LibraryScreen {
     AppSearch({
       placeholder: this.library.isZips() ? '搜索压缩包' : '搜索图片',
       text: this.library.query,
-      pill: true,
+      useImmersiveMaterial: true,
       onChange: (value: string): void => { this.library.setQuery(value); }
     }).layoutWeight(1)
   }

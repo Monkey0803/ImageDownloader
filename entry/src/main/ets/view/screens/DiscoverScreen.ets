@@ -308,6 +308,7 @@ export struct DiscoverScreen {
       .width('100%')
       Row({ space: Space.s8 }) {
         AppSearch({ placeholder: '筛选来源 URL', text: this.discover.filterUrl,
+          useImmersiveMaterial: true,
           onChange: (value: string): void => { this.discover.filterUrl = value; } })
           .layoutWeight(1)
       }
@@ -363,7 +364,8 @@ export struct DiscoverScreen {
             this.quickFilters()
             if (this.resultsSearchActive) {
               AppSearch({ placeholder: '搜索文件名、图片描述或链接', text: this.discover.filterText,
-                focusId: 'discover-results-search', focusOnAppear: true,
+                inputId: 'discover-results-search', focusOnAppear: true,
+                useImmersiveMaterial: true,
                 onChange: (value: string): void => { this.discover.filterText = value; } })
             } else {
               Row({ space: Space.s8 }) {
@@ -373,10 +375,10 @@ export struct DiscoverScreen {
                   .fontColor(this.discover.filterText ? Palette.fontPrimary : Palette.fontSecondary)
               }
               .width('100%')
-              .height(40)
+              .height($r('app.float.form_field_height'))
               .padding({ left: Space.s12, right: Space.s12 })
-              .borderRadius(Radius.r4)
-              .backgroundColor(Palette.cardSunken)
+              .borderRadius($r('app.float.radius_chip'))
+              .backgroundColor($r('app.color.hm_value_chip_background'))
               .onClick((): void => {
                 this.resultsSearchActive = true;
               })

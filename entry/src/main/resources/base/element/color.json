@@ -51,6 +51,10 @@
     { "name": "fade_solid", "value": "#EBF1F3F5" },
     { "name": "fade_strong", "value": "#B8F1F3F5" },
     { "name": "fade_soft", "value": "#3DF1F3F5" },
-    { "name": "fade_none", "value": "#00F1F3F5" }
+    { "name": "fade_none", "value": "#00F1F3F5" },
+
+    { "name": "hm_text_primary", "value": "#FF172033" },
+    { "name": "hm_text_secondary", "value": "#FF58657A" },
+    { "name": "hm_value_chip_background", "value": "#FFF0F3F8" }
   ]
 }

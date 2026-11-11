@@ -107,8 +107,10 @@ export struct LibraryFilterSheet {
         })
 
         AppSearch({ placeholder: '按来源网页搜索', text: this.library.sourceQuery,
+          useImmersiveMaterial: true,
           onChange: (value: string): void => { this.library.sourceQuery = value; } })
         AppSearch({ placeholder: '按标签筛选', text: this.library.tagFilter,
+          useImmersiveMaterial: true,
           onChange: (value: string): void => { this.library.tagFilter = value; } })
 
         Row({ space: Space.s8 }) {

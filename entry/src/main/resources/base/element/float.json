@@ -3,6 +3,18 @@
     {
       "name": "page_text_font_size",
       "value": "50fp"
+    },
+    {
+      "name": "font_size_body",
+      "value": "16"
+    },
+    {
+      "name": "radius_chip",
+      "value": "16"
+    },
+    {
+      "name": "form_field_height",
+      "value": "48"
     }
   ]
 }
