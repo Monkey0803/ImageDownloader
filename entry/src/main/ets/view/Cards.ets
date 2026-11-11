@@ -15,7 +15,6 @@ import { BatchView } from '../model/BatchView';
 import { LivePhoto } from '../service/LivePhoto';
 import { MediaFormat } from '../service/MediaFormat';
 import { DownloadStore } from '../service/DownloadStore';
-import { AppSheet } from './AppSheet';
 import { AppMenu } from './AppMenu';
 import { MenuItemSpec, MenuSpec } from './MenuSpec';
 import {
@@ -26,11 +25,9 @@ import { IconButton, PillButton, ProgressBar, StatusChip } from './Widgets';
 import { Thumb } from './Thumb';
 import { GalleryAspect } from '../util/GalleryAspect';
 import { AnimatedPreviewImage, AnimationDockActions, AnimationToolbarAction, ZoomablePreviewImage } from './ImageSurface';
-import { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
-import { PreviewAsset, ViewerSlide } from '../model/PreviewAsset';
-import { PreviewTools } from './PreviewTools';
-import { PreviewCompare } from './PreviewCompare';
-import { PreviewChrome, PreviewHeader } from './PreviewChrome';
+import { ViewerSlide } from '../model/PreviewAsset';
+import { PreviewChrome } from './PreviewChrome';
+import { PreviewBrowser, PreviewShellState } from './PreviewBrowser';
 export { Thumb } from './Thumb';
 export { AnimatedPreviewImage, ZoomablePreviewImage, LocalPreviewImage } from './ImageSurface';
 export { PreviewStrip, PreviewThumbnail } from './PreviewStrip';
@@ -948,17 +945,7 @@ export struct ImageViewer {
   @Param actionable: boolean = true;
   /** 操作区被收起时的解释文案；空则不显示。 */
   @Param hint: string = '';
-  @Local private controlsShown: boolean = true;
-  @Local private zoomed: boolean = false;
-  @Local private actionDockHeight: number = 80;
-  @Local private backgroundMode: string = 'auto';
-  @Local private fitCommand: string = '';
   @Local private dockWidth: number = 360;
-  private fitSequence: number = 0;
-  @Monitor('index')
-  private onCurrentIndexChanged(monitor: IMonitor): void {
-    this.zoomed = false;
-  }
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   /** 滑动换图时把新下标交回预览页（V2 里双向数据流的标准写法）。 */
   @Event onIndexChange: (index: number) => void = () => {
@@ -985,31 +972,12 @@ export struct ImageViewer {
     return this.slides[this.index];
   }
 
-  private thumbnails(): PreviewThumbnail[] {
-    return this.slides.map((slide: ViewerSlide): PreviewThumbnail => {
-      return { id: slide.id, src: slide.src, name: slide.name, localPath: slide.localPath };
-    });
-  }
-
-  /** 头部的「第几张 / 共几张」；只有一张时不占位置。 */
-  private slideCounter(): string {
-    if (this.slides.length <= 1) {
-      return '';
-    }
-    return (this.index + 1).toString() + ' / ' + this.slides.length.toString();
-  }
-
-  private requestFit(mode: string): void {
-    this.fitSequence++;
-    this.fitCommand = mode + ':' + this.fitSequence.toString();
-  }
-
-  private moreMenuSpec(): MenuSpec {
+  private moreMenuSpec(state: PreviewShellState): MenuSpec {
     const items: MenuItemSpec[] = [];
     if (this.dockWidth < 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
-      items.push(new MenuItemSpec('fit-screen', '适合屏幕', (): void => this.requestFit('screen'))
+      items.push(new MenuItemSpec('fit-screen', '适合屏幕', (): void => state.requestFit('screen'))
         .withIcon('scan'));
-      items.push(new MenuItemSpec('fit-native', '原始像素', (): void => this.requestFit('native'))
+      items.push(new MenuItemSpec('fit-native', '原始像素', (): void => state.requestFit('native'))
         .withIcon('image'));
     }
     if (this.renameAllowed) {
@@ -1022,12 +990,12 @@ export struct ImageViewer {
   }
 
   @Builder
-  private moreMenu() {
-    AppMenu(this.moreMenuSpec());
+  private moreMenu(state: PreviewShellState) {
+    AppMenu(this.moreMenuSpec(state));
   }
 
   @Builder
-  private moreAction() {
+  private moreAction(state: PreviewShellState) {
     Button({ type: ButtonType.Normal }) {
       Column({ space: Space.s6 }) {
         Glyph({ glyph: 'list', glyphSize: 21, glyphTone: '#E6FFFFFF', glyphWeight: 1.7 })
@@ -1037,7 +1005,7 @@ export struct ImageViewer {
     }
     .layoutWeight(1).height(52).padding({ left: 2, right: 2 }).backgroundColor(Color.Transparent)
     .accessibilityText('更多操作').borderRadius(Radius.r6)
-    .bindMenu(this.moreMenu(), { placement: Placement.TopRight })
+    .bindMenu(this.moreMenu(state), { placement: Placement.TopRight })
   }
 
   @Builder
@@ -1064,13 +1032,54 @@ export struct ImageViewer {
   }
 
   @Builder
-  private toolsContent() {
-    if (this.current() !== undefined) {
-      PreviewTools({ asset: this.current()!, backgroundMode: this.backgroundMode,
-        onEdit: (id: string): void => { this.panels.tools = false; this.onEdit(id); },
-        onBackground: (mode: string): void => { this.backgroundMode = mode; },
-        onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
-        onClose: (): void => { this.panels.tools = false; } })
+  private slideContent(slide: ViewerSlide, slideIndex: number, state: PreviewShellState) {
+    Stack({ alignContent: Alignment.Center }) {
+      if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
+        LivePhotoSlide({ stillFile: slide.stillPath, motionFile: slide.motionPath })
+      } else if (slide.localPath.length > 0 && !slide.animated) {
+        ZoomablePreviewImage({ imageId: slide.id, path: slide.localPath, fallbackUri: slide.src,
+          readingKey: 'local:' + slide.id, allowDismiss: !this.panels.tools && !this.panels.navigation,
+          onDismiss: this.onClose,
+          label: slide.label,
+          active: this.foreground && slideIndex === this.index && !this.panels.comparison,
+          controlsVisible: state.controlsVisible && !this.panels.tools,
+          controlsBottom: state.dockHeight,
+          showFitControls: false,
+          fitCommand: state.fitCommand,
+          backgroundMode: state.backgroundMode,
+          onTapImage: (): void => { state.toggleControls(this.panels); },
+          onZoomChange: (value: boolean): void => { state.zoomed = value; } })
+      } else {
+        AnimatedPreviewImage({ onTapImage: (): void => { state.toggleControls(this.panels); }, src: slide.src,
+          localPath: slide.localPath, name: slide.name,
+          controlsVisible: state.controlsVisible && !this.panels.tools,
+          controlsBottom: state.dockHeight,
+          backgroundMode: state.backgroundMode,
+          active: this.foreground && slideIndex === this.index && !this.panels.comparison,
+          allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
+          dockedControls: slide.animated,
+          bottomActions: (actions: AnimationDockActions): void => { this.actionDock(actions, state); } })
+          .width('100%').height('100%')
+      }
+    }
+    .width('100%').height('100%')
+    .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
+      if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
+        state.toggleControls(this.panels);
+      }
+    }))
+  }
+
+  @Builder
+  private bottomDock(state: PreviewShellState) {
+    if (!this.animationDocked()) {
+      Column() {
+        this.actionDock(new AnimationDockActions(), state)
+      }
+      .width('100%')
+      .padding({ top: Space.s24 })
+      .linearGradient(PreviewChrome.bottomGradient())
+      .hitTestBehavior(HitTestMode.None)
     }
   }
 
@@ -1081,7 +1090,7 @@ export struct ImageViewer {
   }
 
   @Builder
-  private actionDock(actions: AnimationDockActions) {
+  private actionDock(actions: AnimationDockActions, state: PreviewShellState) {
     Column() {
       if (actions.notice.length > 0 || this.hint.length > 0) {
         Text(actions.notice.length > 0 ? actions.notice : this.hint)
@@ -1095,8 +1104,8 @@ export struct ImageViewer {
       if (this.actionable) {
         Row() {
           if (this.dockWidth >= 340 && this.current()?.localPath && !this.current()?.animated && !this.current()?.stillPath) {
-            this.action('scan', '适合屏幕', false, (): void => { this.requestFit('screen'); })
-            this.action('image', '原始像素', false, (): void => { this.requestFit('native'); })
+            this.action('scan', '适合屏幕', false, (): void => { state.requestFit('screen'); })
+            this.action('image', '原始像素', false, (): void => { state.requestFit('native'); })
           }
           if (actions.available) {
             if (actions.canPause) {
@@ -1106,7 +1115,7 @@ export struct ImageViewer {
           }
           this.action('download', '存相册', false, this.onSaveToGallery)
           this.action('share', '分享', false, this.onShare)
-          this.moreAction()
+          this.moreAction(state)
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceAround)
@@ -1117,7 +1126,7 @@ export struct ImageViewer {
     }.width('100%')
       .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
         // 底部渐变层额外留了 24vp 渐隐头，缩放控件要一起让开。
-        this.actionDockHeight = Number(newSize.height) + Space.s24;
+        state.dockHeight = Number(newSize.height) + Space.s24;
         this.dockWidth = Number(newSize.width);
       })
   }
@@ -1129,93 +1138,27 @@ export struct ImageViewer {
   }
 
   build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Swiper() {
-        ForEach(this.slides, (slide: ViewerSlide, slideIndex: number) => {
-          Stack({ alignContent: Alignment.Center }) {
-            if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
-              LivePhotoSlide({ stillFile: slide.stillPath, motionFile: slide.motionPath })
-            } else if (slide.localPath.length > 0 && !slide.animated) {
-              ZoomablePreviewImage({ imageId: slide.id, path: slide.localPath, fallbackUri: slide.src,
-                readingKey: 'local:' + slide.id, allowDismiss: !this.panels.tools && !this.panels.navigation,
-                onDismiss: this.onClose,
-                label: slide.label, active: this.foreground && slideIndex === this.index && !this.panels.comparison, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
-                showFitControls: false, fitCommand: this.fitCommand,
-                backgroundMode: this.backgroundMode,
-                onTapImage: (): void => { this.controlsShown = !this.controlsShown; },
-                onZoomChange: (value: boolean): void => { this.zoomed = value; } })
-            } else {
-              AnimatedPreviewImage({ onTapImage: (): void => { this.controlsShown = !this.controlsShown; }, src: slide.src, localPath: slide.localPath, name: slide.name, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, backgroundMode: this.backgroundMode, active: this.foreground && slideIndex === this.index && !this.panels.comparison,
-                allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
-                dockedControls: slide.animated,
-                bottomActions: (actions: AnimationDockActions): void => { this.actionDock(actions); } })
-                .width('100%').height('100%')
-            }
-          }
-          .width('100%').height('100%')
-          .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
-            if (slide.stillPath.length > 0 && slide.motionPath.length > 0) {
-              this.controlsShown = !this.controlsShown;
-            }
-          }))
-        }, (slide: ViewerSlide) => slide.id)
-      }
-      .width('100%').height('100%')
-      .index(this.index).loop(false).indicator(false).cachedCount(1)
-      .disableSwipe(this.zoomed)
-      .onChange((value: number): void => {
-        this.zoomed = false;
-        this.onIndexChange(value);
-      })
-
-      if (this.controlsShown) {
-        Column() {
-          Column() {
-            PreviewHeader({ title: this.current()?.name ?? '', counter: this.slideCounter(),
-              showLivePhoto: (this.current()?.animated ?? false) || (this.current()?.motionPath.length ?? 0) > 0,
-              showCounter: this.slideCounter().length > 0, emphasized: true,
-              detailsLabel: '图片详情与工具',
-              onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
-              onDetails: (): void => { this.panels.tools = true; },
-              onClose: (): void => { this.onClose(); } })
-          }
-          .width('100%')
-          .padding({ bottom: Space.s24 })
-          .linearGradient(PreviewChrome.topGradient())
-          .hitTestBehavior(HitTestMode.None)
-          if (this.panels.navigation) {
-            PreviewStrip({ items: this.thumbnails(), currentIndex: this.index,
-              onJump: (next: number): void => { this.panels.navigation = false; this.onIndexChange(next); },
-              onClose: (): void => { this.panels.navigation = false; } })
-          }
-          Column().layoutWeight(1).hitTestBehavior(HitTestMode.None)
-
-          if (!this.animationDocked()) {
-            Column() {
-              this.actionDock(new AnimationDockActions())
-            }.width('100%')
-              .padding({ top: Space.s24 })
-              .linearGradient(PreviewChrome.bottomGradient())
-              .hitTestBehavior(HitTestMode.None)
-          }
-        }
-        .width('100%').height('100%')
-        .hitTestBehavior(HitTestMode.None)
-      }
-      if (this.foreground && this.panels.comparison && this.current() !== undefined) {
-        PreviewCompare({ assets: this.slides, currentId: this.current()!.id, backgroundMode: this.backgroundMode,
-          onClose: (): void => { this.panels.comparison = false; } })
-      }
-      AppSheet({ visible: this.panels.tools && this.current() !== undefined,
-        initialSize: SheetSize.MEDIUM, scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-        useMaterial: this.detailsMaterialAllowed(),
-        opaqueBackground: !this.detailsMaterialAllowed(),
-        onDismiss: (): void => { this.panels.tools = false; } }) {
-        this.toolsContent()
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#000000')
+    PreviewBrowser({
+      panels: this.panels,
+      foreground: this.foreground,
+      slides: this.slides,
+      index: this.index,
+      showTitle: true,
+      emphasized: true,
+      showCounter: this.slides.length > 1,
+      livePhoto: (this.current()?.animated ?? false) || (this.current()?.motionPath.length ?? 0) > 0,
+      detailsLabel: '图片详情与工具',
+      detailsToggle: false,
+      detailsMaterialAllowed: this.detailsMaterialAllowed(),
+      showFitInTools: false,
+      compareAssets: this.slides,
+      onIndexChange: (next: number): void => { this.onIndexChange(next); },
+      onClose: (): void => { this.onClose(); },
+      onEdit: (id: string): void => { this.onEdit(id); },
+      slideContent: (slide: ViewerSlide, slideIndex: number, state: PreviewShellState): void => {
+        this.slideContent(slide, slideIndex, state);
+      },
+      bottomDock: (state: PreviewShellState): void => { this.bottomDock(state); }
+    })
   }
 }

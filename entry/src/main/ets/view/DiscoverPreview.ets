@@ -1,19 +1,17 @@
-import { PreviewChrome, PreviewButton, PreviewHeader } from './PreviewChrome';
+import { PreviewChrome, PreviewButton } from './PreviewChrome';
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
-import { PreviewAsset } from '../model/PreviewAsset';
+import { PreviewAsset, ViewerSlide } from '../model/PreviewAsset';
 import { common } from '@kit.AbilityKit';
 import { PreviewOrientation } from '../service/PreviewOrientation';
 import { SystemBars } from '../service/SystemBars';
-import { PreviewTools } from './PreviewTools';
-import { PreviewCompare } from './PreviewCompare';
 import { PreviewNavigation } from '../util/PreviewNavigation';
 import { PictureItem } from '../model/Models';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { ThumbnailImages } from '../service/ThumbnailImages';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
-import { AppSheet } from './AppSheet';
-import { AnimatedPreviewImage, LivePhotoSlide, PreviewStrip, PreviewThumbnail, ZoomablePreviewImage } from './Cards';
-import { IconButton, PictureSelectionButton } from './Widgets';
+import { AnimatedPreviewImage, LivePhotoSlide, ZoomablePreviewImage } from './Cards';
+import { PictureSelectionButton } from './Widgets';
+import { PreviewBrowser, PreviewShellState } from './PreviewBrowser';
 
 /** Full-screen inspection of a snapshot of the currently filtered results. */
 @ComponentV2
@@ -28,15 +26,9 @@ export struct DiscoverPreview {
   @Event onSourcePage: () => void = (): void => {};
   @Event onEdit: (id: string) => void = (id: string): void => {};
   @Local private currentIndex: number = 0;
-  @Local private controlsShown: boolean = true;
-  @Local private zoomed: boolean = false;
-  @Local private actionDockHeight: number = 80;
-  @Local private backgroundMode: string = 'auto';
-  @Local private fitCommand: string = '';
-  private fitSequence: number = 0;
-
   @Local private selectedOnly: boolean = false;
   @Local private browseIds: string[] = [];
+  @Local private slides: ViewerSlide[] = [];
   @Local private posterUri: string = '';
   private posterUid: string = '';
   private posterTimer: number = -1;
@@ -78,17 +70,46 @@ export struct DiscoverPreview {
     if (this.selectedOnly) { this.refreshRange(); }
   }
 
+  @Monitor('discover.previewUri', 'discover.previewLocalPath', 'discover.previewMotionPath',
+    'discover.previewLocalAnimated', 'discover.previewLoading', 'discover.previewFailure')
+  private onPreviewChanged(monitor: IMonitor): void {
+    this.refreshSlides();
+  }
+
   private selectedIds(): string[] {
     return this.ids.filter((id: string): boolean =>
       this.discover.pictures.some((item: PictureItem): boolean => item.uid === id && item.selected));
   }
 
-  private thumbnails(): PreviewThumbnail[] {
-    return this.browseIds.map((id: string): PreviewThumbnail => {
-      const item: PictureItem | undefined = this.discover.pictures.find((item: PictureItem): boolean => item.uid === id);
-      const asset: PreviewAsset = item !== undefined ? this.discover.previewAsset(item) : new PreviewAsset();
-      return { id: id, name: asset.name, src: asset.src, localPath: asset.localPath };
+  private buildSlides(): ViewerSlide[] {
+    return this.browseIds.map((uid: string): ViewerSlide => {
+      const slide: ViewerSlide = new ViewerSlide();
+      slide.id = uid;
+      const item: PictureItem | undefined = this.discover.pictures.find((value: PictureItem): boolean => value.uid === uid);
+      if (item === undefined) { return slide; }
+      const asset: PreviewAsset = this.discover.previewAsset(item);
+      const inspected: boolean = this.discover.inspectedPicture?.uid === uid;
+      slide.libraryId = asset.libraryId;
+      slide.src = inspected && this.discover.previewUri.length > 0 ? this.discover.previewUri : asset.src;
+      slide.localPath = inspected ? this.discover.previewLocalPath : asset.localPath;
+      slide.name = asset.name;
+      slide.url = asset.url;
+      slide.sourcePage = asset.sourcePage;
+      slide.bytes = asset.bytes;
+      slide.downloaded = asset.downloaded;
+      slide.downloadedAt = asset.downloadedAt;
+      slide.width = asset.width;
+      slide.height = asset.height;
+      slide.animated = inspected ? (this.discover.previewLocalAnimated || asset.animated) : asset.animated;
+      slide.label = item.kind === 'livephoto' ? '实况' : 'IMG';
+      slide.stillPath = inspected && this.discover.previewMotionPath.length > 0 ? this.discover.previewLocalPath : '';
+      slide.motionPath = inspected ? this.discover.previewMotionPath : '';
+      return slide;
     });
+  }
+
+  private refreshSlides(): void {
+    this.slides = this.buildSlides();
   }
 
   private refreshRange(): void {
@@ -100,15 +121,14 @@ export struct DiscoverPreview {
     this.panels.navigation = false;
     if (next.length === 0) {
       this.showPoster('');
-      this.zoomed = false;
       this.panels.tools = false;
       this.discover.closeInspection(true);
     } else if (next[index] !== current) {
-      this.zoomed = false;
       this.panels.tools = false;
       this.showPoster(next[index]);
       this.inspectCurrent();
     }
+    this.refreshSlides();
   }
 
   private setScope(selected: boolean): void {
@@ -117,21 +137,11 @@ export struct DiscoverPreview {
     this.refreshRange();
   }
 
-  private requestFit(mode: string): void {
-    this.fitSequence++;
-    this.fitCommand = mode + ':' + this.fitSequence.toString();
-  }
-
   private toggleCurrentSelection(): void {
     const item: PictureItem | undefined = this.current();
     if (item === undefined) { return; }
     this.discover.togglePicture(item.uid);
     if (this.selectedOnly) { this.refreshRange(); }
-  }
-
-  private toggleControls(): void {
-    this.controlsShown = !this.controlsShown;
-    if (!this.controlsShown) { this.panels.tools = false; }
   }
 
   aboutToAppear(): void {
@@ -143,6 +153,7 @@ export struct DiscoverPreview {
     this.currentIndex = at >= 0 ? at : 0;
     this.showPoster(this.browseIds[this.currentIndex] ?? '');
     this.inspectCurrent();
+    this.refreshSlides();
   }
 
   aboutToDisappear(): void {
@@ -166,11 +177,11 @@ export struct DiscoverPreview {
   private pageChanged(next: number): void {
     if (next < 0 || next >= this.browseIds.length) { return; }
     if (next === this.currentIndex && this.discover.inspectedPicture?.uid === this.browseIds[next]) { return; }
-    this.zoomed = false;
     this.currentIndex = next;
     this.panels.tools = false;
     this.showPoster(this.browseIds[next]);
     this.inspectCurrent();
+    this.refreshSlides();
   }
 
   private hasSourcePage(item: PictureItem): boolean {
@@ -244,20 +255,6 @@ export struct DiscoverPreview {
       .map((item: PictureItem): PreviewAsset => this.discover.previewAsset(item));
   }
 
-  @Builder
-  private toolsContent() {
-    if (this.current() !== undefined) {
-      PreviewTools({ asset: this.discover.previewAsset(this.current()!), backgroundMode: this.backgroundMode,
-        showFitActions: this.discover.previewUri.length > 0 && !this.discover.previewLocalAnimated
-          && this.discover.previewMotionPath.length === 0,
-        onFit: (mode: string): void => { this.panels.tools = false; this.requestFit(mode); },
-        onEdit: (id: string): void => { this.panels.tools = false; this.onEdit(id); },
-        onBackground: (mode: string): void => { this.backgroundMode = mode; },
-        onCompare: (): void => { this.panels.tools = false; this.panels.comparison = true; },
-        onClose: (): void => { this.panels.tools = false; } })
-    }
-  }
-
   private detailsMaterialAllowed(): boolean {
     const item: PictureItem | undefined = this.current();
     if (item === undefined || item.kind === 'livephoto') { return false; }
@@ -270,146 +267,141 @@ export struct DiscoverPreview {
       && this.discover.previewMotionPath.length === 0;
   }
 
-  build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Swiper() {
-        ForEach(this.browseIds, (uid: string, slideIndex: number) => {
-          Stack({ alignContent: Alignment.Center }) {
-            if (slideIndex === this.currentIndex && this.posterUid === uid && this.posterUri.length > 0) {
-              Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
-                .hitTestBehavior(HitTestMode.None)
-                .onError((): void => { if (this.posterUid === uid) { this.showPoster(''); } })
-            }
-            if (slideIndex === this.currentIndex && this.discover.previewUri.length > 0) {
-              if (this.discover.previewMotionPath.length > 0) {
-                LivePhotoSlide({ stillFile: this.discover.previewLocalPath,
-                  motionFile: this.discover.previewMotionPath,
-                  posterUri: this.posterUid === uid ? this.posterUri : '',
-                  onReady: (): void => { this.hidePosterAfterReveal(uid); } })
-              } else if (!this.discover.previewLocalAnimated) {
-                ZoomablePreviewImage({ imageId: uid, path: this.discover.previewLocalPath,
-                  readingKey: 'web:' + this.discover.pageUrl.length.toString() + ':' + this.discover.pageUrl + (this.current()?.url ?? uid),
-                  allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
-                  fallbackUri: this.discover.previewUri,
-                  posterUri: this.posterUid === uid ? this.posterUri : '',
-                  active: this.foreground && slideIndex === this.currentIndex && !this.panels.comparison, backgroundMode: this.backgroundMode, controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight,
-                  showFitControls: false, compactFitControls: true, fitCommand: this.fitCommand,
-                  onTapImage: (): void => { this.toggleControls(); },
-                  onReady: (): void => { this.hidePosterAfterReveal(uid); },
-                  onZoomChange: (value: boolean): void => { this.zoomed = value; } })
-                  .width('100%').height('100%')
-              } else {
-                AnimatedPreviewImage({ onTapImage: (): void => { this.toggleControls(); }, onReady: (): void => { this.hidePosterAfterReveal(uid); }, src: this.discover.previewUri, localPath: this.discover.previewLocalPath, posterUri: this.posterUid === uid ? this.posterUri : '', name: this.current()?.name ?? '图片', controlsVisible: this.controlsShown && !this.panels.tools, controlsBottom: this.actionDockHeight, active: this.foreground && !this.panels.comparison, backgroundMode: this.backgroundMode,
-                  allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose })
-                  .width('100%').height('100%')
-              }
-            }
-          }
-          .width('100%').height('100%')
-          .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
-            if (this.discover.previewUri.length === 0) {
-              this.toggleControls();
-            }
-          }))
-        }, (uid: string) => uid)
+  @Builder
+  private centerOverlay() {
+    if (this.browseIds.length === 0) {
+      Text('还没有选中的图片').fontSize(Font.body).fontColor(Palette.white)
+      PreviewButton({ label: '浏览全部图片', variant: 'tonal',
+        onAction: (): void => { this.setScope(false); } })
+    }
+    if (this.current() !== undefined) {
+      if (!this.panels.tools && this.discover.previewUri.length === 0
+        && (!this.discover.previewLoading || this.posterUri.length === 0)) {
+        this.unavailableState(this.current()!)
       }
-      .width('100%').height('100%')
-      .index(this.currentIndex).loop(false).indicator(false).cachedCount(1)
-      .disableSwipe(this.zoomed)
-      .onChange((next: number): void => { this.pageChanged(next); })
+    }
+  }
 
-      if (this.controlsShown) {
-        Column() {
-          Column() {
-            PreviewHeader({ title: this.current()?.name ?? '', showTitle: false,
-              showLivePhoto: this.current()?.kind === 'livephoto'
-                || (this.discover.inspectedPicture?.uid === this.current()?.uid && this.discover.previewLocalAnimated),
-              counter: (this.browseIds.length > 0 ? this.currentIndex + 1 : 0).toString()
-                + ' / ' + this.browseIds.length.toString(),
-              counterActive: this.browseIds.length > 0,
-              onNavigation: (): void => { this.panels.navigation = !this.panels.navigation; },
-              onDetails: (): void => { this.panels.tools = !this.panels.tools; },
-              onClose: this.onClose })
-          }
-          .width('100%')
-          .padding({ bottom: Space.s12 })
-          .linearGradient(PreviewChrome.topGradient())
+  @Builder
+  private slideContent(slide: ViewerSlide, slideIndex: number, state: PreviewShellState) {
+    Stack({ alignContent: Alignment.Center }) {
+      if (slideIndex === this.currentIndex && this.posterUid === slide.id && this.posterUri.length > 0) {
+        Image(this.posterUri).width('100%').height('100%').objectFit(ImageFit.Contain)
           .hitTestBehavior(HitTestMode.None)
-          if (this.panels.navigation) {
-            PreviewStrip({ items: this.thumbnails(), currentIndex: this.currentIndex,
-              showBrowseScope: true, allCount: this.ids.length, selectedCount: this.selectedIds().length,
-              selectedOnly: this.selectedOnly,
-              onScopeChange: (selected: boolean): void => { this.setScope(selected); },
-              onJump: (next: number): void => { this.panels.navigation = false; this.pageChanged(next); },
-              onClose: (): void => { this.panels.navigation = false; } })
-          }
-          Column() {
-            if (this.browseIds.length === 0) {
-              Text('还没有选中的图片').fontSize(Font.body).fontColor(Palette.white)
-              PreviewButton({ label: '浏览全部图片', variant: 'tonal',
-                onAction: (): void => { this.setScope(false); } })
-            }
-            if (this.current() !== undefined) {
-              if (!this.panels.tools && this.discover.previewUri.length === 0
-                && (!this.discover.previewLoading || this.posterUri.length === 0)) {
-                this.unavailableState(this.current()!)
-              }
-            }
-          }
-          .width('100%').layoutWeight(1)
-          .justifyContent(FlexAlign.Center)
-          .padding({ left: Space.s24, right: Space.s24 })
-          .hitTestBehavior(HitTestMode.None)
-          Column({ space: Space.s8 }) {
-            if (this.current() !== undefined) {
-              Row({ space: Space.s16 }) {
-                PreviewButton({ label: this.discover.downloadState(this.current()!) === 'active' ? '已加入任务'
-                  : this.discover.downloadState(this.current()!) === 'completed' ? '重新下载' : '下载当前',
-                  icon: 'download', small: true,
-                  variant: this.discover.downloadState(this.current()!) === 'active' ? 'tonal' : 'primary',
-                  active: this.discover.downloadState(this.current()!) !== 'active',
-                  onAction: (): void => { this.discover.requestInspectedDownload(); } })
-                Row({ space: Space.s6 }) {
-                  PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
-                    onAction: (): void => { this.toggleCurrentSelection(); } })
-                  Text(this.current()!.selected ? '已选入批量' : '选入批量')
-                    .fontSize(Font.caption).fontColor(Palette.white)
-                    .onClick((): void => { this.toggleCurrentSelection(); })
-                }.alignItems(VerticalAlign.Center)
-              }.width('100%').justifyContent(FlexAlign.Center)
-              if (this.discover.previewEligibleCount(this.ids) > 0) {
-                PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
-                  + this.discover.previewEligibleCount(this.ids).toString(), small: true, variant: 'tonal',
-                  onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
-              } else if (this.selectedIds().length > 0) {
-                Text('所选图片已下载或正在下载')
-                  .fontSize(Font.aux).fontColor('#B3FFFFFF')
-              }
-            }
-          }.width('100%').alignItems(HorizontalAlign.Center)
-            .padding({ top: Space.s12, bottom: Space.s12 })
-            .linearGradient(PreviewChrome.bottomGradient())
-            .hitTestBehavior(HitTestMode.None)
-            .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
-              this.actionDockHeight = Number(newSize.height);
-            })
+          .onError((): void => { if (this.posterUid === slide.id) { this.showPoster(''); } })
+      }
+      if (slideIndex === this.currentIndex && this.discover.previewUri.length > 0) {
+        if (this.discover.previewMotionPath.length > 0) {
+          LivePhotoSlide({ stillFile: this.discover.previewLocalPath,
+            motionFile: this.discover.previewMotionPath,
+            posterUri: this.posterUid === slide.id ? this.posterUri : '',
+            onReady: (): void => { this.hidePosterAfterReveal(slide.id); } })
+        } else if (!this.discover.previewLocalAnimated) {
+          ZoomablePreviewImage({ imageId: slide.id, path: this.discover.previewLocalPath,
+            readingKey: 'web:' + this.discover.pageUrl.length.toString() + ':' + this.discover.pageUrl
+              + (slide.url.length > 0 ? slide.url : slide.id),
+            allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose,
+            fallbackUri: this.discover.previewUri,
+            posterUri: this.posterUid === slide.id ? this.posterUri : '',
+            active: this.foreground && slideIndex === this.currentIndex && !this.panels.comparison,
+            backgroundMode: state.backgroundMode,
+            controlsVisible: state.controlsVisible && !this.panels.tools,
+            controlsBottom: state.dockHeight,
+            showFitControls: false, compactFitControls: true, fitCommand: state.fitCommand,
+            onTapImage: (): void => { state.toggleControls(this.panels); },
+            onReady: (): void => { this.hidePosterAfterReveal(slide.id); },
+            onZoomChange: (value: boolean): void => { state.zoomed = value; } })
+            .width('100%').height('100%')
+        } else {
+          AnimatedPreviewImage({ onTapImage: (): void => { state.toggleControls(this.panels); },
+            onReady: (): void => { this.hidePosterAfterReveal(slide.id); },
+            src: this.discover.previewUri, localPath: this.discover.previewLocalPath,
+            posterUri: this.posterUid === slide.id ? this.posterUri : '',
+            name: this.current()?.name ?? '图片',
+            controlsVisible: state.controlsVisible && !this.panels.tools,
+            controlsBottom: state.dockHeight,
+            active: this.foreground && !this.panels.comparison,
+            backgroundMode: state.backgroundMode,
+            allowDismiss: !this.panels.tools && !this.panels.navigation, onDismiss: this.onClose })
+            .width('100%').height('100%')
         }
-        .width('100%').height('100%')
-        .hitTestBehavior(HitTestMode.None)
-      }
-      if (this.foreground && this.panels.comparison && this.current() !== undefined) {
-        PreviewCompare({ assets: this.comparisonAssets(), currentId: this.current()!.uid, backgroundMode: this.backgroundMode,
-          onClose: (): void => { this.panels.comparison = false; } })
-      }
-      AppSheet({ visible: this.panels.tools && this.current() !== undefined,
-        initialSize: SheetSize.MEDIUM, scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-        useMaterial: this.detailsMaterialAllowed(),
-        opaqueBackground: !this.detailsMaterialAllowed(),
-        onDismiss: (): void => { this.panels.tools = false; } }) {
-        this.toolsContent()
       }
     }
     .width('100%').height('100%')
-    .backgroundColor('#000000')
+    .parallelGesture(TapGesture({ count: 1 }).onAction((): void => {
+      if (this.discover.previewUri.length === 0) {
+        state.toggleControls(this.panels);
+      }
+    }))
+  }
+
+  @Builder
+  private bottomDock(state: PreviewShellState) {
+    Column({ space: Space.s8 }) {
+      if (this.current() !== undefined) {
+        Row({ space: Space.s16 }) {
+          PreviewButton({ label: this.discover.downloadState(this.current()!) === 'active' ? '已加入任务'
+            : this.discover.downloadState(this.current()!) === 'completed' ? '重新下载' : '下载当前',
+            icon: 'download', small: true,
+            variant: this.discover.downloadState(this.current()!) === 'active' ? 'tonal' : 'primary',
+            active: this.discover.downloadState(this.current()!) !== 'active',
+            onAction: (): void => { this.discover.requestInspectedDownload(); } })
+          Row({ space: Space.s6 }) {
+            PictureSelectionButton({ selected: this.current()!.selected, diameter: 44,
+              onAction: (): void => { this.toggleCurrentSelection(); } })
+            Text(this.current()!.selected ? '已选入批量' : '选入批量')
+              .fontSize(Font.caption).fontColor(Palette.white)
+              .onClick((): void => { this.toggleCurrentSelection(); })
+          }.alignItems(VerticalAlign.Center)
+        }.width('100%').justifyContent(FlexAlign.Center)
+        if (this.discover.previewEligibleCount(this.ids) > 0) {
+          PreviewButton({ label: (this.discover.mode === 'zip' ? '打包已选 ' : '下载已选 ')
+            + this.discover.previewEligibleCount(this.ids).toString(), small: true, variant: 'tonal',
+            onAction: (): void => { this.discover.downloadPreviewSelection(this.ids); } })
+        } else if (this.selectedIds().length > 0) {
+          Text('所选图片已下载或正在下载')
+            .fontSize(Font.aux).fontColor('#B3FFFFFF')
+        }
+      }
+    }.width('100%').alignItems(HorizontalAlign.Center)
+      .padding({ top: Space.s12, bottom: Space.s12 })
+      .linearGradient(PreviewChrome.bottomGradient())
+      .hitTestBehavior(HitTestMode.None)
+      .onSizeChange((oldSize: SizeOptions, newSize: SizeOptions): void => {
+        state.dockHeight = Number(newSize.height);
+      })
+  }
+
+  build() {
+    PreviewBrowser({
+      panels: this.panels,
+      foreground: this.foreground,
+      slides: this.slides,
+      index: this.currentIndex,
+      showTitle: false,
+      emphasized: false,
+      showCounter: true,
+      livePhoto: this.current()?.kind === 'livephoto'
+        || (this.discover.inspectedPicture?.uid === this.current()?.uid && this.discover.previewLocalAnimated),
+      detailsLabel: '图片详情',
+      detailsToggle: true,
+      detailsMaterialAllowed: this.detailsMaterialAllowed(),
+      showFitInTools: this.discover.previewUri.length > 0 && !this.discover.previewLocalAnimated
+        && this.discover.previewMotionPath.length === 0,
+      showBrowseScope: true,
+      allCount: this.ids.length,
+      selectedCount: this.selectedIds().length,
+      selectedOnly: this.selectedOnly,
+      compareAssets: this.comparisonAssets(),
+      onIndexChange: (next: number): void => { this.pageChanged(next); },
+      onClose: (): void => { this.onClose(); },
+      onEdit: (id: string): void => { this.onEdit(id); },
+      onScopeChange: (selected: boolean): void => { this.setScope(selected); },
+      slideContent: (slide: ViewerSlide, slideIndex: number, state: PreviewShellState): void => {
+        this.slideContent(slide, slideIndex, state);
+      },
+      bottomDock: (state: PreviewShellState): void => { this.bottomDock(state); },
+      centerOverlay: (): void => { this.centerOverlay(); }
+    })
   }
 }
