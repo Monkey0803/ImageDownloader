@@ -7,12 +7,17 @@ import {
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Card, ListRow, SectionHead, SettingSelect, StackedRow } from '../Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from '../AppSegmentButton';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
-const AUTO_LOCK_CHOICES: SelectOption[] = [
-  { value: '立即' }, { value: '1 分钟' }, { value: '5 分钟' }, { value: '15 分钟' }
-];
+const AUTO_LOCK_LABELS: string[] = ['立即', '1 分钟', '5 分钟', '15 分钟'];
+const AUTO_LOCK_CHOICES: SelectOption[] =
+  AUTO_LOCK_LABELS.map((label: string): SelectOption => ({ value: label }));
 const AUTO_LOCK_MINUTES: number[] = [0, 1, 5, 15];
+
+const THEME_LABELS: string[] = THEME_CHOICES.labels();
+const MATERIAL_TYPE_LABELS: string[] = MATERIAL_TYPES.labels();
+const QUALITY_LABELS: string[] = PICTURE_QUALITIES.labels();
 
 /**
  * 「设置」页：外观 / 系统特性 / 下载 / 编辑 / 数据五节。
@@ -94,18 +99,16 @@ export struct SettingsScreen {
           Column({ space: Space.s10 }) {
             SectionHead({ heading: '外观' })
             Card({ pad: 0 }) {
-              // 切深浅色时图标跟着换（sun ↔ moon），所以 ListRow.glyph 必须是 @Prop。
-              ListRow({
+              // 切深浅色时图标跟着换（sun ↔ moon），所以 glyph 必须是 @Param。
+              StackedRow({
                 glyph: this.settings.themeMode === 'dark' ? 'moon' : 'sun',
                 heading: '主题'
               }) {
-                // 与材质两行同一个控件：当前主题写在胶囊上，原来那句「跟随系统 / 固定为深色」
-                // 的 aux 就成了重复信息，一并去掉。
-                SettingSelect({
-                  options: THEME_CHOICES.selectOptions(),
+                AppSegmentButton({
+                  labels: THEME_LABELS,
                   selectedIndex: THEME_CHOICES.index(this.settings.themeMode),
-                  label: THEME_CHOICES.label(this.settings.themeMode),
-                  onPick: (index: number): void => {
+                  config: { dense: true, width: segmentCapsuleWidth(THEME_LABELS, Font.caption, Space.s12) },
+                  onSelectedIndexChange: (index: number): void => {
                     this.settings.pickTheme(index);
                   }
                 })
@@ -146,18 +149,19 @@ export struct SettingsScreen {
 
                 Divider().color(Palette.divider).margin({ left: 60 })
 
-                ListRow({
+                StackedRow({
                   glyph: 'layers',
                   heading: '材质类型',
                   aux: '通透材质随背景与深浅色自适应'
                 }) {
-                  // 和下面「沉浸光感材质」同一个控件：三档用分段控件会挤，
-                  // 而且系统设置里这类「当前值 + 下拉」本来就是 Select 的形态。
-                  SettingSelect({
-                    options: MATERIAL_TYPES.selectOptions(),
+                  AppSegmentButton({
+                    labels: MATERIAL_TYPE_LABELS,
                     selectedIndex: this.settings.materialTypeIndex(),
-                    label: MATERIAL_TYPES.label(this.settings.materialType),
-                    onPick: (index: number): void => {
+                    config: {
+                      dense: true,
+                      width: segmentCapsuleWidth(MATERIAL_TYPE_LABELS, Font.caption, Space.s12)
+                    },
+                    onSelectedIndexChange: (index: number): void => {
                       this.settings.pickMaterialType(index);
                     }
                   })
@@ -230,14 +234,17 @@ export struct SettingsScreen {
                     })
                 }
                 Divider().color(Palette.divider).margin({ left: 60 })
-                ListRow({ glyph: 'clock', heading: '自动锁定',
+                StackedRow({ glyph: 'clock', heading: '自动锁定',
                   aux: '切到后台时立即遮住内容；返回时按间隔决定是否重新认证' }) {
                   if (this.settings.appLockEnabled) {
-                    SettingSelect({
-                      options: AUTO_LOCK_CHOICES,
+                    AppSegmentButton({
+                      labels: AUTO_LOCK_LABELS,
                       selectedIndex: this.settings.autoLockIndex(),
-                      label: this.settings.autoLockLabel(),
-                      onPick: (index: number): void => {
+                      config: {
+                        dense: true,
+                        width: segmentCapsuleWidth(AUTO_LOCK_LABELS, Font.caption, Space.s12)
+                      },
+                      onSelectedIndexChange: (index: number): void => {
                         if (index >= 0 && index < AUTO_LOCK_MINUTES.length) {
                           this.settings.pickAutoLockMinutes(AUTO_LOCK_MINUTES[index]);
                         }
@@ -292,19 +299,20 @@ export struct SettingsScreen {
 
                 Divider().color(Palette.divider).margin({ left: 60 })
 
-                ListRow({
+                StackedRow({
                   glyph: 'image',
                   heading: '下载图片质量',
                   // aux 跟着档位走，讲清这一档会取网页里的哪个地址。
                   aux: this.settings.qualityHint()
                 }) {
-                  // 与材质两行同一个下拉控件：三档「原图优先 / 网页显示图 / 全部」。
-                  // 没有「取消选择」的路径，所以不需要 locationRevision 那种重建号。
-                  SettingSelect({
-                    options: PICTURE_QUALITIES.selectOptions(),
+                  AppSegmentButton({
+                    labels: QUALITY_LABELS,
                     selectedIndex: this.settings.qualityIndex(),
-                    label: this.settings.qualityLabel(),
-                    onPick: (index: number): void => {
+                    config: {
+                      dense: true,
+                      width: segmentCapsuleWidth(QUALITY_LABELS, Font.caption, Space.s12)
+                    },
+                    onSelectedIndexChange: (index: number): void => {
                       this.settings.pickPictureQuality(index);
                     }
                   })

@@ -4,6 +4,7 @@ import { SimilarGroup } from '../model/LibraryAsset';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { PillButton } from './Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
 import { Thumb } from './Thumb';
 
 const SCOPES: string[] = ['current', 'selected', 'all'];
@@ -51,13 +52,14 @@ export struct LibrarySimilarPanel {
       Text('相似图片候选').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
       Text('比较画面、颜色与比例；动图取首帧，实况照片取封面。结果仅供查看，不会删除文件。')
         .fontSize(Font.caption).fontColor(Palette.fontSecondary)
-      Row({ space: Space.s6 }) {
-        ForEach(SCOPES, (scope: string, index: number) => {
-          PillButton({ label: LABELS[index], small: true,
-            variant: this.library.similarScope === scope ? 'primary' : 'ghost',
-            onAction: (): void => { this.library.similarScope = scope; } })
-        }, (scope: string) => scope)
-      }.width('100%')
+      AppSegmentButton({
+        labels: LABELS,
+        selectedIndex: Math.max(0, SCOPES.indexOf(this.library.similarScope)),
+        config: { dense: true, width: segmentCapsuleWidth(LABELS, Font.caption, Space.s12) },
+        onSelectedIndexChange: (index: number): void => {
+          this.library.similarScope = SCOPES[index];
+        }
+      })
       Row({ space: Space.s6 }) {
         PillButton({ label: this.library.similarAnalyzing ? '检查中…' : '开始检查', small: true,
           variant: 'primary', active: !this.library.similarAnalyzing,

@@ -2,6 +2,7 @@ import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { LibrarySearchEntry } from '../model/LibraryAsset';
 import { Font, Palette, Space } from '../theme/Tokens';
 import { PillButton } from './Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
 
 const OCR_SCOPES: string[] = ['current', 'selected', 'all'];
 const OCR_SCOPE_LABELS: string[] = ['当前结果', '已选图片', '全部图片'];
@@ -26,13 +27,14 @@ export struct LibraryFindPanel {
           + ' / ' + this.library.imageCount.toString())
           .fontSize(Font.caption).fontColor(Palette.fontSecondary)
         Text('识别范围').fontSize(Font.caption).fontColor(Palette.fontSecondary)
-        Row({ space: Space.s6 }) {
-          ForEach(OCR_SCOPES, (scope: string, index: number) => {
-            PillButton({ label: OCR_SCOPE_LABELS[index], small: true,
-              variant: this.library.ocrScope === scope ? 'primary' : 'ghost',
-              onAction: (): void => { this.library.ocrScope = scope; } })
-          }, (scope: string) => scope)
-        }.width('100%')
+        AppSegmentButton({
+          labels: OCR_SCOPE_LABELS,
+          selectedIndex: Math.max(0, OCR_SCOPES.indexOf(this.library.ocrScope)),
+          config: { dense: true, width: segmentCapsuleWidth(OCR_SCOPE_LABELS, Font.caption, Space.s12) },
+          onSelectedIndexChange: (index: number): void => {
+            this.library.ocrScope = OCR_SCOPES[index];
+          }
+        })
         Row({ space: Space.s6 }) {
           PillButton({ label: this.library.ocrAnalyzing ? '识别中…' : '建立文字索引', small: true,
             variant: 'primary', active: !this.library.ocrAnalyzing,

@@ -7,6 +7,19 @@ import { IconButton, PillButton } from './Widgets';
 import { ImageTagDialog } from './ImageTagDialog';
 import { AppSheet } from './AppSheet';
 import { UserAlbum } from '../model/LibraryAsset';
+import { AppSegmentButton } from './AppSegmentButton';
+
+/** 详情面板的两个页签。 */
+const TAB_LABELS: string[] = ['详情', '工具'];
+
+/** 查看背景的四个档位；下标即分段控件的选中项。 */
+const BACKGROUND_MODES: string[] = ['auto', 'black', 'white', 'checker'];
+const BACKGROUND_LABELS: string[] = ['自动', '黑色', '白色', '棋盘格'];
+
+function backgroundIndex(mode: string): number {
+  const index: number = BACKGROUND_MODES.indexOf(mode);
+  return index < 0 ? 0 : index;
+}
 
 @ComponentV2
 export struct PreviewTools {
@@ -88,15 +101,6 @@ export struct PreviewTools {
     if (this.vm.noticeGroup === group && this.vm.notice.length > 0) {
       Text(this.vm.notice).fontSize(Font.caption).fontColor(TransparentGlass.foreground()).width('100%')
     }
-  }
-
-  @Builder
-  private backgroundButton(mode: string, name: string) {
-    Column() {
-      PillButton({ label: name, small: true, block: true,
-        variant: this.backgroundMode === mode ? 'primary' : 'tonal',
-        onAction: (): void => { this.onBackground(mode); } })
-    }.layoutWeight(1)
   }
 
   @Builder
@@ -242,13 +246,14 @@ export struct PreviewTools {
 
         Column({ space: Space.s8 }) {
           this.sectionTitle('查看背景')
-          Row({ space: Space.s4 }) {
-            this.backgroundButton('auto', '自动')
-            this.backgroundButton('black', '黑色')
-            this.backgroundButton('white', '白色')
-            this.backgroundButton('checker', '棋盘格')
-          }.width('100%')
-        }.width('100%').alignItems(HorizontalAlign.Start)
+          AppSegmentButton({
+            labels: BACKGROUND_LABELS,
+            selectedIndex: backgroundIndex(this.backgroundMode),
+            config: { dense: true },
+            onSelectedIndexChange: (index: number): void => {
+              this.onBackground(BACKGROUND_MODES[index]);
+            }
+          })        }.width('100%').alignItems(HorizontalAlign.Start)
 
         Column({ space: Space.s8 }) {
           this.sectionTitle('文字与二维码')
@@ -308,18 +313,13 @@ export struct PreviewTools {
         IconButton({ glyph: 'close', tone: TransparentGlass.foreground(), plain: true, diameter: 36,
           accessibilityLabel: '关闭图片详情', onAction: this.onClose })
       }.width('100%')
-      Row({ space: Space.s8 }) {
-        Column() {
-          PillButton({ label: '详情', small: true, block: true,
-            variant: this.activeTab === 'details' ? 'primary' : 'tonal',
-            onAction: (): void => { this.activeTab = 'details'; } })
-        }.layoutWeight(1)
-        Column() {
-          PillButton({ label: '工具', small: true, block: true,
-            variant: this.activeTab === 'tools' ? 'primary' : 'tonal',
-            onAction: (): void => { this.activeTab = 'tools'; } })
-        }.layoutWeight(1)
-      }.width('100%')
+      AppSegmentButton({
+        labels: TAB_LABELS,
+        selectedIndex: this.activeTab === 'tools' ? 1 : 0,
+        onSelectedIndexChange: (index: number): void => {
+          this.activeTab = index === 1 ? 'tools' : 'details';
+        }
+      })
       if (this.activeTab === 'details') { this.detailsContent() }
       else { this.toolsContent() }
     }.height('100%').width('100%')

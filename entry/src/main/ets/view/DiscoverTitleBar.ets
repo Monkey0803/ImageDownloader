@@ -33,8 +33,8 @@ export struct DiscoverTitleBar {
           onAction: (): void => { this.discover.address = ''; } })
       }
       PasteButton({ icon: PasteIconStyle.LINES, buttonType: ButtonType.Capsule })
-        .iconSize(18).iconColor(Palette.brand).backgroundColor(Palette.brandSoft)
-        .width(40).height(40)
+        .iconSize(16).iconColor(Palette.brand).backgroundColor(Palette.brandSoft)
+        .width(32).height(32)
         .onClick((_event: ClickEvent, result: PasteButtonOnClickResult,
           error?: BusinessError<void>): void => {
           if (result === PasteButtonOnClickResult.SUCCESS) { this.discover.pasteAddress(); }

@@ -3,7 +3,8 @@ import { BatchPageGroup } from '../service/BatchPageGroups';
 import { BatchLinkRow, BatchLinkStatus } from '../service/BatchLinks';
 import { PictureItem } from '../model/Models';
 import { Thumb } from './Thumb';
-import { PillButton, PictureSelectionButton, Segmented, SettingSelect, MODE_OPTIONS } from './Widgets';
+import { MODE_LABELS, PillButton, PictureSelectionButton, SettingSelect } from './Widgets';
+import { AppSegmentButton } from './AppSegmentButton';
 import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { SCREEN_INSETS, ScreenMetrics } from '../theme/Metrics';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -93,8 +94,14 @@ export struct BatchPagePanel {
         Text(this.discover.batchSummary)
           .fontSize(Font.caption).fontColor(Palette.fontSecondary).width('100%')
 
-        Segmented({ options: MODE_OPTIONS, selected: this.discover.mode,
-          onSelect: (value: string): void => { this.discover.mode = value; } })
+        AppSegmentButton({
+          labels: MODE_LABELS,
+          selectedIndex: this.discover.mode === 'zip' ? 1 : 0,
+          config: { dense: true },
+          onSelectedIndexChange: (index: number): void => {
+            this.discover.mode = index === 1 ? 'zip' : 'single';
+          }
+        })
 
         if (this.discover.batchReport.rows.length > 0) {
           Column({ space: Space.s4 }) {

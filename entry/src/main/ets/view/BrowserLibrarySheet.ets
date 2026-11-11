@@ -4,6 +4,7 @@ import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
 import { Font, Layout, Palette, Space } from '../theme/Tokens';
 import { SCREEN_INSETS } from '../theme/Metrics';
 import { IconButton, PillButton } from './Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
 
 /** 收藏与历史的内容，由 Index 的系统 bindSheet 承载。 */
 @ComponentV2
@@ -15,6 +16,16 @@ export struct BrowserLibrarySheet {
     return this.discover.browserPanel === 'bookmarks' ? this.discover.bookmarks : this.discover.history;
   }
 
+  /** 标签带条数，随收藏 / 历史变化，分段控件按标签串做缓存键所以能正确刷新。 */
+  private labels(): string[] {
+    return ['历史 ' + this.discover.history.length.toString(),
+      '收藏 ' + this.discover.bookmarks.length.toString()];
+  }
+
+  private capsuleWidth(): number {
+    return segmentCapsuleWidth(this.labels(), Font.caption, Space.s12);
+  }
+
   build() {
     Column({ space: Space.s12 }) {
       Row({ space: Space.s8 }) {
@@ -24,14 +35,14 @@ export struct BrowserLibrarySheet {
           accessibilityLabel: '关闭收藏与历史', onAction: this.onClose })
       }.width('100%')
 
-      Row({ space: Space.s8 }) {
-        PillButton({ label: '历史 ' + this.discover.history.length.toString(), small: true,
-          variant: this.discover.browserPanel === 'history' ? 'tonal' : 'ghost',
-          onAction: (): void => { this.discover.browserPanel = 'history'; } })
-        PillButton({ label: '收藏 ' + this.discover.bookmarks.length.toString(), small: true,
-          variant: this.discover.browserPanel === 'bookmarks' ? 'tonal' : 'ghost',
-          onAction: (): void => { this.discover.browserPanel = 'bookmarks'; } })
-      }.width('100%')
+      AppSegmentButton({
+        labels: this.labels(),
+        selectedIndex: this.discover.browserPanel === 'bookmarks' ? 1 : 0,
+        config: { dense: true, width: this.capsuleWidth() },
+        onSelectedIndexChange: (index: number): void => {
+          this.discover.browserPanel = index === 1 ? 'bookmarks' : 'history';
+        }
+      })
 
       Row() {
         Text(this.discover.browserPanel === 'bookmarks' ? '收藏的网址' : '浏览记录')

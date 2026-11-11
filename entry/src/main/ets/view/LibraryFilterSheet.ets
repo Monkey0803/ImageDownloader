@@ -3,6 +3,7 @@ import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { CollectionSummary } from '../service/CollectionGroups';
 import { Font, Space } from '../theme/Tokens';
 import { PillButton, SettingSelect } from './Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
 import { AppSearch } from './AppSearch';
 
 const SORT_IDS: string[] = ['newest', 'name', 'size'];
@@ -13,6 +14,7 @@ const FORMAT_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '
 const FORMAT_OPTIONS: SelectOption[] = FORMAT_LABELS.map((label: string): SelectOption => ({ value: label }));
 const SEARCH_SCOPES: string[] = ['all', 'name', 'text', 'tags'];
 const SEARCH_LABELS: string[] = ['全部', '文件名', '图片文字', '标签'];
+const DENSITY_LABELS: string[] = ['两列', '三列'];
 
 /** 图库的次级筛选项；搜索关键词仍留在首页。 */
 @ComponentV2
@@ -95,13 +97,14 @@ export struct LibraryFilterSheet {
         }.width('100%')
 
         Text('搜索范围').fontSize(Font.body).fontColor(TransparentGlass.foreground())
-        Row({ space: Space.s6 }) {
-          ForEach(SEARCH_SCOPES, (scope: string, index: number) => {
-            PillButton({ label: SEARCH_LABELS[index], small: true,
-              variant: this.library.searchScope === scope ? 'primary' : 'ghost',
-              onAction: (): void => { this.library.searchScope = scope; } })
-          }, (scope: string) => scope)
-        }.width('100%')
+        AppSegmentButton({
+          labels: SEARCH_LABELS,
+          selectedIndex: Math.max(0, SEARCH_SCOPES.indexOf(this.library.searchScope)),
+          config: { dense: true, width: segmentCapsuleWidth(SEARCH_LABELS, Font.caption, Space.s12) },
+          onSelectedIndexChange: (index: number): void => {
+            this.library.searchScope = SEARCH_SCOPES[index];
+          }
+        })
 
         AppSearch({ placeholder: '按来源网页搜索', text: this.library.sourceQuery,
           onChange: (value: string): void => { this.library.sourceQuery = value; } })
@@ -112,9 +115,14 @@ export struct LibraryFilterSheet {
           PillButton({ label: this.library.favoritesOnly ? '仅收藏 ✓' : '仅收藏', small: true,
             variant: this.library.favoritesOnly ? 'primary' : 'ghost',
             onAction: (): void => { this.library.favoritesOnly = !this.library.favoritesOnly; } })
-          PillButton({ label: this.library.density === 2 ? '两列' : '三列', small: true,
-            variant: 'ghost',
-            onAction: (): void => { this.library.setDensity(this.library.density === 2 ? 3 : 2); } })
+          AppSegmentButton({
+            labels: DENSITY_LABELS,
+            selectedIndex: this.library.density === 2 ? 0 : 1,
+            config: { dense: true, width: segmentCapsuleWidth(DENSITY_LABELS, Font.caption, Space.s12) },
+            onSelectedIndexChange: (index: number): void => {
+              this.library.setDensity(index === 0 ? 2 : 3);
+            }
+          })
         }.width('100%')
       }
 

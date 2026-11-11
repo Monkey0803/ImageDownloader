@@ -6,6 +6,10 @@ import { Font, formatBytes, Palette, Space } from '../theme/Tokens';
 import { LibraryFindPanel } from './LibraryFindPanel';
 import { LibrarySimilarPanel } from './LibrarySimilarPanel';
 import { PillButton } from './Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
+
+const SECTION_IDS: string[] = ['text', 'duplicates', 'similar'];
+const SECTION_LABELS: string[] = ['文字索引', '重复图片', '相似图片'];
 
 @ComponentV2
 export struct LibraryOrganizeSheet {
@@ -62,17 +66,14 @@ export struct LibraryOrganizeSheet {
 
   build() {
     Column({ space: Space.s16 }) {
-      Row({ space: Space.s6 }) {
-        PillButton({ label: '文字索引', small: true,
-          variant: this.section === 'text' ? 'primary' : 'ghost',
-          onAction: (): void => { this.section = 'text'; } })
-        PillButton({ label: '重复图片', small: true,
-          variant: this.section === 'duplicates' ? 'primary' : 'ghost',
-          onAction: (): void => { this.section = 'duplicates'; } })
-        PillButton({ label: '相似图片', small: true,
-          variant: this.section === 'similar' ? 'primary' : 'ghost',
-          onAction: (): void => { this.section = 'similar'; } })
-      }.width('100%')
+      AppSegmentButton({
+        labels: SECTION_LABELS,
+        selectedIndex: SECTION_IDS.indexOf(this.section),
+        config: { dense: true, width: segmentCapsuleWidth(SECTION_LABELS, Font.caption, Space.s12) },
+        onSelectedIndexChange: (index: number): void => {
+          this.section = SECTION_IDS[index];
+        }
+      })
       if (this.section === 'text') {
         LibraryFindPanel({ library: this.library })
       } else if (this.section === 'duplicates') {

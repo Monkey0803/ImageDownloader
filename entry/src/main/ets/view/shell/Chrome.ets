@@ -4,7 +4,8 @@ import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { AppSheet } from '../AppSheet';
-import { IconButton, MODE_OPTIONS, PillButton, Segmented } from '../Widgets';
+import { IconButton, MODE_LABELS, PillButton } from '../Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from '../AppSegmentButton';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -86,11 +87,15 @@ export struct SelectionDock {
       .alignItems(this.device.gripLeft() ? HorizontalAlign.End : HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Segmented({
-        options: MODE_OPTIONS,
-        selected: this.discover.mode,
-        onSelect: (value: string): void => {
-          this.discover.mode = value;
+      AppSegmentButton({
+        labels: MODE_LABELS,
+        selectedIndex: this.discover.mode === 'zip' ? 1 : 0,
+        config: {
+          dense: true,
+          width: segmentCapsuleWidth(MODE_LABELS, Font.caption, Space.s12)
+        },
+        onSelectedIndexChange: (index: number): void => {
+          this.discover.mode = index === 1 ? 'zip' : 'single';
         }
       })
 
@@ -121,10 +126,21 @@ export struct SelectionDock {
     .backgroundColor(Palette.glassStrong)
     .backdropBlur(30)
     .shadow(Shadow.float())
-    AppSheet({ visible: this.reviewOpen, initialSize: SheetSize.FIT_CONTENT,
-      useMaterial: false, onDismiss: (): void => { this.reviewOpen = false; } }) {
-      this.reviewSheet()
+
+    // AppSheet 的根节点是 `height('100%')` 的宿主层（bindSheet 得挂在一个节点上）。
+    // 直接放进这个**没有高度**的 Stack 时，百分比会回退到「父容器的可用空间」：选择条被撑成
+    // 全屏、又被 Stack 默认的 Center 对齐顶到屏幕中线（压住「文件命名 / 预计文件名」），
+    // 而且这层满屏节点是默认 HitTestMode.Default，会把下面 Scroll 的触摸全部吃掉 —— 结果页
+    // 选中一张图后就滑不动。0×0 宿主把半模态从布局里摘出来：只负责挂 sheet，不参与尺寸计算。
+    // 见 AGENT.md 坑 23。
+    Column() {
+      AppSheet({ visible: this.reviewOpen, initialSize: SheetSize.FIT_CONTENT,
+        useMaterial: false, onDismiss: (): void => { this.reviewOpen = false; } }) {
+        this.reviewSheet()
+      }
     }
+    .width(0)
+    .height(0)
     }.width('100%')
   }
 }

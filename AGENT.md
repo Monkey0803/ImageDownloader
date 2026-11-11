@@ -229,6 +229,14 @@ PixelMap、动画播放和屏幕效果服务。详细职责见 `docs/architectur
 22. **`@Computed` 追踪得到嵌套 `@Trace`**（真机验证过）：`selectedTotal` 从 `item.selected` 派生、
    任务列表从 `item.status` 派生、图库统计从 `item.size` / `auxSize` 派生，嵌套字段一变就自动重算。
    于是 VM 里的手写 `recompute()` 全部删掉，`sync()` 只负责把商店的数组拉成本地镜像。
+23. **`AppSheet` 是满屏宿主层，不能当自动高度容器的直接子节点**：它的根节点是
+    `.width('100%').height('100%')`，百分比高度在**没设高度**的父容器里会回退到「可用空间的尺寸」，
+   于是父容器跟着被撑成全屏。真机现象：发现页结果页选中一张图后，底部选择条（`SelectionDock`）
+   被 `Stack` 默认的 `Center` 顶到屏幕中线、压住「文件命名 / 预计文件名」，而且这层满屏节点
+   （`HitTestMode.Default`）把 `Scroll` 的触摸全部吃掉 —— **页面滑不动**。
+   修法：把它放在满屏 `Stack` 里（Index / Viewer / ImageEditor / PreviewTools / Cards / LibraryScreen
+   都是这样），或者用 `.width(0).height(0)` 的宿主包裹后挂载（`SelectionDock` 的写法），
+   让 `bindSheet` 的锚点不参与布局。**不要**把 `AppSheet` 放进 `Column`/`Row`/自动高度 `Stack`。
 
 
 ## 构建与测试

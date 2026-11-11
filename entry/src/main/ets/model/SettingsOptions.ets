@@ -109,6 +109,15 @@ export class ChoiceSet {
     }
     return this.cachedSelect;
   }
+
+  /** 只取界面名；分段控件吃 `string[]`，不必再套一层 `SelectOption`。 */
+  labels(): string[] {
+    const labels: string[] = [];
+    for (const item of this.items) {
+      labels.push(item.label);
+    }
+    return labels;
+  }
 }
 
 /** 主题：跟随系统 / 浅色 / 深色，第一项就是默认项。 */

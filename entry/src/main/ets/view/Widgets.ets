@@ -5,10 +5,6 @@
  * of one component in the design; the screens compose them and own the data.
  */
 
-import {
-  CapsuleSegmentButtonV2, ColorMetrics, LengthMetrics, SegmentButtonV2ItemOptions, SegmentButtonV2Items, uiMaterial
-} from '@kit.ArkUI';
-import { MaterialController } from '../service/MaterialController';
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { LIBRARY_IMAGES, LIBRARY_ZIPS } from '../model/Navigation';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
@@ -55,6 +51,10 @@ export const MODE_OPTIONS: SegmentOption[] = [
   { value: 'single', label: '单张' },
   { value: 'zip', label: 'ZIP' }
 ];
+
+/** 分段控件只吃文案；都从上面的选项表派生，选项名不会出现第二份。 */
+export const LIBRARY_LABELS: string[] = LIBRARY_OPTIONS.map((option: SegmentOption): string => option.label);
+export const MODE_LABELS: string[] = MODE_OPTIONS.map((option: SegmentOption): string => option.label);
 
 /**
  * 设置行右侧的「当前值 + 下拉」控件：收起时是一枚显示当前档位的胶囊，点开是选项菜单。
@@ -326,188 +326,6 @@ export struct ProgressBar {
     }
     .width('100%')
     .height(4)
-  }
-}
-
-/** Segmented control. */
-@ComponentV2
-export struct Segmented {
-  @Param options: SegmentOption[] = [];
-  @Param selected: string = '';
-  @Event onSelect: (value: string) => void = () => {
-  };
-
-  build() {
-    Row({ space: Space.s2 }) {
-      ForEach(this.options, (option: SegmentOption) => {
-        Text(option.label)
-          .fontSize(Font.caption)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.selected === option.value ? Palette.brand : Palette.fontSecondary)
-          .height(28)
-          .padding({ left: Space.s12, right: Space.s12 })
-          .borderRadius(Radius.full)
-          .backgroundColor(this.selected === option.value ? Palette.segOn : Color.Transparent)
-          .onClick(() => {
-            this.onSelect(option.value);
-          })
-      }, (option: SegmentOption) => option.value)
-    }
-    .padding(Space.s2)
-    .borderRadius(Radius.full)
-    .backgroundColor(Palette.cardSunken)
-  }
-}
-
-/**
- * 图库页顶部「图片 / 压缩包」分段：系统的 CapsuleSegmentButtonV2。
- *
- * 和上面手写的 `Segmented` 只差一件事 —— 背景板交给系统材质
- * （`backgroundSystemMaterial`）：下面是真实材质反射而不是盖一层半透明色，
- * 文字自动反色，按下还有交互形变与光感反馈。写法对应官方文档
- * 「SegmentButtonV2 → 示例6（设置背景板材质）」。
- *
- * 不用材质时（本机不支持沉浸式材质，或用户选了「无材质效果」）退回设计稿原来的不透明胶囊：
- * 浅底 + 白色药丸。
- */
-@ComponentV2
-export struct LibrarySegment {
-  /** 当前段，取值与 LIBRARY_OPTIONS 一致。 */
-  @Param selected: string = 'images';
-  /**
-   * 用户在设置里选了「无材质效果」。
-   *
-   * **材质对象本身不从这里传进来**：`uiMaterial.Material` 是带 native 句柄的框架对象，
-   * 用 @Prop 深拷贝它不可靠；而当普通成员又刷不动（AGENT.md 坑 3）—— 「无材质效果」选了
-   * 以后图库分段永远保持旧观感。所以这里只收一个布尔量，材质在本组件内现算。
-   */
-  @Param materialOff: boolean = false;
-  @Event onSelect: (value: string) => void = () => {
-  };
-
-  /** 选项直接由 LIBRARY_OPTIONS 生成，标签只有一处定义。 */
-  private items: SegmentButtonV2Items = new SegmentButtonV2Items(
-    LIBRARY_OPTIONS.map((option: SegmentOption): SegmentButtonV2ItemOptions => ({ text: option.label }))
-  );
-
-  private hasMaterial(): boolean {
-    return MaterialController.uiActive(!this.materialOff);
-  }
-
-  /**
-   * 分段控件的背景板材质。
-   *
-   * 缓存和设备降级由 MaterialController 统一处理。
-   */
-  private material(): uiMaterial.Material | undefined {
-    return MaterialController.segmentMaterial(!this.materialOff);
-  }
-
-  private selectedIndex(): number {
-    return this.selected === 'zips' ? 1 : 0;
-  }
-
-  /** 材质背景上的未选中项使用系统前景资源，支持智能反色。 */
-  private itemFontColor(): ColorMetrics {
-    return ColorMetrics.resourceColor(this.hasMaterial() ? $r('sys.color.font_primary') : Palette.fontSecondary);
-  }
-
-  /**
-   * 选中药丸的字色：设计稿的品牌色，**开不开材质都一样**。
-   *
-   * 这里原来在材质档写的是 `Color.Black`（照搬文档里「自动反色」那句），真机实测出来是
-   * 系统蓝药丸上的黑字，几乎看不清。自动反色只管*未选中*项，选中项的底色并不由材质接管。
-   */
-  private selectedItemFontColor(): ColorMetrics {
-    return ColorMetrics.resourceColor(Palette.brand);
-  }
-
-  /** 组件背景板：有材质时交给系统材质，否则用设计稿的浅底。 */
-  private buttonBackground(): ColorMetrics | undefined {
-    return this.hasMaterial() ? undefined : ColorMetrics.resourceColor(Palette.cardSunken);
-  }
-
-  /**
-   * 选中药丸的底色：设计稿的白色药丸，**开不开材质都一样**。
-   *
-   * 不能像背景板那样留空 —— `itemSelectedBackgroundColor` 的默认值是
-   * `$r('sys.color.segment_button_v2_tab_selected_item_background')`（系统蓝），留空就渲染成
-   * 一整块蓝药丸（真机实测见 `.screenshots/library-segment-zips.jpeg`）。
-   */
-  private selectedItemBackground(): ColorMetrics {
-    return ColorMetrics.resourceColor(Palette.segOn);
-  }
-
-  /** 一段文字的显示宽度估算（vp）：CJK 占满一个字号的宽度，Latin / 数字约六成。 */
-  private advanceOf(text: string, size: number): number {
-    let width: number = 0;
-    for (let i: number = 0; i < text.length; i++) {
-      width += text.charCodeAt(i) > 0x2e80 ? size : size * 0.6;
-    }
-    return width;
-  }
-
-  /**
-   * 设计稿那个「跟着文字走」的窄胶囊宽度。
-   *
-   * 系统组件自己没有宽度参数，它内部把宽度撑满父容器 —— 只套一层自适应宽度的 `Row`
-   * 也没用（测量时拿到的约束还是父级的 maxWidth，回落的仍是满宽），所以只能自己把宽度
-   * 算出来、把 `Row` 钉上去。
-   *
-   * 而且它在内部**按项数平分**：真机实测把容器设成 114（正好是各按内容算的和）时，
-   * 「图片」的药丸 53.7vp、「压缩包」只有 52vp，后者放不下 3 个字被截成「压…」。
-   * 所以要按**最宽**的那一项 × 项数来算，再给每项留 2vp 余量 —— CJK 的字形步进在
-   * 个别字体下会比字号大一丁点，刚好卡满也会截字。
-   */
-  private capsuleWidth(): number {
-    let widest: number = 0;
-    for (let i: number = 0; i < LIBRARY_OPTIONS.length; i++) {
-      widest = Math.max(widest, this.advanceOf(LIBRARY_OPTIONS[i].label, Font.caption) + Space.s12 * 2);
-    }
-    return Space.s2 * 2
-      + (widest + Space.s2) * LIBRARY_OPTIONS.length
-      + Space.s2 * (LIBRARY_OPTIONS.length - 1);
-  }
-
-  build() {
-    Row() {
-      CapsuleSegmentButtonV2({
-        items: this.items,
-        selectedIndex: this.selectedIndex(),
-        $selectedIndex: (index: number): void => {
-          this.onSelect(index === 1 ? 'zips' : 'images');
-        },
-        // 尺寸对齐设计稿的 .seg：字 12、项高 28、项内边距 12、项间距 2、容器内边距 2。
-        itemFontSize: LengthMetrics.vp(Font.caption),
-        itemSelectedFontSize: LengthMetrics.vp(Font.caption),
-        itemFontWeight: FontWeight.Bold,
-        itemSelectedFontWeight: FontWeight.Bold,
-        // 宽度是算出来的定值，文字再随系统放大就会被挤掉，所以钳住两项的字体缩放。
-        itemMinFontScale: 1,
-        itemMaxFontScale: 1,
-        itemMinHeight: LengthMetrics.vp(28),
-        // 容器的**最小高度也要一起压**，否则它会用系统默认的
-        // `sys.float.segment_button_v2_singleline_background_height`（40vp）：选项仍是 28vp、
-        // 顶部内边距仍是 2vp，多出来的 10vp 全堆在**底部** —— 胶囊看起来是「内容被顶到上面、
-        // 底下空一条」，深色下尤其明显（浅色只差 2 个色阶，看不出来）。
-        // 设计稿 .seg = padding 2 + item 28 → 容器就该是 28 + 2×2 = 32。
-        buttonMinHeight: LengthMetrics.vp(28 + Space.s2 * 2),
-        itemPadding: {
-          // LocalizedPadding 用的是 start / end，不是 left / right（跟着语言方向走）。
-          start: LengthMetrics.vp(Space.s12),
-          end: LengthMetrics.vp(Space.s12)
-        },
-        itemSpace: LengthMetrics.vp(Space.s2),
-        buttonPadding: LengthMetrics.vp(Space.s2),
-        buttonBorderRadius: LengthMetrics.vp(Radius.full),
-        itemFontColor: this.itemFontColor(),
-        itemSelectedFontColor: this.selectedItemFontColor(),
-        buttonBackgroundColor: this.buttonBackground(),
-        itemSelectedBackgroundColor: this.selectedItemBackground(),
-        backgroundSystemMaterial: this.material()
-      })
-    }
-    .width(this.capsuleWidth())
   }
 }
 

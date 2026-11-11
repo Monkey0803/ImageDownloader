@@ -11,6 +11,7 @@ import { Glyph } from '../Icons';
 import { AppSearch } from '../AppSearch';
 import { SelectTile } from '../Cards';
 import { IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
+import { AppSegmentButton } from '../AppSegmentButton';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
@@ -258,13 +259,14 @@ export struct DiscoverScreen {
 
   @Builder
   private quickFilters() {
-    Row({ space: Space.s6 }) {
-      ForEach(QUICK_IDS, (id: string, index: number) => {
-        PillButton({ label: QUICK_LABELS[index], small: true,
-          variant: this.discover.quickFilter === id ? 'tonal' : 'ghost',
-          onAction: (): void => { this.discover.quickFilter = id; } })
-      }, (id: string) => id)
-    }.width('100%')
+    AppSegmentButton({
+      labels: QUICK_LABELS,
+      selectedIndex: Math.max(0, QUICK_IDS.indexOf(this.discover.quickFilter)),
+      config: { dense: true },
+      onSelectedIndexChange: (index: number): void => {
+        this.discover.quickFilter = QUICK_IDS[index];
+      }
+    })
   }
 
   @Builder

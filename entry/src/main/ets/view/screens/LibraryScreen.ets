@@ -17,7 +17,9 @@ import { Thumb } from '../Thumb';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
 import { LibraryOrganizeSheet } from '../LibraryOrganizeSheet';
 import { ImageTagDialog } from '../ImageTagDialog';
-import { EmptyState, IconButton, LibrarySegment, PillButton, SectionHead } from '../Widgets';
+import { EmptyState, IconButton, LIBRARY_LABELS, PillButton, SectionHead } from '../Widgets';
+import { AppSegmentButton, segmentCapsuleWidth } from '../AppSegmentButton';
+import { LIBRARY_IMAGES, LIBRARY_ZIPS } from '../../model/Navigation';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -355,14 +357,19 @@ export struct LibraryScreen {
   @Builder
   private flowControls() {
     Column({ space: Space.s16 }) {
-      // 图片 / 压缩包：用系统的 CapsuleSegmentButtonV2，背景板走系统材质
-      // （文档 SegmentButtonV2 → 示例6）；材质由 LibrarySegment 自己按这个布尔量决定
-      // —— 本机不支持沉浸式材质时它同样会退回不透明胶囊。
-      LibrarySegment({
-        selected: this.library.segment,
-        materialOff: !this.settings.lightEffect || this.settings.materialType === 'none',
-        onSelect: (value: string): void => {
-          this.library.setSegment(value);
+      // 图片 / 压缩包：共享的 AppSegmentButton（内部是 CapsuleSegmentButtonV2），
+      // 背景板材质由 config.material 决定 —— 用户关了光感或选了「无材质效果」，
+      // 或本机不支持沉浸式材质时，它都会退回不透明胶囊。
+      AppSegmentButton({
+        labels: LIBRARY_LABELS,
+        selectedIndex: this.library.segment === LIBRARY_ZIPS ? 1 : 0,
+        config: {
+          dense: true,
+          material: this.settings.lightEffect && this.settings.materialType !== 'none',
+          width: segmentCapsuleWidth(LIBRARY_LABELS, Font.caption, Space.s12)
+        },
+        onSelectedIndexChange: (index: number): void => {
+          this.library.setSegment(index === 1 ? LIBRARY_ZIPS : LIBRARY_IMAGES);
         }
       })
 
