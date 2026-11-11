@@ -42,6 +42,14 @@ export interface SegmentConfig {
    * 并钳住字体缩放 —— 对齐改造前手写 Segmented / 图库分段的观感。
    */
   dense?: boolean;
+  /**
+   * 超紧凑档：11fp 字、每项内边距 4，其余尺寸同 `dense`；给 5 项以上等分场景用
+   * （任务页「全部 / 进行中 / 已完成 / 失败 / 已取消」+ 计数）。
+   *
+   * 两项都传时 **compact 优先**。5 项时必须用全宽等分（不传 `width`），
+   * 别用 `segmentCapsuleWidth()` 算定宽 —— 算出来约 430vp，会超出页面宽度被截字。
+   */
+  compact?: boolean;
   /** 组件根宽度；默认 '100%'，作用在外层容器上。 */
   width?: Length;
   /** 背板圆角（vp）；默认 Radius.full。 */
@@ -112,6 +120,19 @@ export struct AppSegmentButton {
     return this.config.dense === true;
   }
 
+  private compact(): boolean {
+    return this.config.compact === true;
+  }
+
+  /**
+   * 两档紧凑模式共用的项高 / 间距 / 字重 / 字体缩放。
+   *
+   * 字号与左右内边距是唯一区别：compact 用 11fp + 4，dense 用 12fp + 12。
+   */
+  private tight(): boolean {
+    return this.compact() || this.dense();
+  }
+
   /**
    * 是否真的走材质模式。
    *
@@ -145,38 +166,43 @@ export struct AppSegmentButton {
   }
 
   private itemFontSize(): LengthMetrics | undefined {
+    if (this.compact()) {
+      return LengthMetrics.vp(Font.chip);
+    }
     return this.dense() ? LengthMetrics.vp(Font.caption) : undefined;
   }
 
   private itemFontWeight(): FontWeight | undefined {
-    return this.dense() ? FontWeight.Bold : undefined;
+    return this.tight() ? FontWeight.Bold : undefined;
   }
 
   private itemMinHeight(): LengthMetrics | undefined {
-    return this.dense() ? LengthMetrics.vp(28) : undefined;
+    return this.tight() ? LengthMetrics.vp(28) : undefined;
   }
 
   private itemPadding(): LocalizedPadding | undefined {
-    return this.dense()
-      ? { start: LengthMetrics.vp(Space.s12), end: LengthMetrics.vp(Space.s12) }
-      : undefined;
+    if (!this.tight()) {
+      return undefined;
+    }
+    const horizontal: number = this.compact() ? Space.s4 : Space.s12;
+    return { start: LengthMetrics.vp(horizontal), end: LengthMetrics.vp(horizontal) };
   }
 
   private itemSpace(): LengthMetrics | undefined {
-    return this.dense() ? LengthMetrics.vp(Space.s2) : undefined;
+    return this.tight() ? LengthMetrics.vp(Space.s2) : undefined;
   }
 
   private buttonMinHeight(): LengthMetrics | undefined {
-    return this.dense() ? LengthMetrics.vp(28 + Space.s2 * 2) : undefined;
+    return this.tight() ? LengthMetrics.vp(28 + Space.s2 * 2) : undefined;
   }
 
   private buttonPadding(): LengthMetrics | undefined {
-    return this.dense() ? LengthMetrics.vp(Space.s2) : undefined;
+    return this.tight() ? LengthMetrics.vp(Space.s2) : undefined;
   }
 
   /** 宽度是按标签算出来的定值，文字再随系统放大就会被挤掉，所以紧凑档钳住字体缩放。 */
   private fontScaleClamp(): number | undefined {
-    return this.dense() ? 1 : undefined;
+    return this.tight() ? 1 : undefined;
   }
 
   private buttonRadius(): LengthMetrics {

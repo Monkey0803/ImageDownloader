@@ -7,11 +7,25 @@ import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics, SCREEN_INSETS } from '../../theme/Metrics';
 import { BatchCard, TaskCard } from '../Cards';
 import { EmptyState, PillButton, SectionHead, SettingSelect } from '../Widgets';
+import { AppSegmentButton } from '../AppSegmentButton';
+
+/** 状态筛选的取值与显示顺序；与 `TasksViewModel.statusFilter` 一一对应。 */
+const TASK_STATUS_IDS: string[] = ['all', 'active', 'completed', 'failed', 'cancelled'];
+const TASK_STATUS_LABELS: string[] = ['全部', '进行中', '已完成', '失败', '已取消'];
 
 /** Task filters stay at the top; the cards below are created only when visible. */
 @ComponentV2
 export struct TasksScreen {
   @Require @Param tasks: TasksViewModel;
+
+  /** 标签带实时计数；计数变化时组件按「标签串」重建 items，不用手动刷新。 */
+  private statusLabels(): string[] {
+    const labels: string[] = [];
+    for (let i: number = 0; i < TASK_STATUS_IDS.length; i += 1) {
+      labels.push(TASK_STATUS_LABELS[i] + ' ' + this.tasks.statusCounts[i].toString());
+    }
+    return labels;
+  }
 
   private collectionOptions(): SelectOption[] {
     const options: SelectOption[] = [{ value: '全部来源' }];
@@ -49,17 +63,15 @@ export struct TasksScreen {
   @Builder
   private filters() {
     Column({ space: Space.s12 }) {
-      Scroll() {
-        Row({ space: Space.s6 }) {
-          ForEach(['all', 'active', 'completed', 'failed', 'cancelled'],
-            (status: string, index: number) => {
-              PillButton({ label: ['全部', '进行中', '已完成', '失败', '已取消'][index]
-                + ' ' + this.tasks.statusCounts[index].toString(), small: true,
-                variant: this.tasks.statusFilter === status ? 'primary' : 'ghost',
-                onAction: (): void => { this.tasks.setStatusFilter(status); } })
-            }, (status: string) => status)
+      // 5 项状态 + 计数：compact 档全宽等分（11fp / 每项内边距 4），窄屏也不截字。
+      AppSegmentButton({
+        labels: this.statusLabels(),
+        selectedIndex: Math.max(0, TASK_STATUS_IDS.indexOf(this.tasks.statusFilter)),
+        config: { compact: true },
+        onSelectedIndexChange: (index: number): void => {
+          this.tasks.setStatusFilter(TASK_STATUS_IDS[index]);
         }
-      }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+      })
       Text(this.tasks.queueSummary).fontSize(Font.caption).fontColor(Palette.fontSecondary).width('100%')
       if (this.tasks.failureSummary.length > 0) {
         Text('失败原因：' + this.tasks.failureSummary)

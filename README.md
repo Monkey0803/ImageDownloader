@@ -404,6 +404,9 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 
 - `config.dense`：12fp 字、28vp 项高、32vp 容器高、项内边距 12、项间距 2、容器内边距 2，
   并钳住字体缩放（对齐设计稿 `.seg`）。设置页这种「标题 + 控件」的行用 `StackedRow` 承载。
+- `config.compact`：11fp 字、每项内边距 4，其余尺寸同 `dense`；给 5 项以上的等分场景用
+  （任务页「全部 / 进行中 / 已完成 / 失败 / 已取消」+ 计数）。两项都传时 compact 优先；
+  这种场景用全宽等分，不要用 `segmentCapsuleWidth()` 算定宽（5 项约 430vp，会超出页面宽度）。
 - `config.material`：只有标题栏 / 底栏等生效区域传 `true`；内容区（页面正文、弹层）官方不渲染
   组件级材质，一律传 `false` 走不透明兜底。
 - `config.width`：默认 `'100%'`；要「跟着文字走」的窄胶囊时用 `segmentCapsuleWidth()` 算好再传。
@@ -709,6 +712,9 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
   材质回落（`seg-library-nomat.jpeg`）、设置页四行（`seg-settings.jpeg`、`seg-settings3.jpeg`）、
   预览详情 / 工具与四档背景（`seg-preview-tools.jpeg`、`seg-preview-bg.jpeg`）、
   筛选弹层与整理弹层（`seg-filter.jpeg`、`seg-organize.jpeg`）。
+- **任务页 5 项状态筛选**改为 `compact` 档全宽等分（11fp / 内边距 4）：
+  真机浅色 `tasks-segment.jpeg`、点「失败」后 `tasks-segment-failed.jpeg`、深色 `tasks-segment-dark.jpeg`；
+  Pura X 模拟器 50 条任务下 5 项完整不截字（`tasks-emu.jpeg`）。
 
 真机掉线又回来之后，对**合并后的版本**（含「下载图片质量」那一批）又复验了一遍：
 

@@ -166,8 +166,11 @@ PixelMap、动画播放和屏幕效果服务。详细职责见 `docs/architectur
     - `itemSelectedBackgroundColor` / `itemSelectedFontColor` **不能因为开了 `backgroundSystemMaterial`
       就留空**：材质只管组件背景板，选中项会掉回系统默认（蓝色药丸 + 近黑字）。两个颜色要按设计稿写死；
     - 内容区（页面正文、弹层）官方不渲染组件级沉浸材质，弹层 / 正文一律走不透明兜底；
-      只有标题栏、底栏等生效区域才传 `material: true`。
-    细节见 README「图库分段（图片 / 压缩包）」。
+      只有标题栏、底栏等生效区域才传 `material: true`；
+    - **5 项以上用 `config.compact`（11fp / 每项内边距 4）并全宽等分**，不要用
+      `segmentCapsuleWidth()` 算定宽 —— 5 项 × 12fp 约 430vp，超出 328vp 内容宽会被等分截字；
+      组件本身不滚动，别指望把它塞进横向 `Scroll`。
+    细节见 README「分段控件（`view/AppSegmentButton.ets`）」。
 11. **`@Component` 的成员名不能和通用属性重名**。给预览页加「第几张 / 共几张」时写了
    `private position(): string`，编译报 `Property 'position' in type 'ImageViewer' is not assignable to
    the same property in base type 'CustomComponent'` —— `position` / `width` / `height` / `opacity` /
