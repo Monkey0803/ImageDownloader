@@ -18,6 +18,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { display, window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { SCREEN_INSETS } from '../theme/Metrics';
+import { windowInsets, WindowInsets } from '../util/WindowAvoidPolicy';
 import { DownloadStore } from '../service/DownloadStore';
 import { ShareInbox } from '../service/ShareInbox';
 import { WidgetLaunch } from '../service/WidgetLaunch';
@@ -144,14 +145,34 @@ export default class EntryAbility extends UIAbility {
   private static storeInsets(main: window.Window): void {
     try {
       const density: number = display.getDefaultDisplaySync().densityPixels;
-      const top: number = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM).topRect.height / density;
-      const bottom: number =
-        main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR).bottomRect.height / density;
-      SCREEN_INSETS.safeTop = top;
-      SCREEN_INSETS.safeBottom = bottom;
+      const system: window.AvoidArea = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      const indicator: window.AvoidArea = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      const cutout: window.AvoidArea | undefined = EntryAbility.optionalAvoidArea(main, window.AvoidAreaType.TYPE_CUTOUT);
+      const gesture: window.AvoidArea | undefined =
+        EntryAbility.optionalAvoidArea(main, window.AvoidAreaType.TYPE_SYSTEM_GESTURE);
+      const rect: window.Rect = main.getWindowProperties().windowRect;
+      const cutoutTop: number = cutout !== undefined && cutout.topRect.height > 0
+        ? cutout.topRect.top + cutout.topRect.height : 0;
+      const cutoutBottom: number = cutout !== undefined && cutout.bottomRect.height > 0
+        ? rect.height - cutout.bottomRect.top : 0;
+      const cutoutLeft: number = cutout !== undefined && cutout.leftRect.width > 0
+        ? cutout.leftRect.left + cutout.leftRect.width : 0;
+      const cutoutRight: number = cutout !== undefined && cutout.rightRect.width > 0
+        ? rect.width - cutout.rightRect.left : 0;
+      const insets: WindowInsets = windowInsets(system.topRect.height, indicator.bottomRect.height,
+        gesture?.bottomRect.height ?? 0, cutoutTop, cutoutBottom, cutoutLeft, cutoutRight, density);
+      SCREEN_INSETS.safeTop = insets.top;
+      SCREEN_INSETS.safeBottom = insets.bottom;
+      SCREEN_INSETS.safeLeft = insets.left;
+      SCREEN_INSETS.safeRight = insets.right;
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to read the window insets. Cause: %{public}s', JSON.stringify(err));
     }
+  }
+
+  private static optionalAvoidArea(main: window.Window, type: window.AvoidAreaType): window.AvoidArea | undefined {
+    try { return main.getWindowAvoidArea(type); }
+    catch (error) { return undefined; }
   }
 
   onWindowStageDestroy(): void {

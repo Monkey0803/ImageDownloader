@@ -6,7 +6,7 @@ import { TasksViewModel } from '../../viewmodel/TasksViewModel';
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics, SCREEN_INSETS } from '../../theme/Metrics';
 import { BatchCard, TaskCard } from '../Cards';
-import { EmptyState, PillButton, SectionHead, SettingSelect, TitleBar } from '../Widgets';
+import { EmptyState, PillButton, SectionHead, SettingSelect } from '../Widgets';
 
 /** Task filters stay at the top; the cards below are created only when visible. */
 @ComponentV2
@@ -138,20 +138,13 @@ export struct TasksScreen {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .padding({
-        left: Layout.pagePad, right: Layout.pagePad,
-        top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+        left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+        right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
+        top: Space.s12,
         bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
       })
       .onDidScroll((): void => { this.tasks.markScrolled(); })
 
-      TitleBar({
-        heading: '任务',
-        caption: this.tasks.caption(),
-        actionGlyph: this.tasks.isEmpty() ? '' : 'trash',
-        actionLabel: '删除全部下载文件和记录',
-        layer: Layout.tbLayerSecondary,
-        onAction: (): void => { this.tasks.confirmClearAll(); }
-      })
     }.width('100%').height('100%')
   }
 }

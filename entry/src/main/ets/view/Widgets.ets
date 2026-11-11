@@ -10,8 +10,7 @@ import {
 } from '@kit.ArkUI';
 import { MaterialSupport } from '../service/MaterialSupport';
 import { TransparentGlass } from '../theme/TransparentGlass';
-import { LIBRARY_IMAGES, LIBRARY_ZIPS, TAB_TASKS } from '../model/Navigation';
-import { SCREEN_INSETS } from '../theme/Metrics';
+import { LIBRARY_IMAGES, LIBRARY_ZIPS } from '../model/Navigation';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
 import { Glyph } from './Icons';
 
@@ -32,8 +31,7 @@ export interface TabItem {
  * 底部页签，**顺序必须与 `model/Navigation.ets` 的 TAB_* 下标一一对应**。
  *
  * `active` / `onSelect` / `badge` 传的都是下标，所以这里的第 i 项就是第 i 个页签内容；
- * 页签增减时两处要一起改（`TabBar` 里的徽标判断用的是 `TAB_TASKS` 常量而不是字符串字面量，
- * 免得重排之后徽标挂到别的页签上）。
+ * 页签增减时两处要一起改（HDS 页签按该数组生成，保证标签和内容下标一致）。
  */
 export const TABS: TabItem[] = [
   { key: 'discover', label: '发现', glyph: 'compass' },
@@ -129,81 +127,6 @@ export struct SettingSelect {
   }
 }
 
-/**
- * Floating title bar: a big title over a translucent gradient that fades the
- * content scrolling underneath it.
- */
-@ComponentV2
-export struct TitleBar {
-  @Param heading: string = '';
-  @Param caption: string = '';
-  /** Empty means no action button. @Param: 图库在压缩包段要把它收起来。 */
-  @Param actionGlyph: string = '';
-  @Param actionLabel: string = '';
-  @Param actionText: string = '';
-  /**
-   * Layout.tbLayerSecondary for screens with a subtitle, Normal without.
-   *
-   * 必须是 `@Param`：V2 不允许父组件初始化「普通成员」（实测报 10905324
-   * `The 'regular' property 'layer' ... cannot be initialized here`）。
-   */
-  @Param layer: number = Layout.tbLayerSecondary;
-  /** 父组件传的回调同理，用 `@Event`（V2 里回调的标准写法）。 */
-  @Event onAction: () => void = () => {
-  };
-
-  build() {
-    Column() {
-      Row({ space: Space.s6 }) {
-        Column({ space: 1 }) {
-          Text(this.heading)
-            .fontSize(Font.title)
-            .lineHeight(Layout.tbRow - Space.s4)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Palette.fontPrimary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          if (this.caption.length > 0) {
-            Text(this.caption)
-              .fontSize(Font.subtitle)
-              .lineHeight(Font.subtitleLine)
-              .fontColor(Palette.fontSecondary)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-
-        if (this.actionText.length > 0) {
-          PillButton({ label: this.actionText, variant: 'ghost', small: true, onAction: this.onAction })
-        } else if (this.actionGlyph.length > 0) {
-          IconButton({ glyph: this.actionGlyph, accessibilityLabel: this.actionLabel, onAction: this.onAction })
-        }
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Top)
-      .padding({ left: Layout.pagePad, right: Layout.pagePad, top: SCREEN_INSETS.safeTop + Layout.tbPadTop })
-    }
-    .width('100%')
-    .padding({ bottom: Layout.tbFade })
-    .linearGradient({
-      angle: 180,
-      colors: [
-        [Palette.fadeSolid, 0],
-        [Palette.fadeSolid, 0.5],
-        [Palette.fadeStrong, 0.64],
-        [Palette.fadeSoft, 0.8],
-        [Palette.fadeNone, 1]
-      ]
-    })
-    // 标题栏是浮在内容之上的装饰层：不透明会把它盖住的那一条内容变成点击黑洞
-    // （图库页顶部的分段控件就整块落在里面）。Transparent 让它自己不吞事件，
-    // 子节点（右侧的操作按钮）照常响应。
-    .hitTestBehavior(HitTestMode.Transparent)
-  }
-}
-
 /** Floating circular icon button (the HarmonyOS title bar action). */
 @ComponentV2
 export struct IconButton {
@@ -251,86 +174,6 @@ export struct PictureSelectionButton {
     .accessibilityText(this.selected ? '已选中，取消选择此图' : '未选中，选择此图')
     .accessibilitySelected(this.selected)
     .onClick((): void => { this.onAction(); })
-  }
-}
-
-/** The glass pill bottom tab bar. */
-@ComponentV2
-export struct TabBar {
-  @Param active: number = 0;
-  @Param badge: number = 0;
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-  @Event onSelect: (index: number) => void = () => {
-  };
-
-  @Param immersiveEnabled: boolean = true;
-
-  @Builder
-  private tabItem(item: TabItem, index: number) {
-    Column({ space: Space.s2 }) {
-      Stack({ alignContent: Alignment.Center }) {
-        Glyph({ glyph: item.glyph, glyphSize: 23,
-          glyphWeight: this.active === index ? 2 : 1.7,
-          glyphTone: this.active === index ? Palette.tabSelected : TransparentGlass.foreground(this.immersiveEnabled) })
-        if (index === TAB_TASKS && this.badge > 0) {
-          // Anchor the badge independently so the icon stays centered over its label.
-          Stack({ alignContent: Alignment.TopEnd }) {
-            Text(this.badge > 99 ? '99' : this.badge.toString())
-              .fontSize(9).lineHeight(15).fontWeight(FontWeight.Bold)
-              .fontColor(Palette.white).textAlign(TextAlign.Center)
-              .constraintSize({ minWidth: 15 }).height(15)
-              .padding({ left: 4, right: 4 }).borderRadius(Radius.full)
-              .backgroundColor(Palette.warning).offset({ x: 10, y: -8 })
-          }.width(26).height(26)
-        }
-      }.width(26).height(26)
-      Text(item.label).fontSize(Font.tab).lineHeight(14)
-        .fontWeight(this.active === index ? FontWeight.Bold : FontWeight.Medium)
-        .fontColor(this.active === index ? Palette.tabSelected : TransparentGlass.foreground(this.immersiveEnabled))
-    }
-    .layoutWeight(1).height(Layout.tabBarHeight).justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .onClick((): void => { this.onSelect(index); })
-    .accessibilityText(item.label)
-    .accessibilitySelected(this.active === index)
-  }
-
-  @Builder
-  private tabItems() {
-    Row() {
-      ForEach(TABS, (item: TabItem, index: number) => {
-        this.tabItem(item, index)
-      }, (item: TabItem): string => item.key)
-    }
-    .width('100%').height(Layout.tabBarHeight)
-    .padding({ left: Space.s12, right: Space.s12 })
-    .borderRadius(Radius.full)
-    .backgroundColor(TransparentGlass.background(this.immersiveEnabled))
-    .systemMaterial(TransparentGlass.material(this.immersiveEnabled))
-  }
-
-  build() {
-    Column() {
-      // Index 保留四页状态；单个自定义 TabBar builder 在原生底栏作用域内承载四个导航按钮。
-      Tabs({ barPosition: BarPosition.End }) {
-        TabContent() {}.tabBar(this.tabItems())
-      }
-      .vertical(false)
-      .scrollable(false)
-      .animationDuration(0)
-      .barMode(BarMode.Fixed)
-      .barHeight(Layout.tabBarHeight)
-      .barBackgroundColor(Color.Transparent)
-      .width('100%')
-      .constraintSize({ maxWidth: Layout.tabBarWidth })
-      .height(Layout.tabBarHeight)
-    }
-    .width('100%')
-    .padding({ top: Layout.tabBarTopPad, left: Layout.pagePad, right: Layout.pagePad, bottom: SCREEN_INSETS.safeBottom })
-    .linearGradient({
-      angle: 180,
-      colors: [[Palette.fadeNone, 0], [Palette.fadeSoft, 0.45], [Palette.fadeSolid, 1]]
-    })
   }
 }
 

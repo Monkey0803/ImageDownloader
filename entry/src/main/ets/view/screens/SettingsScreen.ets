@@ -6,7 +6,7 @@ import {
 } from '../../model/SettingsOptions';
 import { Font, Layout, Palette, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
-import { Card, ListRow, SectionHead, SettingSelect, StackedRow, TitleBar } from '../Widgets';
+import { Card, ListRow, SectionHead, SettingSelect, StackedRow } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -23,6 +23,7 @@ import { SCREEN_INSETS } from '../../theme/Metrics';
  */
 @ComponentV2
 export struct SettingsScreen {
+  @Require @Param scroller: Scroller;
   @Require @Param settings: SettingsViewModel;
   @Require @Param device: DeviceViewModel;
   @Require @Param tasks: TasksViewModel;
@@ -73,7 +74,7 @@ export struct SettingsScreen {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
+      Scroll(this.scroller) {
         Column({ space: Space.s20 }) {
           Column({ space: Space.s10 }) {
             SectionHead({ heading: '外观' })
@@ -358,9 +359,9 @@ export struct SettingsScreen {
         .alignItems(HorizontalAlign.Start)
         .constraintSize({ minHeight: ScreenMetrics.height() })
         .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
-          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, false),
+          left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+          right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
+          top: Space.s12,
           bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
         })
       }
@@ -369,7 +370,6 @@ export struct SettingsScreen {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
 
-      TitleBar({ heading: '设置', layer: Layout.tbLayerNormal })
     }
     .width('100%')
     .height('100%')

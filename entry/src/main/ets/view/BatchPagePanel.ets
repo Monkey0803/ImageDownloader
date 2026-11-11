@@ -1,5 +1,4 @@
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
-import { HdsNavDestination, HdsNavigation, HdsNavigationTitleBarStyle, TitleBarStyleOptions } from '@kit.UIDesignKit';
 import { BatchPageGroup } from '../service/BatchPageGroups';
 import { BatchLinkRow, BatchLinkStatus } from '../service/BatchLinks';
 import { PictureItem } from '../model/Models';
@@ -22,67 +21,10 @@ const NAME_OPTIONS: SelectOption[] = NAME_LABELS.map((label: string): SelectOpti
  * 让开、把 Web 露出来，不重建组件（控制器一旦解绑 17100001）。
  */
 @ComponentV2
-export struct BatchFlowHost {
+export struct BatchPagePanel {
   @Require @Param discover: DiscoverViewModel;
-  /** 栈由发现页持有：入栈发生在入口点击里，走 HDS 导航默认转场动画。 */
-  @Require @Param pages: NavPathStack;
   @Local private preview: PictureItem | undefined = undefined;
   @Local private previewReferer: string = '';
-
-  @Monitor('discover.batchOpen')
-  private onBatchOpenChanged(monitor: IMonitor): void {
-    if (!this.discover.batchOpen && this.pages.size() > 0) {
-      this.pages.pop();
-    }
-  }
-
-  /**
-   * 标题栏样式：HDS 默认跟随系统主题，而应用可以被单独切成浅色/深色；
-   * 不显式指定时会出现「正文浅色、标题栏与状态栏深色」的分层，看起来就不沉浸。
-   */
-  private titleBarStyle(): TitleBarStyleOptions {
-    const bar: HdsNavigationTitleBarStyle = {
-      backgroundStyle: { backgroundColor: Palette.bg },
-      contentStyle: {
-        titleStyle: { mainTitleColor: Palette.fontPrimary, subTitleColor: Palette.fontSecondary },
-        backIconStyle: { iconColor: Palette.fontPrimary, backgroundColor: Palette.card },
-        dividerStyle: { dividerColor: Palette.divider }
-      }
-    };
-    const style: TitleBarStyleOptions = { originalStyle: bar, scrollEffectStyle: bar };
-    return style;
-  }
-
-  @Builder
-  private pageMap(name: string) {
-    if (name === BATCH_PAGE_NAME) {
-      HdsNavDestination() {
-        this.batchPage()
-      }
-      .titleBar({
-        avoidLayoutSafeArea: true,
-        enableComponentSafeArea: true,
-        style: this.titleBarStyle(),
-        content: {
-          title: {
-            mainTitle: this.discover.batchHandling ? '网页处理' : '批量链接',
-            subTitle: this.discover.batchHandling ? '登录或验证后返回重试'
-              : '每行一条链接，解析后选择要下载的图片'
-          }
-        }
-      })
-      .onBackPressed((): boolean => {
-        if (this.discover.batchHandling) { this.discover.finishBatchHandling(); return true; }
-        // 审核态返回 = 返回修改；编辑态返回 = 关闭批量页。状态变化会驱动出栈。
-        if (this.discover.batchStage === 'review') { this.discover.cancelBatchReview(); return true; }
-        this.discover.setBatchPanel(false);
-        return true;
-      })
-      .width('100%')
-      .height('100%')
-      .backgroundColor(Palette.bg)
-    }
-  }
 
   @Builder
   private batchPage() {
@@ -387,16 +329,6 @@ export struct BatchFlowHost {
   }
 
   build() {
-    HdsNavigation(this.pages) {
-      Column() {}
-    }
-    .navDestination(this.pageMap)
-    .hideNavBar(true)
-    .mode(NavigationMode.Stack)
-    .width('100%')
-    .height('100%')
-    // 状态栏那一条属于这一层：开页时铺页面底色，避免露出下层的网页/首页，顶部才和正文连成一片。
-    .backgroundColor(this.discover.batchOpen ? Palette.bg : Color.Transparent)
-    .hitTestBehavior(this.discover.batchOpen ? HitTestMode.Default : HitTestMode.None)
+    this.batchPage()
   }
 }

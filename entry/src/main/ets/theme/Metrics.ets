@@ -45,6 +45,10 @@ export class ScreenMetrics {
     return ScreenMetrics.tabBarSpace(safeBottom) + Space.s12 + extra;
   }
 
+  static sideInset(safeSide: number): number {
+    return Math.max(Layout.pagePad, safeSide + Space.s8);
+  }
+
   /**
    * 「返回顶部」按钮浮出来的滚动阈值。
    *
@@ -75,6 +79,8 @@ export class ScreenInsets {
   @Trace safeTop: number = 0;
   /** 底部导航条高度（vp）：浮动页签栏据此上抬。 */
   @Trace safeBottom: number = 0;
+  @Trace safeLeft: number = 0;
+  @Trace safeRight: number = 0;
   /** 软键盘高度（vp），0 表示没有键盘；Toast 据此决定压在键盘上沿还是贴底。 */
   @Trace keyboardHeight: number = 0;
 }

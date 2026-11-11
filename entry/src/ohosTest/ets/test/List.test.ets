@@ -32,6 +32,8 @@ import livePhotoTest from './LivePhoto.test';
 import superResolutionTest from './SuperResolution.test';
 import collectionGroupsTest from './CollectionGroups.test';
 import galleryFlowTest from './GalleryFlow.test';
+import hdsShellPolicyTest from './HdsShellPolicy.test';
+import windowAvoidPolicyTest from './WindowAvoidPolicy.test';
 
 export default function testsuite() {
   if (abilityDelegatorRegistry.getArguments().parameters['-s batchPagesUi'] === 'true') {
@@ -69,4 +71,6 @@ export default function testsuite() {
   superResolutionTest();
   collectionGroupsTest();
   galleryFlowTest();
+  hdsShellPolicyTest();
+  windowAvoidPolicyTest();
 }

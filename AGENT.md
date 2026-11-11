@@ -6,7 +6,7 @@
 
 | File | Why |
 |------|-----|
-| `entry/src/main/ets/pages/Index.ets` | `@Entry` **外壳**：页签、Toast、浮层、装配 ViewModel、订阅商店。四个页面不在这里 |
+| `entry/src/main/ets/pages/Index.ets` | `@Entry` **外壳**：单个 HdsNavigation / NavPathStack、HdsTabs、Toast、浮层、装配 ViewModel、订阅商店 |
 | `entry/src/main/ets/viewmodel/*.ets` | 主页面、Viewer、预览工具、双图对比、动图帧保存及 ImageEditor 的 `@ObservedV2` ViewModel |
 | `entry/src/main/ets/view/screens/*.ets` | 四个 `@ComponentV2` 页面：Discover / Tasks / Library / Settings（展示与事件转发） |
 | `entry/src/main/ets/pages/Viewer.ets` | 第二个 `@Entry`：图片大图预览，独立页面（系统返回键只认页面栈；图库进来可左右滑动换图） |
@@ -94,7 +94,7 @@ PixelMap、动画播放和屏幕效果服务。详细职责见 `docs/architectur
   存盘的解码（StoreState）与实时 setter（DownloadStore）都调它，所以只能有一份。
   说明文案策略（`QualityHints` / `LocationHints`）同样在这。
 - `model/Models.ets` — `@ObservedV2` 模型 + `@Trace` 字段，卡片以 `@Param` 收下、直接读字段即自动订阅。
-- `EntryAbility.ets` — 开全屏布局并读取系统栏高度，写入 `AppStorage` 的 `safeTop` / `safeBottom` / `keyboardHeight`；
+- `EntryAbility.ets` — 开全屏布局并读取系统栏、手势区与挖孔避让区，写入 `SCREEN_INSETS`；
   销毁时调 `DownloadStore.shutdown()`（清掉待存相册的定时器与合并写盘）。
 
 ## 状态管理 V2（整个应用已经迁完）

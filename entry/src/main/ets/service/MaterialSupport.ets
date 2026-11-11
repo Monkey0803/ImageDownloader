@@ -1,4 +1,5 @@
 import { uiMaterial } from '@kit.ArkUI';
+import { hdsMaterial } from '@kit.UIDesignKit';
 
 /**
  * 沉浸光感材质的设备能力探测（**适配器**：把系统两套同名枚举翻译成界面上的说法）。
@@ -11,6 +12,13 @@ import { uiMaterial } from '@kit.ArkUI';
  * （不支持 / 自适应），不能让它冲崩页面。
  */
 export class MaterialSupport {
+  static hdsImmersiveSupported(): boolean {
+    try {
+      return hdsMaterial.getSystemMaterialTypes().includes(hdsMaterial.MaterialType.IMMERSIVE);
+    } catch (error) {
+      return false;
+    }
+  }
   /** 本机是否支持沉浸式材质；不支持时界面回退为普通不透明背景。 */
   static immersiveSupported(): boolean {
     try {

@@ -13,6 +13,10 @@
       "value": "图片下载管理"
     },
     {
+      "name": "privacy_title_hidden",
+      "value": "内容已隐藏"
+    },
+    {
       "name": "download_widget_name",
       "value": "下载概览"
     },

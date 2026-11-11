@@ -84,7 +84,8 @@ entry/src/main/ets/
 ├─ theme/Metrics.ets     页面几何：安全区 + 标题栏 / 页签栏 / 滚动阈值
 ├─ util/GridMath.ets     纯计算：网格切行与补空格
 ├─ view/Icons.ets        线性图标集（由原型 icons.jsx 生成，见下）
-├─ view/Widgets.ets      标题栏、底部页签、分段控件、按钮、卡片、开关行、重命名弹窗
+├─ view/Widgets.ets      分段控件、按钮、卡片、开关行、重命名弹窗
+├─ view/DiscoverTitleBar.ets 发现页 HDS 标题栏的地址输入与结果返回
 ├─ view/Cards.ets        图片格子、任务卡、打包卡、压缩包卡、图片预览
 ├─ view/screens/         四个页面：Discover / Tasks / Library / Settings（纯展示）
 ├─ view/shell/Chrome.ets 浮层：选择条、握姿胶囊、防窥遮罩、返回顶部
@@ -111,7 +112,7 @@ entry/src/main/ets/
 ├─ service/GripSensor.ets     智感握姿：订阅系统握持手感知
 ├─ service/AntiPeep.ets       防窥保护：订阅系统窥视状态
 ├─ util/Toast.ets             提示闩（2.6 秒自动消失；销毁后不再弹）
-├─ pages/Index.ets       @Entry：**外壳**（页签、Toast、浮层、装配 ViewModel）
+├─ pages/Index.ets       @Entry：**外壳**（单 HdsNavigation / NavPathStack、HdsTabs、浮层与 ViewModel）
 ├─ pages/Viewer.ets      @Entry：图片大图预览（独立页面，见「大图预览」）
 └─ pages/ImageEditor.ets @Entry：本地图片编辑副本
 ```
@@ -151,7 +152,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
 设置页「系统特性」里的**防窥保护**开关来自 Device Security Kit 的 dlpAntiPeep 模块
 （[防窥保护开发指导](https://developer.huawei.com/consumer/cn/doc/doccenter-advanced-features/bpta-antipeep-protection)）：
 系统用前置摄像头判断屏幕前是否有机主以外的人在看，把结果以 `DlpAntiPeepStatus` 回调给应用；
-应用在拿到 `HIDE` 时用 `privacyVeil()` 盖住**除底部页签栏以外的全部内容**，并调一次
+应用在拿到 `HIDE` 时用 `PrivacyVeil` 盖住**除底部页签栏以外的全部内容**，同时将 HDS 标题栏脱敏，并调一次
 `publishAntiPeepInformation()` 让系统再出一条 live view 说明原因，`PASS` 时自动恢复。
 
 - 订阅状态由 `service/AntiPeep.ets` 统一持有（`peeking` / `supported` / `subscribed` / `systemSwitchOn`
@@ -175,7 +176,7 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   所以现在不做两次调用、也没有 `pending` 合并层。
 - **轻点遮罩即解除**：识别不是确定性的（暗光/强光/逆光、角度过大都会降低成功率，人像海报也可能误报），
   所以遮罩上有「轻点任意位置继续」，点一下会调 `passDlpAntiPeepInfo()` 把隐藏状态钉成固定值并立即恢复，
-  等下次解锁后系统感知重新生效，不做成单向陷阱。遮罩排在 `TabBar` 之前绘制，被盖住时页签栏仍然可点。
+  等下次解锁后系统感知重新生效，不做成单向陷阱。遮罩位于各 `TabContent` 内，页签栏仍然可点。
 - 权限是 `ohos.permission.DLP_GET_HIDE_STATUS`：**`system_grant`，没有运行时授权框，但 `availableLevel`
   是 `system_basic`**，所以调试证书的 `allowed-acls` 里必须有它——见下面的「签名 / 权限」。
 - 错误码只写进日志（`201` 权限被拒、`801` 无能力、`1020600004` 系统里没录人脸、`1020600001` 内部错误），
@@ -482,8 +483,9 @@ API 26 / Stage 模型使用 `@kit.ArkUI` 的 `uiMaterial.ImmersiveMaterial`。
 直接位于玻璃上的前景使用特殊系统资源色，不支持设备返回 `undefined` 并提供普通背景。
 材质生效时不另叠 `backgroundColor`。
 
-- 发现页使用原生 `Navigation` 标题栏，底栏在原生横向 `Tabs` 的底部 TabBar builder 内挂载材质。
-  Index 继续持有四页状态，底栏 builder 中四个导航按钮仍回调原来的切页逻辑。
+- 主界面使用单个 `HdsNavigation` / `NavPathStack` 与四页 `HdsTabs`；批量处理页压入同一栈。
+  任务、图库和设置使用 HDS 原生标题内容，发现页地址输入放在 HDS 标题栏自定义内容中。
+  标题栏与悬浮页签分别由 HDS 配置材质，查看器和编辑器继续使用独立页面路由。
 - 浏览首页底栏、收藏历史面板使用不透明背景，避免叠在 ArkWeb 的视频或动画上。
   动图、实况照片及尚未确认静态的远程图片详情同样降级；静态图片详情和图库整理等系统面板复用通透玻璃。
 - 「沉浸光感」开关及「无材质效果」控制标题栏、底栏与图库分段；系统弹层按设备能力降级。

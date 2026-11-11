@@ -17,7 +17,7 @@ import { Thumb } from '../Thumb';
 import { LibraryFilterSheet } from '../LibraryFilterSheet';
 import { LibraryOrganizeSheet } from '../LibraryOrganizeSheet';
 import { ImageTagDialog } from '../ImageTagDialog';
-import { EmptyState, IconButton, LibrarySegment, PillButton, SectionHead, TitleBar } from '../Widgets';
+import { EmptyState, IconButton, LibrarySegment, PillButton, SectionHead } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
 /**
@@ -469,25 +469,14 @@ export struct LibraryScreen {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .padding({
-        left: Layout.pagePad, right: Layout.pagePad,
-        top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+        left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+        right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
+        top: Space.s12,
         bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
       })
       .onDidScroll((): void => { this.library.markScrolled(); })
       .onScrollIndex((first: number, last: number): void => { this.library.markScrolled(first); })
 
-      TitleBar({
-        heading: '图库',
-        caption: this.library.isZips()
-          ? this.library.zips.length.toString() + ' 个压缩包'
-          : this.library.imageCount.toString() + ' 张图片 · ' + formatBytes(this.library.imageBytes),
-        actionText: this.library.selecting ? '完成' : '选择',
-        layer: Layout.tbLayerSecondary,
-        onAction: (): void => {
-          if (this.library.selecting) { this.library.endSelection(); }
-          else { this.library.startSelection(); }
-        }
-      })
       AppSheet({
         visible: this.active && this.activeSheet().length > 0,
         initialSize: this.activeSheet() === 'organize' || this.activeSheet() === 'albums'

@@ -2,6 +2,10 @@ import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { HdsNavDestination, HdsNavigation, HdsNavigationTitleBarStyle, HdsTabs,
+  HdsTabsController, HdsTabsFloatingStyle, HdsNavigationTitleBarOptions, HdsNavigationTitleMode,
+  TitleBarContentOptions,
+  TitleBarStyleOptions, TextStyleMode, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { DownloadItem } from '../model/Models';
 import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
@@ -14,10 +18,12 @@ import { DeviceViewModel } from '../viewmodel/DeviceViewModel';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { SettingsViewModel } from '../viewmodel/SettingsViewModel';
 import { TasksViewModel } from '../viewmodel/TasksViewModel';
-import { Layout, Palette, Space } from '../theme/Tokens';
+import { Font, Layout, Palette, Radius, Space, formatBytes } from '../theme/Tokens';
 import { ScreenMetrics } from '../theme/Metrics';
 import { SheetStyle } from '../theme/SheetStyle';
 import { AppSheet } from '../view/AppSheet';
+import { BATCH_PAGE_NAME, BatchPagePanel } from '../view/BatchPagePanel';
+import { DiscoverTitleBar } from '../view/DiscoverTitleBar';
 import { ToastLatch } from '../util/Toast';
 import { DiscoverScreen } from '../view/screens/DiscoverScreen';
 import { BrowserLibrarySheet } from '../view/BrowserLibrarySheet';
@@ -26,8 +32,11 @@ import { LibraryScreen } from '../view/screens/LibraryScreen';
 import { SettingsScreen } from '../view/screens/SettingsScreen';
 import { TasksScreen } from '../view/screens/TasksScreen';
 import { GripChip, PrivacyVeil, SelectionDock, ToTopButton } from '../view/shell/Chrome';
-import { RenameDialog, TabBar, ToastPill } from '../view/Widgets';
+import { Glyph } from '../view/Icons';
+import { RenameDialog, TABS, TabItem, ToastPill } from '../view/Widgets';
 import { SCREEN_INSETS } from '../theme/Metrics';
+import { MaterialSupport } from '../service/MaterialSupport';
+import { HdsShellPlan, hdsShellPlan } from '../util/HdsShellPolicy';
 
 /**
  * 应用外壳（Index）。
@@ -47,6 +56,11 @@ import { SCREEN_INSETS } from '../theme/Metrics';
 @Entry
 @ComponentV2
 struct Index {
+  private stack: NavPathStack = new NavPathStack();
+  private tabs: HdsTabsController = new HdsTabsController();
+  private tabsReady: boolean = false;
+  private settingsScroller: Scroller = new Scroller();
+  @Local private hdsSupported: boolean = false;
   /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
   @Local private pageVisible: boolean = true;
   /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
@@ -61,11 +75,6 @@ struct Index {
   @Local private settings: SettingsViewModel = new SettingsViewModel();
   @Local private device: DeviceViewModel = new DeviceViewModel();
 
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-  /** 软键盘高度（vp，0 = 没弹）；由 EntryAbility 的 avoidAreaChange 写入。 */
-  // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-
   @Local private currentTab: number = TAB_DISCOVER;
   /** 浏览扫描是发现页首页；图片结果从“查看图片”进入。 */
   @Local private browserOpen: boolean = true;
@@ -74,6 +83,15 @@ struct Index {
   @Local private previewPanels: PreviewOverlayState = new PreviewOverlayState();
   @Local private previewOpen: boolean = false;
   @Local private notice: string = '';
+
+  @Monitor('discover.batchOpen')
+  private batchRouteChanged(monitor: IMonitor): void {
+    if (this.discover.batchOpen && this.stack.size() === 0) {
+      this.stack.pushPath({ name: BATCH_PAGE_NAME });
+    } else if (!this.discover.batchOpen && this.stack.size() > 0) {
+      this.stack.pop();
+    }
+  }
 
   /**
    * 商店的刷新回调。
@@ -93,6 +111,7 @@ struct Index {
   private widgetLaunchListener: () => void = (): void => { this.consumeWidgetLaunch(); };
 
   aboutToAppear(): void {
+    this.hdsSupported = MaterialSupport.hdsImmersiveSupported();
     const context: common.UIAbilityContext = this.hostContext();
     this.toast.bind((text: string): void => {
       this.notice = text;
@@ -167,6 +186,7 @@ struct Index {
     }
     if (this.currentTab === TAB_DISCOVER && !this.browserOpen) {
       this.browserOpen = true;
+      this.discover.resumeBrowser();
       return true;
     }
     return false;
@@ -201,7 +221,7 @@ struct Index {
     if (problem.length > 0) { this.say(problem); }
     const link: string = ShareInbox.take();
     if (link.length === 0 || link === this.discover.pageUrl) { return; }
-    this.currentTab = TAB_DISCOVER;
+    this.selectTab(TAB_DISCOVER);
     this.discover.address = link;
     this.discover.visit();
   }
@@ -209,7 +229,7 @@ struct Index {
   private consumeWidgetLaunch(): void {
     if (!this.pageVisible || !WidgetLaunch.takeTasks()) { return; }
     this.browserOpen = true;
-    this.currentTab = TAB_TASKS;
+    this.selectTab(TAB_TASKS);
     const id: string = WidgetLaunch.takeTargetId();
     const kind: string = WidgetLaunch.takeTargetKind();
     if (id.length > 0 && (kind === 'task' || kind === 'batch')) {
@@ -236,12 +256,7 @@ struct Index {
     };
     port.context = (): common.UIAbilityContext => this.hostContext();
     port.switchTab = (index: number): void => {
-      if (index !== TAB_LIBRARY) { this.library.cancelAnalysis(); this.library.cancelSimilar(); }
-      if (index !== TAB_DISCOVER) { this.discover.cancelScan(); }
-      this.currentTab = index;
-      if (index === TAB_LIBRARY) {
-        this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
-      }
+      this.selectTab(index);
     };
     port.showBrowser = (): void => {
       this.browserOpen = true;
@@ -251,7 +266,7 @@ struct Index {
     };
     port.focusLibrary = (name: string): void => {
       this.library.focus(name);
-      this.currentTab = TAB_LIBRARY;
+      this.selectTab(TAB_LIBRARY);
       this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
     };
     port.openViewer = (item: DownloadItem, rename: boolean, siblings: string[]): void => {
@@ -413,6 +428,174 @@ struct Index {
       Math.max(200, 150 + count * 64 + SCREEN_INSETS.safeBottom));
   }
 
+  private selectTab(index: number, fromTabs: boolean = false): void {
+    if (index < TAB_DISCOVER || index > TAB_SETTINGS) { return; }
+    if (this.currentTab !== index) {
+      if (index !== TAB_DISCOVER) {
+        this.discover.browserPanel = '';
+        this.discover.cancelScan();
+      }
+      if (index !== TAB_LIBRARY) {
+        this.library.cancelAnalysis();
+        this.library.cancelSimilar();
+        this.library.stopTapShare();
+      }
+      this.currentTab = index;
+      if (index === TAB_LIBRARY) {
+        this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
+      }
+    }
+    if (!fromTabs && this.tabsReady) { this.tabs.changeIndex(index); }
+  }
+
+  private shellPlan(): HdsShellPlan {
+    return hdsShellPlan(this.currentTab, this.browserOpen, this.settings.lightEffect,
+      this.settings.materialType, this.hdsSupported, SCREEN_INSETS.safeBottom);
+  }
+
+  private materialType(): hdsMaterial.MaterialType {
+    return this.settings.materialType === 'immersive'
+      ? hdsMaterial.MaterialType.IMMERSIVE : hdsMaterial.MaterialType.ADAPTIVE;
+  }
+
+  private tabsStyle(): HdsTabsFloatingStyle {
+    const plan: HdsShellPlan = this.shellPlan();
+    const style: HdsTabsFloatingStyle = {
+      barBottomMargin: plan.bottomMargin, thermoCtrl: true,
+      barSideMargin: Math.max(Layout.pagePad, SCREEN_INSETS.safeLeft, SCREEN_INSETS.safeRight),
+      adaptToHandedness: DownloadStore.gripEnabled
+    };
+    if (plan.tabMaterial) {
+      style.systemMaterialEffect = {
+        materialType: this.materialType(), materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+      };
+    } else {
+      style.systemMaterialEffect = {
+        materialType: hdsMaterial.MaterialType.NONE, materialLevel: hdsMaterial.MaterialLevel.SMOOTH
+      };
+    }
+    return style;
+  }
+
+  private titleStyle(): TitleBarStyleOptions {
+    const bar: HdsNavigationTitleBarStyle = {
+      contentStyle: {
+        titleStyle: { mainTitleColor: Palette.fontPrimary, subTitleColor: Palette.fontSecondary },
+        menuStyle: { textColor: Palette.fontPrimary, iconColor: Palette.fontPrimary },
+        backIconStyle: { iconColor: Palette.fontPrimary, backgroundColor: Palette.card },
+        dividerStyle: { dividerColor: Palette.divider }
+      }
+    };
+    const style: TitleBarStyleOptions = { originalStyle: bar, scrollEffectStyle: bar, thermoCtrl: true,
+      scrollEffectOpts: { scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR } };
+    if (this.shellPlan().titleMaterial && !this.device.peeking) {
+      style.systemMaterialEffect = {
+        materialType: this.materialType(), materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+      };
+    } else {
+      bar.backgroundStyle = { backgroundColor: Palette.bg };
+    }
+    return style;
+  }
+
+  private titleCaption(): string {
+    if (this.currentTab === TAB_TASKS) { return this.tasks.caption(); }
+    if (this.currentTab === TAB_LIBRARY) {
+      return this.library.isZips() ? this.library.zips.length.toString() + ' 个压缩包'
+        : this.library.imageCount.toString() + ' 张图片 · ' + formatBytes(this.library.imageBytes);
+    }
+    return '';
+  }
+
+  private activeScrollers(): Scroller[] {
+    if (this.currentTab === TAB_DISCOVER) {
+      return this.browserOpen ? [] : [this.discover.scrollController()];
+    }
+    if (this.currentTab === TAB_TASKS) { return [this.tasks.scrollController()]; }
+    if (this.currentTab === TAB_LIBRARY) { return [this.library.scrollController()]; }
+    return [this.settingsScroller];
+  }
+
+  @Builder
+  private discoverTitleContent() {
+    DiscoverTitleBar({ discover: this.discover, browserOpen: this.browserOpen,
+      onOpenBrowser: (): void => { this.browserOpen = true; this.discover.resumeBrowser(); } })
+  }
+
+  private rootTitleBar(): HdsNavigationTitleBarOptions {
+    const content: TitleBarContentOptions = { menu: { value: [] } };
+    if (this.device.peeking) {
+      content.title = { mainTitle: $r('app.string.privacy_title_hidden') };
+    } else if (this.currentTab === TAB_DISCOVER) {
+      content.stackBuilder = () => this.discoverTitleContent();
+    } else {
+      content.title = {
+        mainTitle: this.currentTab === TAB_TASKS ? '任务' : this.currentTab === TAB_LIBRARY ? '图库' : '设置',
+        subTitle: this.titleCaption()
+      };
+      if (this.currentTab === TAB_TASKS && !this.tasks.isEmpty()) {
+        content.menu = { value: [{ content: { label: '清空', type: TextStyleMode.NORMAL,
+          action: (): void => { this.tasks.confirmClearAll(); } } }] };
+      } else if (this.currentTab === TAB_LIBRARY) {
+        content.menu = { value: [{ content: { label: this.library.selecting ? '完成' : '选择',
+          type: TextStyleMode.NORMAL, action: (): void => {
+            if (this.library.selecting) { this.library.endSelection(); }
+            else { this.library.startSelection(); }
+          } } }] };
+      }
+    }
+    return { avoidLayoutSafeArea: true, enableComponentSafeArea: true,
+      style: this.titleStyle(), content: content };
+  }
+
+  @Builder
+  private tabLabel(item: TabItem, index: number) {
+    Column({ space: Space.s2 }) {
+      Stack({ alignContent: Alignment.Center }) {
+        Glyph({ glyph: item.glyph, glyphSize: 23, glyphWeight: this.currentTab === index ? 2 : 1.7,
+          glyphTone: this.currentTab === index ? Palette.tabSelected : Palette.fontPrimary })
+        if (index === TAB_TASKS && this.tasks.running > 0) {
+          Text(this.tasks.running > 99 ? '99' : this.tasks.running.toString())
+            .fontSize(9).fontColor(Palette.white).backgroundColor(Palette.warning)
+            .borderRadius(Radius.full).offset({ x: 12, y: -10 })
+        }
+      }.width(26).height(26)
+      Text(item.label).fontSize(Font.tab)
+        .fontColor(this.currentTab === index ? Palette.tabSelected : Palette.fontPrimary)
+    }
+    .width(64).height(Layout.tabBarHeight)
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .onClick((): void => { this.selectTab(index); })
+    .accessibilityText(item.label).accessibilitySelected(this.currentTab === index)
+  }
+
+  @Builder
+  private pageMap(name: string) {
+    if (name === BATCH_PAGE_NAME) {
+      HdsNavDestination() {
+        Stack() {
+          BatchPagePanel({ discover: this.discover })
+          if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
+        }.width('100%').height('100%')
+      }
+      .titleBar({ avoidLayoutSafeArea: true, enableComponentSafeArea: true,
+        style: this.titleStyle(),
+        content: { title: {
+          mainTitle: this.device.peeking ? $r('app.string.privacy_title_hidden')
+            : this.discover.batchHandling ? '网页处理' : '批量链接',
+          subTitle: this.device.peeking ? '' : this.discover.batchHandling ? '登录或验证后返回重试'
+            : '每行一条链接，解析后选择要下载的图片'
+        } } })
+      .onBackPressed((): boolean => {
+        if (this.discover.batchHandling) { this.discover.finishBatchHandling(); return true; }
+        if (this.discover.batchStage === 'review') { this.discover.cancelBatchReview(); return true; }
+        this.discover.setBatchPanel(false);
+        return true;
+      })
+      .width('100%').height('100%').backgroundColor(Palette.bg)
+    }
+  }
+
   @Builder
   private activeSheetContent() {
     if (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0) {
@@ -428,56 +611,54 @@ struct Index {
   // ------------------------------------------------------------------ 视图
 
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      // 四个页签一律「保持挂载 + 切 visibility」，不用 if 换节点：
-      // 挂载中的 Scroll 会记住自己的滚动位置，用户从别处切回来不会跳回顶部。
-      // 发现页额外要留住浏览器里已经加载的网页，所以它本来就这么挂。
-      Column() {
-        DiscoverScreen({
-          discover: this.discover,
-          settings: this.settings,
-          device: this.device,
-          browserOpen: this.browserOpen,
-          onOpenBrowser: (): void => { this.discover.resumeBrowser(); },
-          onShowResults: (): void => { this.discover.browserPanel = ''; this.browserOpen = false; },
-          onOpenPreview: (uid: string): void => { this.openDiscoverPreview(uid); },
-          onOpenQuickPreview: (uid: string): void => { this.openQuickDiscoverPreview(uid); }
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .visibility(this.currentTab === TAB_DISCOVER ? Visibility.Visible : Visibility.None)
-
-      Column() {
-        TasksScreen({ tasks: this.tasks })
-      }
-      .width('100%')
-      .height('100%')
-      .visibility(this.currentTab === TAB_TASKS ? Visibility.Visible : Visibility.None)
-
-      Column() {
-        LibraryScreen({ library: this.library, settings: this.settings,
-          active: this.currentTab === TAB_LIBRARY })
-      }
-      .width('100%')
-      .height('100%')
-      .visibility(this.currentTab === TAB_LIBRARY ? Visibility.Visible : Visibility.None)
-
-      Column() {
-        SettingsScreen({
-          settings: this.settings,
-          device: this.device,
-          tasks: this.tasks
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .visibility(this.currentTab === TAB_SETTINGS ? Visibility.Visible : Visibility.None)
+    HdsNavigation(this.stack) {
+      Stack({ alignContent: Alignment.Bottom }) {
+        HdsTabs({ controller: this.tabs }) {
+          TabContent() {
+            Stack() {
+              DiscoverScreen({ discover: this.discover, settings: this.settings, device: this.device,
+                browserOpen: this.browserOpen,
+                onShowResults: (): void => { this.discover.browserPanel = ''; this.browserOpen = false; },
+                onOpenPreview: (uid: string): void => { this.openDiscoverPreview(uid); },
+                onOpenQuickPreview: (uid: string): void => { this.openQuickDiscoverPreview(uid); } })
+              if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
+            }.width('100%').height('100%')
+          }.tabBar(this.tabLabel(TABS[TAB_DISCOVER], TAB_DISCOVER))
+          TabContent() {
+            Stack() {
+              TasksScreen({ tasks: this.tasks })
+              if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
+            }.width('100%').height('100%')
+          }
+            .tabBar(this.tabLabel(TABS[TAB_TASKS], TAB_TASKS))
+          TabContent() {
+            Stack() {
+              LibraryScreen({ library: this.library, settings: this.settings,
+                active: this.currentTab === TAB_LIBRARY })
+              if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
+            }.width('100%').height('100%')
+          }.tabBar(this.tabLabel(TABS[TAB_LIBRARY], TAB_LIBRARY))
+          TabContent() {
+            Stack() {
+              SettingsScreen({ settings: this.settings, device: this.device,
+                tasks: this.tasks, scroller: this.settingsScroller })
+              if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
+            }.width('100%').height('100%')
+          }
+            .tabBar(this.tabLabel(TABS[TAB_SETTINGS], TAB_SETTINGS))
+        }
+        .barOverlap(true).vertical(false).barPosition(BarPosition.End)
+        .scrollable(false).animationDuration(0)
+        .barHeight(this.shellPlan().showTabs ? Layout.tabBarHeight : 0)
+        .barFloatingStyle(this.tabsStyle())
+        .onChange((index: number): void => { this.selectTab(index, true); })
+        .onAppear((): void => { this.tabsReady = true; this.tabs.changeIndex(this.currentTab); })
+        .width('100%').height('100%')
 
       // 图库预览使用独立页面；发现页预览留在 Index 中复用当前扫描状态，
       // onBackPress 会优先关闭它，避免系统返回直接退出应用。
 
-      if (this.topVisible()) {
+      if (!this.device.peeking && !this.discover.batchOpen && this.topVisible()) {
         ToTopButton({
           mirror: this.device.gripLeft(),
           bottomSpace: this.toTopBottomInset(),
@@ -487,7 +668,7 @@ struct Index {
         })
       }
 
-      if (this.currentTab === TAB_DISCOVER && !this.browserOpen && !this.discover.batchOpen
+      if (!this.device.peeking && this.currentTab === TAB_DISCOVER && !this.browserOpen && !this.discover.batchOpen
         && (this.discover.selectedTotal > 0 || this.device.gripChipVisible())) {
         Column({ space: Space.s8 }) {
           if (this.device.gripChipVisible()) {
@@ -505,33 +686,7 @@ struct Index {
         })
       }
 
-      // 防窥遮罩排在页签栏之前：浏览首页被盖住时用户仍能切页签。
-      if (this.device.peeking) {
-        PrivacyVeil({ device: this.device })
-      }
-
-      // 批量页是压在页签上的二级页，进去后整页全屏，不保留底部页签栏。
-      if ((this.browserOpen || this.currentTab !== TAB_DISCOVER) && !this.discover.batchOpen) {
-        TabBar({
-          active: this.currentTab,
-          // 网页可能含视频/动画，浏览首页底栏用不透明背景，避免固定叠加材质滤镜。
-          immersiveEnabled: this.currentTab !== TAB_DISCOVER
-            && this.settings.lightEffect && this.settings.materialType !== 'none',
-          badge: this.tasks.running,
-          onSelect: (index: number): void => {
-            if (index !== TAB_DISCOVER) { this.discover.browserPanel = ''; this.discover.cancelScan(); }
-            if (index !== TAB_LIBRARY) {
-              this.library.cancelAnalysis(); this.library.cancelSimilar(); this.library.stopTapShare();
-            }
-            this.currentTab = index;
-            if (index === TAB_LIBRARY) {
-              this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
-            }
-          }
-        })
-      }
-
-      if (this.notice.length > 0) {
+      if (!this.device.peeking && this.notice.length > 0) {
         Column() {
           ToastPill({ text: this.notice })
         }
@@ -570,9 +725,9 @@ struct Index {
         PrivacyVeil({ device: this.device })
       }
       AppSheet({
-        visible: (this.currentTab === TAB_DISCOVER && this.browserOpen
-          && !this.device.peeking && this.discover.browserPanel.length > 0)
-          || (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0),
+        visible: !this.device.peeking && ((this.currentTab === TAB_DISCOVER && this.browserOpen
+          && this.discover.browserPanel.length > 0)
+          || (this.currentTab === TAB_LIBRARY && this.library.renameId.length > 0)),
         initialSize: this.library.renameId.length > 0 ? SheetSize.FIT_CONTENT : this.browserSheetHeight(),
         useMaterial: this.library.renameId.length > 0,
         opaqueBackground: this.library.renameId.length === 0,
@@ -583,9 +738,16 @@ struct Index {
       }) {
         this.activeSheetContent()
       }
+      }
+      .width('100%').height('100%').backgroundColor(Palette.bg)
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor(Palette.bg)
+    .navDestination(this.pageMap)
+    .mode(NavigationMode.Stack)
+    .titleMode(HdsNavigationTitleMode.MINI)
+    .titleBar(this.rootTitleBar())
+    .hideBackButton(true)
+    .hideTitleBar(this.previewOpen)
+    .bindToScrollable(this.activeScrollers())
+    .width('100%').height('100%')
   }
 }

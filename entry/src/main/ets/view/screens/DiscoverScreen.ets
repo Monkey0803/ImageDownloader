@@ -1,20 +1,17 @@
 import { PictureSelectionButton } from '../Widgets';
-import { BatchFlowHost, BATCH_PAGE_NAME } from '../BatchPagePanel';
 import { PictureItem } from '../../model/Models';
 import { WeiboLivePhotos } from '../../service/WeiboLivePhotos';
-import { TransparentGlass } from '../../theme/TransparentGlass';
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
 import { SettingsViewModel } from '../../viewmodel/SettingsViewModel';
 import { chunkRows, fillerCells } from '../../util/GridMath';
-import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
+import { Font, Layout, Palette, Radius, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { AppSearch } from '../AppSearch';
 import { SelectTile } from '../Cards';
 import { IconButton, PillButton, SectionHead, SettingSelect } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
-import { BusinessError } from '@kit.BasicServicesKit';
 
 const FILTER_FORMATS: string[] = ['', 'jpg', 'png', 'gif', 'webp', 'other'];
 const FILTER_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '其他'];
@@ -47,7 +44,6 @@ export struct DiscoverScreen {
   @Require @Param settings: SettingsViewModel;
   @Require @Param device: DeviceViewModel;
   @Param browserOpen: boolean = false;
-  @Event onOpenBrowser: () => void = (): void => {};
   @Event onShowResults: () => void = (): void => {};
   @Event onOpenPreview: (uid: string) => void = (uid: string): void => {};
   @Event onOpenQuickPreview: (uid: string) => void = (uid: string): void => {};
@@ -55,8 +51,6 @@ export struct DiscoverScreen {
   @Local private resultsSearchActive: boolean = false;
   @Local private quickImageUrl: string = '';
   private quickMenuResult: WebContextMenuResult | undefined = undefined;
-  /** 批量页的导航栈放在入口这一层：push 发生在点击回调里，走 HDS 默认转场动画。 */
-  @Local private batchPages: NavPathStack = new NavPathStack();
 
   @Monitor('browserOpen')
   private onBrowserOpenChanged(monitor: IMonitor): void {
@@ -67,74 +61,6 @@ export struct DiscoverScreen {
   }
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
-
-  @Builder
-  private addressEntry() {
-    Row({ space: Space.s8 }) {
-      Glyph({ glyph: 'globe', glyphSize: 18, glyphTone: Palette.fontTertiary, glyphWeight: 1.7 })
-      TextInput({ placeholder: '输入网页或图片链接', text: this.discover.address })
-        .placeholderColor(Palette.fontSecondary)
-        .caretColor(Palette.brand)
-        .fontSize(Font.body)
-        .fontColor(Palette.fontPrimary)
-        .backgroundColor(Color.Transparent)
-        .padding(0)
-        .height(36)
-        .layoutWeight(1)
-        .onChange((value: string): void => { this.discover.address = value; })
-        .onSubmit((): void => { this.discover.visit(); })
-      if (this.discover.address.length > 0) {
-        IconButton({ glyph: 'xCircle', glyphSize: 18, diameter: 32, plain: true,
-          tone: Palette.fontTertiary, accessibilityLabel: '清空输入链接',
-          onAction: (): void => { this.discover.address = ''; } })
-      }
-      PasteButton({ icon: PasteIconStyle.LINES, buttonType: ButtonType.Capsule })
-        .iconSize(18).iconColor(Palette.brand).backgroundColor(Palette.brandSoft)
-        .width(40).height(40)
-        .onClick((_event: ClickEvent, result: PasteButtonOnClickResult,
-          error?: BusinessError<void>): void => {
-          if (result === PasteButtonOnClickResult.SUCCESS) { this.discover.pasteAddress(); }
-          else { this.discover.pasteAuthorizationFailed(error?.code ?? 0); }
-        })
-      PillButton({
-        icon: 'arrowRight', variant: 'primary', small: true,
-        active: this.discover.address.trim().length > 0,
-        onAction: (): void => { this.discover.visit(); }
-      })
-    }
-    .width('100%')
-    .height(44)
-    .padding({ left: Space.s14, right: Space.s4 })
-    .borderRadius(Radius.full)
-    .backgroundColor(Palette.card)
-    .shadow(Shadow.card())
-  }
-
-  @Builder
-  private addressTitleBar() {
-    Row({ space: Space.s6 }) {
-      Column() {
-        this.addressEntry()
-      }.layoutWeight(1)
-      IconButton({ glyph: this.discover.isBookmarked() ? 'bookmarkFill' : 'bookmark',
-        glyphSize: 20, diameter: 36, plain: true, tone: TransparentGlass.foreground(this.glassEnabled()),
-        accessibilityLabel: this.discover.isBookmarked() ? '取消收藏当前网页' : '收藏当前网页',
-        onAction: (): void => { this.discover.toggleBookmark(); } })
-    }
-    .width('100%')
-    .padding({ left: Layout.pagePad, right: Layout.pagePad })
-  }
-
-  @Builder
-  private resultsTitleBar() {
-    Row({ space: Space.s8 }) {
-      IconButton({ glyph: 'chevronRight', glyphSize: 18, diameter: 36, plain: true,
-        tone: TransparentGlass.foreground(this.glassEnabled()),
-        accessibilityLabel: '返回浏览扫描', onAction: this.onOpenBrowser }).rotate({ angle: 180 })
-      Text('查看图片').fontSize(Font.body).fontWeight(FontWeight.Bold)
-        .fontColor(TransparentGlass.foreground(this.glassEnabled()))
-    }.width('100%').padding({ left: Layout.pagePad, right: Layout.pagePad })
-  }
 
   @Builder
   private browserToolbar() {
@@ -162,16 +88,11 @@ export struct DiscoverScreen {
       IconButton({ glyph: 'list', glyphSize: 18, plain: true,
         accessibilityLabel: '批量链接',
         onAction: (): void => {
-          if (this.batchPages.size() === 0) { this.batchPages.pushPath({ name: BATCH_PAGE_NAME }); }
           this.discover.setBatchPanel(true);
         }
       }).id('batch-link-entry')
     }
     .width('100%')
-  }
-
-  private glassEnabled(): boolean {
-    return this.settings.lightEffect && this.settings.materialType !== 'none';
   }
 
   private closeQuickMenu(): void {
@@ -276,7 +197,8 @@ export struct DiscoverScreen {
     .width('100%')
     .height('100%')
     .padding({
-      left: Layout.pagePad, right: Layout.pagePad,
+      left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+      right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
       top: Space.s12,
       bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
     })
@@ -397,8 +319,7 @@ export struct DiscoverScreen {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Navigation() {
-        Scroll(this.discover.scrollController()) {
+      Scroll(this.discover.scrollController()) {
         Column({ space: Space.s16 }) {
           Column({ space: Space.s10 }) {
             SectionHead({
@@ -485,8 +406,8 @@ export struct DiscoverScreen {
         .alignItems(HorizontalAlign.Start)
         .constraintSize({ minHeight: ScreenMetrics.height() })
         .padding({
-          left: Layout.pagePad,
-          right: Layout.pagePad,
+          left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+          right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
           top: Space.s12,
           bottom: SCREEN_INSETS.safeBottom + Space.s12
             + (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
@@ -501,35 +422,14 @@ export struct DiscoverScreen {
       .onDidScroll((): void => {
         this.discover.markScrolled();
       })
-      }
-      .title(this.resultsTitleBar(), {
-        backgroundColor: TransparentGlass.background(this.glassEnabled()),
-        systemMaterial: TransparentGlass.material(this.glassEnabled())
-      })
-      .titleMode(NavigationTitleMode.Mini)
-      .hideBackButton(true)
-      .mode(NavigationMode.Stack)
-      .width('100%')
-      .height('100%')
-      .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.None : Visibility.Visible)
 
-      Navigation() {
+      Column() {
         this.browserView()
       }
-      .title(this.addressTitleBar(), {
-        backgroundColor: TransparentGlass.background(this.glassEnabled()),
-        systemMaterial: TransparentGlass.material(this.glassEnabled())
-      })
-      .titleMode(NavigationTitleMode.Mini)
-      .hideBackButton(true)
-      .mode(NavigationMode.Stack)
       .width('100%')
       .height('100%')
-      .padding({ top: SCREEN_INSETS.safeTop })
       .visibility(this.browserOpen ? Visibility.Visible : Visibility.None)
-
-      BatchFlowHost({ discover: this.discover, pages: this.batchPages })
 
     }
     .width('100%')
