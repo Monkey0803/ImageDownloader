@@ -395,11 +395,21 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   没盖住的浅线（`.screenshots/` 的深浅色对比可复现）。透明以后浮层是一片底色、只有选中项
   有药丸，和浅色一致；浅色侧逐点取样与改前完全相同。
 
-### 图库分段（图片 / 压缩包）
+### 分段控件（`view/AppSegmentButton.ets`）
 
-用系统的 `CapsuleSegmentButtonV2`（`view/Widgets.ets` 的 `LibrarySegment`），背景板交给
-`backgroundSystemMaterial` —— 材质只影响**组件背景板**这一层，「无材质效果」或本机不支持沉浸式材质时
-退回设计稿原来的浅底胶囊。三个真机上踩过的点：
+全应用的分段控件只有一个实现：`AppSegmentButton`（内部是系统的 `CapsuleSegmentButtonV2`，
+状态管理 V2）。改造前工程里有三套并存 —— `Widgets.Segmented`（手写）、`Widgets.LibrarySegment`
+（内联系统组件）、以及各弹层里成组的 `PillButton`，选中配色、材质降级、宽度各写一遍。现在调用方
+只给 `labels: string[]` + `selectedIndex`，其余交给组件：
+
+- `config.dense`：12fp 字、28vp 项高、32vp 容器高、项内边距 12、项间距 2、容器内边距 2，
+  并钳住字体缩放（对齐设计稿 `.seg`）。设置页这种「标题 + 控件」的行用 `StackedRow` 承载。
+- `config.material`：只有标题栏 / 底栏等生效区域传 `true`；内容区（页面正文、弹层）官方不渲染
+  组件级材质，一律传 `false` 走不透明兜底。
+- `config.width`：默认 `'100%'`；要「跟着文字走」的窄胶囊时用 `segmentCapsuleWidth()` 算好再传。
+
+图库的 图片 / 压缩包 分段是这套改造的第一个落点，下面四条是当时在真机上踩出来的结论，
+新增调用点同样适用：
 
 - **选中项的底色 / 字色不能留空**。`itemSelectedBackgroundColor` 的默认值是
   `$r('sys.color.segment_button_v2_tab_selected_item_background')`（系统蓝），
@@ -409,12 +419,14 @@ ViewModel 不碰界面：要弹提示、推页面、拿 `UIAbilityContext` 时�
   现在两个颜色**开不开材质都按设计稿写死**（`Palette.segOn` / `Palette.brand`），只有
   `buttonBackgroundColor` 那一层随材质走；未选中字色在材质模式使用特殊系统资源 `sys.color.font_primary`，无材质时保留次级灰。
 - **宽度得自己算**。文档写明该组件不支持通用属性、也没有宽度参数：它内部把宽度撑满父容器，
-  外面只套一层自适应宽度的 `Row` 也没用（测量时拿到的还是父级的 maxWidth，回落的仍是满宽）。
-  所以 `capsuleWidth()` 按 `.seg` 的盒模型算出宽度、把 `Row` 钉上去；同时因为组件在内部
-  **按项数平分**，宽度要按*最宽*的那一项 × 项数算（按内容求和会把「压缩包」截成「压…」），
-  每项再留 2vp 余量，并钳住 `itemMinFontScale` / `itemMaxFontScale`。
+  外面只套一层自适应宽度的容器也没用（测量时拿到的还是父级的 maxWidth，回落的仍是满宽）。
+  所以 `segmentCapsuleWidth()` 按 `.seg` 的盒模型算出宽度、钉在 `AppSegmentButton` 自己的
+  外层 `Column` 上；同时因为组件在内部**按项数平分**，宽度要按*最宽*的那一项 × 项数算
+  （按内容求和会把「压缩包」截成「压…」），每项再留 2vp 余量，并钳住
+  `itemMinFontScale` / `itemMaxFontScale`。
 - **材质对象不进状态**。`uiMaterial.Material` 是带 native 句柄的框架对象，不做跨组件传递；
-  所以只传一个布尔量 `materialOff`（`@Param`），材质在组件内按需现算并缓存。
+  调用方只传布尔量 `config.material`，材质在组件内按需现算并缓存（`MaterialController` 负责
+  设备能力与应用级开关兜底）。
   （V1 时代这条写的是「`@Prop` 深拷贝会把句柄拷坏」；V2 的 `@Param` 对对象是引用传递，
   具体失效场景变了，但「句柄不进状态」这个结论不变。）
 - **容器的最小高度 `buttonMinHeight` 必须和 `itemMinHeight` 一起压**。两者是两套默认值：
@@ -489,7 +501,8 @@ API 26 / Stage 模型使用 `@kit.ArkUI` 的 `uiMaterial.ImmersiveMaterial`。
 - 浏览首页底栏、收藏历史面板使用不透明背景，避免叠在 ArkWeb 的视频或动画上。
   动图、实况照片及尚未确认静态的远程图片详情同样降级；静态图片详情和图库整理等系统面板复用通透玻璃。
 - 「沉浸光感」开关及「无材质效果」控制标题栏、底栏与图库分段；系统弹层按设备能力降级。
-  图库分段沿用组件专属 `backgroundSystemMaterial`，固定赋色，保留选中药丸的独立底色和字色。
+  图库分段经 `AppSegmentButton` 沿用组件专属 `backgroundSystemMaterial`，固定赋色，
+  保留选中药丸的独立底色和字色；内容区弹层与设置页的分段只走不透明兜底。
 - 「设备材质等级」为只读能力；`getGlobalMaterialLevel()` 由设备决定，不能用玻璃厚薄或历史 HDS 偏好覆盖。
   原有 `materialLevel` 存储字段仅保留数据兼容。材质强弱仍由用户系统设置控制。
 
@@ -691,6 +704,11 @@ node designs/image-downloader-ui/tools/gen-icons.cjs \
   品牌色字、未选中次级灰：浅色两张（`.screenshots/seg-final-phone.jpeg`、
   `.screenshots/seg-verify-zips-phone.jpeg`）、深色一张（`.screenshots/seg-final-dark-phone.jpeg`）；
   再把「材质类型」切到**无材质效果**验回落分支（`.screenshots/seg-nomat-dark-phone.jpeg`）。
+- **分段控件统一**：`AppSegmentButton` 落地后逐屏复验（Mate 70 Pro 真机）：
+  图库浅色 / 深色 / 压缩包切换（`seg-library.jpeg`、`seg-library-dark.jpeg`、`seg-library-zips.jpeg`）、
+  材质回落（`seg-library-nomat.jpeg`）、设置页四行（`seg-settings.jpeg`、`seg-settings3.jpeg`）、
+  预览详情 / 工具与四档背景（`seg-preview-tools.jpeg`、`seg-preview-bg.jpeg`）、
+  筛选弹层与整理弹层（`seg-filter.jpeg`、`seg-organize.jpeg`）。
 
 真机掉线又回来之后，对**合并后的版本**（含「下载图片质量」那一批）又复验了一遍：
 
