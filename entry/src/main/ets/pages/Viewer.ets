@@ -10,6 +10,8 @@ import { SheetStyle } from '../theme/SheetStyle';
 import { ToastLatch } from '../util/Toast';
 import { ImageViewer } from '../view/Cards';
 import { AppSheet } from '../view/AppSheet';
+import { AppLockVeil } from '../view/AppLockVeil';
+import { appLock } from '../service/AppLockService';
 import { ViewerRequest, ViewerViewModel } from '../viewmodel/ViewerViewModel';
 import { EmptyState, PillButton, RenameDialog, ToastPill } from '../view/Widgets';
 
@@ -62,6 +64,7 @@ struct Viewer {
   }
 
   onBackPress(): boolean {
+    if (!appLock.ready || appLock.locked) { return true; }
     if (this.renaming) { this.renaming = false; return true; }
     return this.previewPanels.dismissTop();
   }
@@ -244,8 +247,11 @@ struct Viewer {
         onDismiss: (): void => { this.renaming = false; } }) {
         this.renameContent()
       }
+      if (!appLock.ready || appLock.locked) { AppLockVeil() }
     }
     .width('100%')
     .height('100%')
+    .backgroundColor(Palette.bg)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

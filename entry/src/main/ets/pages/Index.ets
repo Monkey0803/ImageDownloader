@@ -35,7 +35,9 @@ import { GripChip, PrivacyVeil, SelectionDock, ToTopButton } from '../view/shell
 import { Glyph } from '../view/Icons';
 import { RenameDialog, TABS, TabItem, ToastPill } from '../view/Widgets';
 import { SCREEN_INSETS } from '../theme/Metrics';
-import { MaterialSupport } from '../service/MaterialSupport';
+import { MaterialController } from '../service/MaterialController';
+import { appLock } from '../service/AppLockService';
+import { AppLockVeil } from '../view/AppLockVeil';
 import { HdsShellPlan, hdsShellPlan } from '../util/HdsShellPolicy';
 
 /**
@@ -60,7 +62,6 @@ struct Index {
   private tabs: HdsTabsController = new HdsTabsController();
   private tabsReady: boolean = false;
   private settingsScroller: Scroller = new Scroller();
-  @Local private hdsSupported: boolean = false;
   /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
   @Local private pageVisible: boolean = true;
   /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
@@ -111,8 +112,8 @@ struct Index {
   private widgetLaunchListener: () => void = (): void => { this.consumeWidgetLaunch(); };
 
   aboutToAppear(): void {
-    this.hdsSupported = MaterialSupport.hdsImmersiveSupported();
     const context: common.UIAbilityContext = this.hostContext();
+    appLock.attach(context);
     this.toast.bind((text: string): void => {
       this.notice = text;
     });
@@ -127,6 +128,7 @@ struct Index {
     LIBRARY_CATALOG.subscribe(this.catalogListener);
     PREVIEW_LIFECYCLE.subscribe(this.foregroundListener);
     DownloadStore.initialize(context, this.listener);
+    appLock.afterSettingsLoaded();
     this.storeChanged();
     this.settings.applyTheme();
     ShareInbox.subscribe(this.sharedLinkListener);
@@ -160,6 +162,7 @@ struct Index {
   }
 
   onBackPress(): boolean {
+    if (!appLock.ready || appLock.locked) { return true; }
     if (this.discover.batchHandling) {
       this.discover.finishBatchHandling();
       return true;
@@ -449,13 +452,10 @@ struct Index {
   }
 
   private shellPlan(): HdsShellPlan {
+    const supported: boolean = MaterialController.hdsParams(this.settings.materialType,
+      this.settings.lightEffect).materialType !== hdsMaterial.MaterialType.NONE;
     return hdsShellPlan(this.currentTab, this.browserOpen, this.settings.lightEffect,
-      this.settings.materialType, this.hdsSupported, SCREEN_INSETS.safeBottom);
-  }
-
-  private materialType(): hdsMaterial.MaterialType {
-    return this.settings.materialType === 'immersive'
-      ? hdsMaterial.MaterialType.IMMERSIVE : hdsMaterial.MaterialType.ADAPTIVE;
+      this.settings.materialType, supported, SCREEN_INSETS.safeBottom);
   }
 
   private tabsStyle(): HdsTabsFloatingStyle {
@@ -465,15 +465,8 @@ struct Index {
       barSideMargin: Math.max(Layout.pagePad, SCREEN_INSETS.safeLeft, SCREEN_INSETS.safeRight),
       adaptToHandedness: DownloadStore.gripEnabled
     };
-    if (plan.tabMaterial) {
-      style.systemMaterialEffect = {
-        materialType: this.materialType(), materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-      };
-    } else {
-      style.systemMaterialEffect = {
-        materialType: hdsMaterial.MaterialType.NONE, materialLevel: hdsMaterial.MaterialLevel.SMOOTH
-      };
-    }
+    style.systemMaterialEffect = MaterialController.hdsParams(this.settings.materialType, plan.tabMaterial);
+    if (plan.tabMaterial) { style.gradientMask = { maskColor: Color.Transparent }; }
     return style;
   }
 
@@ -488,13 +481,9 @@ struct Index {
     };
     const style: TitleBarStyleOptions = { originalStyle: bar, scrollEffectStyle: bar, thermoCtrl: true,
       scrollEffectOpts: { scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR } };
-    if (this.shellPlan().titleMaterial && !this.device.peeking) {
-      style.systemMaterialEffect = {
-        materialType: this.materialType(), materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-      };
-    } else {
-      bar.backgroundStyle = { backgroundColor: Palette.bg };
-    }
+    const enabled: boolean = this.shellPlan().titleMaterial && !this.device.peeking;
+    style.systemMaterialEffect = MaterialController.hdsParams(this.settings.materialType, enabled);
+    if (!enabled) { bar.backgroundStyle = { backgroundColor: Palette.bg }; }
     return style;
   }
 
@@ -544,7 +533,7 @@ struct Index {
           } } }] };
       }
     }
-    return { avoidLayoutSafeArea: true, enableComponentSafeArea: true,
+    return { avoidLayoutSafeArea: true, enableComponentSafeArea: false,
       style: this.titleStyle(), content: content };
   }
 
@@ -611,6 +600,7 @@ struct Index {
   // ------------------------------------------------------------------ 视图
 
   build() {
+    Stack() {
     HdsNavigation(this.stack) {
       Stack({ alignContent: Alignment.Bottom }) {
         HdsTabs({ controller: this.tabs }) {
@@ -745,9 +735,14 @@ struct Index {
     .mode(NavigationMode.Stack)
     .titleMode(HdsNavigationTitleMode.MINI)
     .titleBar(this.rootTitleBar())
+    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
     .hideBackButton(true)
     .hideTitleBar(this.previewOpen)
     .bindToScrollable(this.activeScrollers())
     .width('100%').height('100%')
+    if (!appLock.ready || appLock.locked) { AppLockVeil() }
+    }
+    .width('100%').height('100%').backgroundColor(Palette.bg)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

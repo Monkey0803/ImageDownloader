@@ -10,6 +10,8 @@ import { HdsColorPicker } from '@kit.UIDesignKit';
 import { ImageEditorViewModel } from '../viewmodel/ImageEditorViewModel';
 import { ImageEditorCanvas } from '../view/ImageEditorCanvas';
 import { AppSheet } from '../view/AppSheet';
+import { AppLockVeil } from '../view/AppLockVeil';
+import { appLock } from '../service/AppLockService';
 import { Glyph } from '../view/Icons';
 import { PillButton } from '../view/Widgets';
 
@@ -84,6 +86,7 @@ struct ImageEditor {
   }
 
   onBackPress(): boolean {
+    if (!appLock.ready || appLock.locked) { return true; }
     if (this.colorPickerOpen) { this.colorPickerOpen = false; return true; }
     this.exit();
     return true;
@@ -175,6 +178,7 @@ struct ImageEditor {
   }
 
   build() {
+    Stack() {
     Column({ space: Space.s8 }) {
       Row({ space: Space.s8 }) {
         PillButton({ label: '返回', small: true, variant: 'tonal', onAction: (): void => { this.exit(); } })
@@ -268,5 +272,9 @@ struct ImageEditor {
       }
     }
     .width('100%').height('100%').backgroundColor(Palette.bg)
+    if (!appLock.ready || appLock.locked) { AppLockVeil() }
+    }
+    .width('100%').height('100%').backgroundColor(Palette.bg)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

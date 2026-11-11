@@ -4,14 +4,15 @@ import { TAB_DISCOVER, TAB_LIBRARY } from '../../../main/ets/model/Navigation';
 
 export default function hdsShellPolicyTest() {
   describe('HdsShellPolicy', () => {
-    it('keeps_web_tab_opaque_and_hides_tabs_on_results', 0, () => {
+    it('uses_the_same_tab_material_on_web_and_hides_tabs_on_results', 0, () => {
       const browser: HdsShellPlan = hdsShellPlan(TAB_DISCOVER, true, true, 'adaptive', true, 35);
       expect(browser.showTabs).assertTrue();
-      expect(browser.tabMaterial).assertFalse();
+      expect(browser.tabMaterial).assertTrue();
       expect(browser.titleMaterial).assertTrue();
       expect(browser.bottomMargin).assertEqual(35);
       const results: HdsShellPlan = hdsShellPlan(TAB_DISCOVER, false, true, 'adaptive', true, 0);
       expect(results.showTabs).assertFalse();
+      expect(results.tabMaterial).assertFalse();
       expect(results.bottomMargin).assertEqual(0);
     });
 

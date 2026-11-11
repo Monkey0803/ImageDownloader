@@ -12,6 +12,7 @@
       // 智感握姿要读系统的握持手状态（motion 模块的 holdingHandChanged）。
       // normal + system_grant：装机即授予，不需要运行时弹窗，也不需要证书 ACL。
       { "name": "ohos.permission.DETECT_GESTURE" },
+      { "name": "ohos.permission.ACCESS_BIOMETRIC" },
       // 防窥保护（dlpAntiPeep）要读系统的窥视状态与系统开关。
       // system_grant + availableLevel: system_basic：装机即授予、没有运行时弹窗，但因为等级
       // 高于普通应用，证书的 allowed-acls 里必须有它，否则 hdc install 报 9568289。

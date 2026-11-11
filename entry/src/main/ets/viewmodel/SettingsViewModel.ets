@@ -1,6 +1,7 @@
 import { DownloadStore } from '../service/DownloadStore';
 import { FolderChoice, pickFolder } from '../service/FileActions';
 import { MaterialSupport } from '../service/MaterialSupport';
+import { appLock } from '../service/AppLockService';
 import { ThemeController } from '../service/ThemeController';
 import { UiPort } from '../service/UiPort';
 import { formatBytes } from '../theme/Tokens';
@@ -31,6 +32,8 @@ export class SettingsViewModel {
   /** 预览是否按 HDR 解码/显示；与 DownloadStore.hdrEnabled 同步。 */
   @Trace hdrEnabled: boolean = true;
   @Trace wifiOnly: boolean = false;
+  @Trace appLockEnabled: boolean = false;
+  @Trace autoLockMinutes: number = 1;
   /** 下载位置；与 DownloadStore.downloadLocation 同步。 */
   @Trace downloadLocation: string = 'app';
   /** 扫描取图策略（「下载图片质量」那一行）；与 DownloadStore.pictureQuality 同步。 */
@@ -60,6 +63,8 @@ export class SettingsViewModel {
     this.lightEffect = DownloadStore.lightEffect;
     this.hdrEnabled = DownloadStore.hdrEnabled;
     this.wifiOnly = DownloadStore.wifiOnly;
+    this.appLockEnabled = DownloadStore.appLockEnabled;
+    this.autoLockMinutes = DownloadStore.autoLockMinutes;
     this.downloadLocation = DownloadStore.downloadLocation;
     this.pictureQuality = DownloadStore.pictureQuality;
     this.editQuality = DownloadStore.editQuality;
@@ -75,6 +80,45 @@ export class SettingsViewModel {
 
   setWifiOnly(value: boolean): void {
     DownloadStore.setWifiOnly(value);
+  }
+
+  async pickAppLock(value: boolean): Promise<boolean> {
+    if (value) {
+      DownloadStore.setAppLockEnabled(true);
+      this.sync();
+      return true;
+    }
+    if (!appLock.canAuthenticate()) {
+      this.ui.confirm('关闭应用锁', '设备没有可用认证凭证。确定要关闭应用锁吗？', '关闭', (): void => {
+        appLock.disable(this.ui.context(), true).then((): void => { this.sync(); });
+      });
+      this.sync();
+      return true;
+    }
+    try {
+      await appLock.disable(this.ui.context());
+    } catch (err) {
+      // 系统认证入口不可用时保持原开关，允许稍后重试。
+    }
+    this.sync();
+    return this.appLockEnabled;
+  }
+
+  pickAutoLockMinutes(minutes: number): void {
+    DownloadStore.setAutoLockMinutes(minutes);
+    this.sync();
+  }
+
+  autoLockIndex(): number {
+    if (this.autoLockMinutes === 0) { return 0; }
+    if (this.autoLockMinutes === 5) { return 2; }
+    if (this.autoLockMinutes === 15) { return 3; }
+    return 1;
+  }
+
+  autoLockLabel(): string {
+    const labels: string[] = ['立即', '1 分钟', '5 分钟', '15 分钟'];
+    return labels[this.autoLockIndex()];
   }
 
   /** 清掉打包中断后残留在暂存目录的图片，并把释放的空间说给用户听。 */
@@ -132,7 +176,7 @@ export class SettingsViewModel {
     const type: ChoiceOption = MATERIAL_TYPES.at(index);
     DownloadStore.setMaterialType(type.id);
     this.sync();
-    if (type.id === 'immersive' && !MaterialSupport.immersiveSupported()) {
+    if (type.id === 'immersive' && !MaterialSupport.hdsImmersiveSupported()) {
       this.ui.say('本机不支持沉浸式材质，将回退为普通样式');
     }
   }

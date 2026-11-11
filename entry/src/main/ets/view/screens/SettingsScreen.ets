@@ -9,6 +9,11 @@ import { ScreenMetrics } from '../../theme/Metrics';
 import { Card, ListRow, SectionHead, SettingSelect, StackedRow } from '../Widgets';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
+const AUTO_LOCK_CHOICES: SelectOption[] = [
+  { value: '立即' }, { value: '1 分钟' }, { value: '5 分钟' }, { value: '15 分钟' }
+];
+const AUTO_LOCK_MINUTES: number[] = [0, 1, 5, 15];
+
 /**
  * 「设置」页：外观 / 系统特性 / 下载 / 编辑 / 数据五节。
  *
@@ -27,6 +32,16 @@ export struct SettingsScreen {
   @Require @Param settings: SettingsViewModel;
   @Require @Param device: DeviceViewModel;
   @Require @Param tasks: TasksViewModel;
+  @Local private appLockSwitchOn: boolean = false;
+
+  aboutToAppear(): void {
+    this.appLockSwitchOn = this.settings.appLockEnabled;
+  }
+
+  @Monitor('settings.appLockEnabled')
+  private onAppLockSettingChanged(): void {
+    this.appLockSwitchOn = this.settings.appLockEnabled;
+  }
 
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
   // 安全区改读 V2 单例：@StorageProp 在 @ComponentV2 里非法（报 10905339）。
@@ -134,7 +149,7 @@ export struct SettingsScreen {
                 ListRow({
                   glyph: 'layers',
                   heading: '材质类型',
-                  aux: '玻璃固定通透赋色，不随深浅色调色'
+                  aux: '通透材质随背景与深浅色自适应'
                 }) {
                   // 和下面「沉浸光感材质」同一个控件：三档用分段控件会挤，
                   // 而且系统设置里这类「当前值 + 下拉」本来就是 Select 的形态。
@@ -198,6 +213,45 @@ export struct SettingsScreen {
           }
           .width('100%')
           .alignItems(HorizontalAlign.Start)
+
+          Column({ space: Space.s10 }) {
+            SectionHead({ heading: '安全' })
+            Card({ pad: 0 }) {
+              Column() {
+                ListRow({ glyph: 'shield', heading: '应用锁',
+                  aux: '打开应用时使用人脸、指纹或锁屏口令验证' }) {
+                  Toggle({ type: ToggleType.Switch, isOn: this.appLockSwitchOn })
+                    .selectedColor(Palette.brand)
+                    .onChange((value: boolean): void => {
+                      this.appLockSwitchOn = value;
+                      this.settings.pickAppLock(value).then((enabled: boolean): void => {
+                        this.appLockSwitchOn = enabled;
+                      }).catch((): void => { this.appLockSwitchOn = this.settings.appLockEnabled; });
+                    })
+                }
+                Divider().color(Palette.divider).margin({ left: 60 })
+                ListRow({ glyph: 'clock', heading: '自动锁定',
+                  aux: '切到后台时立即遮住内容；返回时按间隔决定是否重新认证' }) {
+                  if (this.settings.appLockEnabled) {
+                    SettingSelect({
+                      options: AUTO_LOCK_CHOICES,
+                      selectedIndex: this.settings.autoLockIndex(),
+                      label: this.settings.autoLockLabel(),
+                      onPick: (index: number): void => {
+                        if (index >= 0 && index < AUTO_LOCK_MINUTES.length) {
+                          this.settings.pickAutoLockMinutes(AUTO_LOCK_MINUTES[index]);
+                        }
+                      }
+                    })
+                  } else {
+                    Text(this.settings.autoLockLabel())
+                      .fontSize(Font.aux).fontColor(Palette.fontSecondary)
+                  }
+                }
+              }.width('100%')
+            }
+          }
+          .width('100%').alignItems(HorizontalAlign.Start)
 
           Column({ space: Space.s10 }) {
             SectionHead({ heading: '下载' })
@@ -361,8 +415,8 @@ export struct SettingsScreen {
         .padding({
           left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
           right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
-          top: Space.s12,
-          bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, false),
+          bottom: SCREEN_INSETS.contentBottomInsetVp + Space.s12
         })
       }
       .width('100%')

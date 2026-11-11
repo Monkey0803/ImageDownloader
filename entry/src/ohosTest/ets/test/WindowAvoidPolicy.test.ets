@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@ohos/hypium';
 import { windowInsets, WindowInsets } from '../../../main/ets/util/WindowAvoidPolicy';
+import { SafeAreaController } from '../../../main/ets/service/SafeAreaController';
 
 export default function windowAvoidPolicyTest() {
   describe('WindowAvoidPolicy', () => {
@@ -14,6 +15,11 @@ export default function windowAvoidPolicyTest() {
       const insets: WindowInsets = windowInsets(-5, 0, -8, 0, 0, 0, 0, 0);
       expect(insets.top).assertEqual(0);
       expect(insets.bottom).assertEqual(0);
+    });
+    it('uses_the_larger_system_or_indicator_bottom_and_adds_tab_clearance', 0, () => {
+      expect(SafeAreaController.navBottom(12, 28)).assertEqual(28);
+      expect(SafeAreaController.navBottom(30, 16)).assertEqual(30);
+      expect(SafeAreaController.contentBottom(72, 28)).assertEqual(100);
     });
   });
 }

@@ -8,7 +8,7 @@
 import {
   CapsuleSegmentButtonV2, ColorMetrics, LengthMetrics, SegmentButtonV2ItemOptions, SegmentButtonV2Items, uiMaterial
 } from '@kit.ArkUI';
-import { MaterialSupport } from '../service/MaterialSupport';
+import { MaterialController } from '../service/MaterialController';
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { LIBRARY_IMAGES, LIBRARY_ZIPS } from '../model/Navigation';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
@@ -390,42 +390,17 @@ export struct LibrarySegment {
     LIBRARY_OPTIONS.map((option: SegmentOption): SegmentButtonV2ItemOptions => ({ text: option.label }))
   );
 
-  /** `material()` 的缓存槽与它的有效性标记，见那里的说明。 */
-  private materialCache: uiMaterial.Material | undefined = undefined;
-  private materialCacheValid: boolean = false;
-  private materialCacheOff: boolean = false;
-
   private hasMaterial(): boolean {
-    // 设备能力探测统一走 service/MaterialSupport：原来这里另有一份同名的本地实现。
-    return !this.materialOff && MaterialSupport.immersiveSupported();
+    return MaterialController.uiActive(!this.materialOff);
   }
 
   /**
    * 分段控件的背景板材质。
    *
-   * ULTRA_THIN 是文档示例里给浮层控件的档位：最薄、透过它能看到下面滚过的内容；
-   * `colorInvert` 让文字自动反色；`lightEffect` 用系统的交互点击色，按下时光感跟着走。
-   * 不支持材质时返回 undefined。
-   *
-   * **按 `materialOff` 缓存**：`uiMaterial.Material` 是带 native 句柄的对象，原来每个 build
-   * 都新建一个，滚动时就是每帧一次原生分配。缓存键只需 materialOff —— 设备能力在一次运行里不变。
+   * 缓存和设备降级由 MaterialController 统一处理。
    */
   private material(): uiMaterial.Material | undefined {
-    if (this.materialCacheValid && this.materialCacheOff === this.materialOff) {
-      return this.materialCache;
-    }
-    this.materialCacheValid = true;
-    this.materialCacheOff = this.materialOff;
-    this.materialCache = this.hasMaterial()
-      ? new uiMaterial.ImmersiveMaterial({
-        style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
-        materialColor: '#33FFFFFF',
-        colorInvert: true,
-        interactive: true,
-        lightEffect: { color: $r('sys.color.interactive_click') }
-      })
-      : undefined;
-    return this.materialCache;
+    return MaterialController.segmentMaterial(!this.materialOff);
   }
 
   private selectedIndex(): number {

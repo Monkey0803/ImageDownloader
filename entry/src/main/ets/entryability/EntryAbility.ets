@@ -15,10 +15,9 @@
 
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { display, window } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
-import { SCREEN_INSETS } from '../theme/Metrics';
-import { windowInsets, WindowInsets } from '../util/WindowAvoidPolicy';
+import { safeArea } from '../service/SafeAreaController';
 import { DownloadStore } from '../service/DownloadStore';
 import { ShareInbox } from '../service/ShareInbox';
 import { WidgetLaunch } from '../service/WidgetLaunch';
@@ -26,19 +25,13 @@ import { PreviewReadingStore } from '../service/PreviewReadingStore';
 import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { FloatDownload } from '../service/FloatDownload';
+import { appLock } from '../service/AppLockService';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
-  /**
-   * 主窗口引用与键盘监听的注销函数。
-   *
-   * `main.on('avoidAreaChange', ...)` 在 `onWindowStageDestroy` 时没有 `off` 的话，
-   * 回调会留在已销毁的窗口上：它往全局单例写的是全局状态，一次不会立刻出事，
-   * 但窗口重建（多窗口 / 分屏）时会叠加多份监听，键盘高度被写多次。
-   */
+  /** 主窗口引用；避让区与键盘监听由 SafeAreaController 统一持有。 */
   private mainWindow: window.Window | undefined = undefined;
-  private keyboardWatch: ((data: window.AvoidAreaOptions) => void) | undefined = undefined;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     PreviewReadingStore.initialize(this.context.filesDir);
@@ -97,40 +90,18 @@ export default class EntryAbility extends UIAbility {
    * Let the page draw under the system bars, then publish the inset heights.
    *
    * The insets are read from the live window instead of being hard-coded, so
-   * the layout adapts to any device. Full-screen layout is what the design
-   * assumes: the floating title bar owns the top edge and pads itself by
-   * `safeTop`, and the tab bar pads itself by `safeBottom`.
+   * the layout adapts to any device. HDS handles the title bar's top safe area;
+   * SafeAreaController supplies live content and floating tab clearances.
    */
   private publishInsets(windowStage: window.WindowStage): void {
     try {
       const main: window.Window = windowStage.getMainWindowSync();
       EntryAbility.applyFullScreen(main);
-      this.watchKeyboard(main);
+      this.mainWindow = main;
+      safeArea.attach(main);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to read the main window. Cause: %{public}s', JSON.stringify(err));
     }
-  }
-
-  /**
-   * 把软键盘的高度发进 `SCREEN_INSETS`（V2 的全局单例）。
-   *
-   * 键盘弹起时窗口会被压矮，页面里所有「贴底」的东西都会跟着往上跳 —— toast 就是这么跑到
-   * 屏幕中部的。页面拿到这个高度才能判断「现在有没有键盘」，从而把 toast 压在键盘上沿。
-   *
-   * 迁移前这里是 `AppStorage.setOrCreate('keyboardHeight', …)` + 组件侧 `@StorageProp`，
-   * 双写过渡期结束后 AppStorage 那半边已无人读，故删去（`@StorageProp` 在 V2 里也非法）。
-   */
-  private watchKeyboard(main: window.Window): void {
-    this.mainWindow = main;
-    this.keyboardWatch = (data: window.AvoidAreaOptions): void => {
-      if (data.type !== window.AvoidAreaType.TYPE_KEYBOARD) {
-        EntryAbility.storeInsets(main);
-        return;
-      }
-      const density: number = display.getDefaultDisplaySync().densityPixels;
-      SCREEN_INSETS.keyboardHeight = data.area.bottomRect.height / density;
-    };
-    main.on('avoidAreaChange', this.keyboardWatch);
   }
 
   private static async applyFullScreen(main: window.Window): Promise<void> {
@@ -139,57 +110,24 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to enable full-screen layout. Cause: %{public}s', JSON.stringify(err));
     }
-    EntryAbility.storeInsets(main);
-  }
-
-  private static storeInsets(main: window.Window): void {
-    try {
-      const density: number = display.getDefaultDisplaySync().densityPixels;
-      const system: window.AvoidArea = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      const indicator: window.AvoidArea = main.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
-      const cutout: window.AvoidArea | undefined = EntryAbility.optionalAvoidArea(main, window.AvoidAreaType.TYPE_CUTOUT);
-      const gesture: window.AvoidArea | undefined =
-        EntryAbility.optionalAvoidArea(main, window.AvoidAreaType.TYPE_SYSTEM_GESTURE);
-      const rect: window.Rect = main.getWindowProperties().windowRect;
-      const cutoutTop: number = cutout !== undefined && cutout.topRect.height > 0
-        ? cutout.topRect.top + cutout.topRect.height : 0;
-      const cutoutBottom: number = cutout !== undefined && cutout.bottomRect.height > 0
-        ? rect.height - cutout.bottomRect.top : 0;
-      const cutoutLeft: number = cutout !== undefined && cutout.leftRect.width > 0
-        ? cutout.leftRect.left + cutout.leftRect.width : 0;
-      const cutoutRight: number = cutout !== undefined && cutout.rightRect.width > 0
-        ? rect.width - cutout.rightRect.left : 0;
-      const insets: WindowInsets = windowInsets(system.topRect.height, indicator.bottomRect.height,
-        gesture?.bottomRect.height ?? 0, cutoutTop, cutoutBottom, cutoutLeft, cutoutRight, density);
-      SCREEN_INSETS.safeTop = insets.top;
-      SCREEN_INSETS.safeBottom = insets.bottom;
-      SCREEN_INSETS.safeLeft = insets.left;
-      SCREEN_INSETS.safeRight = insets.right;
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to read the window insets. Cause: %{public}s', JSON.stringify(err));
-    }
-  }
-
-  private static optionalAvoidArea(main: window.Window, type: window.AvoidAreaType): window.AvoidArea | undefined {
-    try { return main.getWindowAvoidArea(type); }
-    catch (error) { return undefined; }
+    safeArea.refresh();
   }
 
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
-    if (this.mainWindow !== undefined && this.keyboardWatch !== undefined) {
+    if (this.mainWindow !== undefined) {
       try {
-        this.mainWindow.off('avoidAreaChange', this.keyboardWatch);
+        safeArea.detach();
       } catch (err) {
-        hilog.error(DOMAIN, 'testTag', 'Failed to unwatch the keyboard. Cause: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'testTag', 'Failed to unwatch the window. Cause: %{public}s', JSON.stringify(err));
       }
-      this.keyboardWatch = undefined;
       this.mainWindow = undefined;
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }
 
   onForeground(): void {
+    appLock.onForeground();
     PREVIEW_LIFECYCLE.setForeground(true);
     DownloadStore.setForeground(true);
     // Ability has brought to foreground
@@ -197,6 +135,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    appLock.onBackground();
     PREVIEW_LIFECYCLE.setForeground(false);
     PreviewReadingStore.flush();
     DownloadStore.setForeground(false);

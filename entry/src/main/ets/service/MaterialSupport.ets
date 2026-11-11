@@ -1,5 +1,5 @@
 import { uiMaterial } from '@kit.ArkUI';
-import { hdsMaterial } from '@kit.UIDesignKit';
+import { MaterialController } from './MaterialController';
 
 /**
  * 沉浸光感材质的设备能力探测（**适配器**：把系统两套同名枚举翻译成界面上的说法）。
@@ -13,25 +13,17 @@ import { hdsMaterial } from '@kit.UIDesignKit';
  */
 export class MaterialSupport {
   static hdsImmersiveSupported(): boolean {
-    try {
-      return hdsMaterial.getSystemMaterialTypes().includes(hdsMaterial.MaterialType.IMMERSIVE);
-    } catch (error) {
-      return false;
-    }
+    return MaterialController.immersiveSupported();
   }
   /** 本机是否支持沉浸式材质；不支持时界面回退为普通不透明背景。 */
   static immersiveSupported(): boolean {
-    try {
-      return uiMaterial.isImmersiveMaterialSupported();
-    } catch (error) {
-      return false;
-    }
+    return MaterialController.glassSupported();
   }
 
   /** 本机算力落在哪一档，用「沉浸光感材质」下拉里的叫法说出来。 */
   static deviceLevelLabel(): string {
     try {
-      const level: uiMaterial.MaterialLevel = uiMaterial.getGlobalMaterialLevel();
+      const level: uiMaterial.MaterialLevel = MaterialController.globalLevel();
       if (level === uiMaterial.MaterialLevel.EXQUISITE) {
         return '精美';
       }

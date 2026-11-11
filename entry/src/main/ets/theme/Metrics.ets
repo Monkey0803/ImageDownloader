@@ -1,5 +1,6 @@
 import { display } from '@kit.ArkUI';
 import { Layout, Space } from './Tokens';
+import { safeArea, SafeAreaController } from '../service/SafeAreaController';
 
 /**
  * 页面几何：安全区 + 标题栏 / 页签栏 / 滚动阈值。
@@ -8,13 +9,14 @@ import { Layout, Space } from './Tokens';
  * 每个页面自己拼一遍内边距，改一处要同时改四处 padding。现在统一成静态方法：
  * 输入只有「安全区高度 + 这个页面要预留多少额外空间」，输出是可直接填进 `padding` 的数字。
  *
- * 全是纯函数（屏幕高度只读一次缓存起来），所以 screen 组件在 build 里直接调也安全。
+ * 页面高度优先读取窗口当前值，旋转或分屏时随控制器更新；窗口尚未绑定时回退到屏幕高度。
  */
 export class ScreenMetrics {
-  /** 屏幕高度（vp）只算一次：`getDefaultDisplaySync` 每次调用都要过一遍系统接口。 */
+  /** 窗口尚未绑定时，默认屏幕高度（vp）只读取并缓存一次。 */
   private static cachedHeight: number = 0;
 
   static height(): number {
+    if (safeArea.windowHeightVp > 0) { return safeArea.windowHeightVp; }
     if (ScreenMetrics.cachedHeight <= 0) {
       const info: display.Display = display.getDefaultDisplaySync();
       ScreenMetrics.cachedHeight = info.height / info.densityPixels;
@@ -34,7 +36,7 @@ export class ScreenMetrics {
 
   /** 浮动页签栏连安全区一共占掉多少高度。 */
   static tabBarSpace(safeBottom: number): number {
-    return Layout.tabBarHeight + Layout.tabBarTopPad + safeBottom;
+    return SafeAreaController.contentBottom(Layout.tabBarHeight + Layout.tabBarTopPad, safeBottom);
   }
 
   /**
@@ -66,24 +68,10 @@ export class ScreenMetrics {
  * V1 的做法是 `AppStorage` + `@StorageProp`，让七个组件各自订阅这份全局状态。
  * 但 `@StorageProp` 在 V2 里是**非法**的 —— 实测报 10905339：
  * `The '@StorageProp' decorator can only be used in a 'struct' decorated with '@Component'.`
- * V2 的等价做法就是这个 `@ObservedV2` 单例：`EntryAbility` 直接写 `@Trace` 字段，
- * 组件在 build 里读它就会自动订阅、自动刷新，**不需要层层透传**
- * （而这正是当初改用全局态的理由）。
+ * V2 的等价做法是 `SafeAreaController` 的 `@ObservedV2` 单例：窗口监听由 service 持有，
+ * 组件在 build 里读 `@Trace` 字段就会自动订阅、自动刷新，不需要层层透传。
  *
- * 迁移期曾让 `EntryAbility` 两边都写（`AppStorage` 留给还没迁完的组件）；现在七个读者全在 V2，
- * 那一半已经删掉，**只写这个单例**。组件在 build 里读 `SCREEN_INSETS.safeTop` 即自动订阅。
+ * 保留 `SCREEN_INSETS` 别名给现有页面；它与 `safeArea` 是同一个实例。
  */
-@ObservedV2
-export class ScreenInsets {
-  /** 状态栏高度（vp）：浮动标题栏据此下移。 */
-  @Trace safeTop: number = 0;
-  /** 底部导航条高度（vp）：浮动页签栏据此上抬。 */
-  @Trace safeBottom: number = 0;
-  @Trace safeLeft: number = 0;
-  @Trace safeRight: number = 0;
-  /** 软键盘高度（vp），0 表示没有键盘；Toast 据此决定压在键盘上沿还是贴底。 */
-  @Trace keyboardHeight: number = 0;
-}
-
-/** 全局唯一实例：`EntryAbility` 写，组件在 build 里读。 */
-export const SCREEN_INSETS: ScreenInsets = new ScreenInsets();
+/** Compatibility alias for existing pages; the service owns the single live instance. */
+export const SCREEN_INSETS: SafeAreaController = safeArea;

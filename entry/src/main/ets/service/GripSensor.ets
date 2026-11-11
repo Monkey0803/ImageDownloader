@@ -20,6 +20,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 
 /** 系统回调把结果写进类状态；用模块级函数而不是类属性箭头函数，避免静态成员里的 this。 */
 function onHoldingHand(status: motion.HoldingHandStatus): void {
+  if (!GripSensor.subscribed) { return; }
   GripSensor.hand = GripSensor.handOf(status);
   GripSensor.notify();
 }
@@ -27,7 +28,7 @@ function onHoldingHand(status: motion.HoldingHandStatus): void {
 export class GripSensor {
   /** 'left' | 'right' | 'both' | 'none' | 'unknown' */
   static hand: string = 'unknown';
-  /** False once the platform answers 801 — the device has no 智感握姿. */
+  /** 801 可能是设备不支持或系统开关关闭；本次进程内不再重试。 */
   static supported: boolean = true;
   static subscribed: boolean = false;
   /** Empty while everything is fine; otherwise the reason shown in 设置. */
@@ -40,8 +41,7 @@ export class GripSensor {
   }
 
   /**
-   * 摘掉刷新回调，只摘监听**不动订阅**：订阅跟着持久化的开关走是刻意的
-   * （见 setEnabled / DownloadStore.initialize），页面销毁时不该顺手把它关掉。
+   * 只摘界面刷新回调；页面销毁时由 DeviceViewModel.stop 再取消系统订阅。
    */
   static detach(): void {
     GripSensor.listener = undefined;
@@ -80,7 +80,7 @@ export class GripSensor {
   }
 
   static subscribe(): void {
-    if (GripSensor.subscribed) {
+    if (GripSensor.subscribed || !GripSensor.supported) {
       return;
     }
     if (!canIUse('SystemCapability.MultimodalAwareness.Motion')) {
@@ -89,10 +89,10 @@ export class GripSensor {
       GripSensor.notify();
       return;
     }
+    GripSensor.subscribed = true;
     try {
       // @SuppressWarnings syscap
       motion.on('holdingHandChanged', onHoldingHand);
-      GripSensor.subscribed = true;
       GripSensor.supported = true;
       GripSensor.problem = '';
     } catch (err) {
@@ -100,6 +100,7 @@ export class GripSensor {
       // 错误码留在日志里：界面只给用户看得懂的说法，不暴露 801 这类系统码。
       console.error('holdingHandChanged failed: ' + error.code.toString());
       GripSensor.subscribed = false;
+      GripSensor.hand = 'unknown';
       // 801 有两种可能：设备本身没有这个能力，或者设备支持但用户在
       // 「设置 > 系统」里把「智感握姿」关掉了。文档给的现象都是 801，
       // 无法在应用侧区分，所以提示里两种都提，不把话说死。
@@ -112,14 +113,13 @@ export class GripSensor {
   }
 
   static unsubscribe(): void {
-    if (!GripSensor.subscribed) {
-      return;
-    }
-    try {
-      // @SuppressWarnings syscap
-      motion.off('holdingHandChanged');
-    } catch (err) {
-      // 已经取消或系统侧收回订阅：本地状态照常清理。
+    if (GripSensor.subscribed) {
+      try {
+        // @SuppressWarnings syscap
+        motion.off('holdingHandChanged');
+      } catch (err) {
+        // 已经取消或系统侧收回订阅：本地状态照常清理。
+      }
     }
     GripSensor.subscribed = false;
     GripSensor.hand = 'unknown';

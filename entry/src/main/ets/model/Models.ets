@@ -179,6 +179,9 @@ export class SavedState {
   hdrEnabled: boolean = true;
   /** 智感握姿：主操作是否跟随握持手。 */
   gripEnabled: boolean = false;
+  /** 应用锁与后台自动锁定间隔（分钟；0 表示立即认证）。 */
+  appLockEnabled: boolean = false;
+  autoLockMinutes: number = 1;
   /** 防窥保护：检测到他人窥视时是否遮罩内容。 */
   antiPeepEnabled: boolean = false;
   /** 扫描取图策略：'original' 原图优先（默认）| 'display' 网页显示图 | 'all' 每个候选地址各收一张。 */

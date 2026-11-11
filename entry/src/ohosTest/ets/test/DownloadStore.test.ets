@@ -3,6 +3,7 @@ import { request } from '@kit.BasicServicesKit';
 import { DownloadStore } from '../../../main/ets/service/DownloadStore';
 import { Naming } from '../../../main/ets/service/Naming';
 import { StoreState } from '../../../main/ets/service/StoreState';
+import { AppLockService } from '../../../main/ets/service/AppLockService';
 import { normalizeEditQuality, normalizeLocation, normalizeQuality } from '../../../main/ets/model/SettingsOptions';
 import { DownloadItem, SavedState } from '../../../main/ets/model/Models';
 
@@ -452,6 +453,8 @@ export default function downloadStoreTest() {
       state.downloads = [item];
       state.wifiOnly = true;
       state.hdrEnabled = false;
+      state.appLockEnabled = true;
+      state.autoLockMinutes = 5;
       state.editQuality = 'compact';
 
       const raw: string = StoreState.serialize(state);
@@ -475,6 +478,8 @@ export default function downloadStoreTest() {
       expect(back.downloads[0].note).assertEqual('解包成功');
       expect(back.wifiOnly).assertTrue();
       expect(back.hdrEnabled).assertFalse();
+      expect(back.appLockEnabled).assertTrue();
+      expect(back.autoLockMinutes).assertEqual(5);
       expect(back.editQuality).assertEqual('compact');
     });
 
@@ -490,6 +495,8 @@ export default function downloadStoreTest() {
       expect(safe.materialLevel).assertEqual('adaptive');
       expect(safe.lightEffect).assertTrue();
       expect(safe.hdrEnabled).assertTrue();
+      expect(safe.appLockEnabled).assertFalse();
+      expect(safe.autoLockMinutes).assertEqual(1);
       expect(safe.pictureQuality).assertEqual('original');
       expect(safe.editQuality).assertEqual('high');
       expect(safe.downloadLocation).assertEqual('app');
@@ -526,6 +533,13 @@ export default function downloadStoreTest() {
       expect(safe.downloadLocation).assertEqual('app');
     });
 
+    it('normalized_rejects_invalid_auto_lock_minutes', 0, () => {
+      const safe: SavedState = StoreState.normalized(StoreState.parse(
+        '{"appLockEnabled":true,"autoLockMinutes":-1}') as SavedState);
+      expect(safe.appLockEnabled).assertTrue();
+      expect(safe.autoLockMinutes).assertEqual(1);
+    });
+
     it('normalized_defaults_the_animated_and_live_photo_fields', 0, () => {
       // 老状态文件没有这些字段（也可能被手工写成 null）：一律兜成默认值，
       // 否则界面拿到 undefined 后 `animated` / `kind` 的比较全部落空。
@@ -551,6 +565,33 @@ export default function downloadStoreTest() {
       expect(item.motionPath).assertEqual('/p/a.mov');
       expect(item.auxSize).assertEqual(42);
       expect(item.note).assertEqual('解包失败');
+    });
+  });
+
+  describe('AppLockService', () => {
+    it('cold_start_and_background_obey_auto_lock_interval', 0, () => {
+      const enabled: boolean = DownloadStore.appLockEnabled;
+      const minutes: number = DownloadStore.autoLockMinutes;
+      try {
+        DownloadStore.appLockEnabled = true;
+        DownloadStore.autoLockMinutes = 1;
+        const service: AppLockService = new AppLockService();
+        service.afterSettingsLoaded();
+        expect(service.locked).assertTrue();
+        service.markUnlocked();
+        service.onBackground();
+        expect(service.locked).assertTrue();
+        service.onForeground();
+        expect(service.locked).assertFalse();
+
+        DownloadStore.autoLockMinutes = 0;
+        service.onBackground();
+        service.onForeground();
+        expect(service.locked).assertTrue();
+      } finally {
+        DownloadStore.appLockEnabled = enabled;
+        DownloadStore.autoLockMinutes = minutes;
+      }
     });
   });
 }

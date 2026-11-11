@@ -115,6 +115,8 @@ class StateWire {
   lightEffect: boolean = true;
   hdrEnabled: boolean = true;
   gripEnabled: boolean = false;
+  appLockEnabled: boolean = false;
+  autoLockMinutes: number = 1;
   antiPeepEnabled: boolean = false;
   pictureQuality: string = 'original';
   editQuality: string = 'high';
@@ -214,6 +216,8 @@ export class StoreState {
     wire.lightEffect = state.lightEffect;
     wire.hdrEnabled = state.hdrEnabled;
     wire.gripEnabled = state.gripEnabled;
+    wire.appLockEnabled = state.appLockEnabled;
+    wire.autoLockMinutes = state.autoLockMinutes;
     wire.antiPeepEnabled = state.antiPeepEnabled;
     wire.pictureQuality = state.pictureQuality;
     wire.editQuality = state.editQuality;
@@ -332,6 +336,10 @@ export class StoreState {
     safe.lightEffect = orBoolean(state.lightEffect, true);
     safe.hdrEnabled = orBoolean(state.hdrEnabled, true);
     safe.gripEnabled = orBoolean(state.gripEnabled, false);
+    safe.appLockEnabled = orBoolean(state.appLockEnabled, false);
+    const lockMinutes: number = orNumber(state.autoLockMinutes, 1);
+    safe.autoLockMinutes = lockMinutes === 0 || lockMinutes === 1 || lockMinutes === 5 || lockMinutes === 15
+      ? lockMinutes : 1;
     safe.antiPeepEnabled = orBoolean(state.antiPeepEnabled, false);
     safe.customDirUri = orString(state.customDirUri, '');
     safe.customDirName = orString(state.customDirName, '');

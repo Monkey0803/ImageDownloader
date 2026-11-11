@@ -199,8 +199,8 @@ export struct DiscoverScreen {
     .padding({
       left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
       right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
-      top: Space.s12,
-      bottom: ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom) + Space.s12
+      top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+      bottom: SCREEN_INSETS.contentBottomInsetVp + Space.s12
     })
     .backgroundColor(Palette.bg)
   }
@@ -408,7 +408,7 @@ export struct DiscoverScreen {
         .padding({
           left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
           right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
-          top: Space.s12,
+          top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
           bottom: SCREEN_INSETS.safeBottom + Space.s12
             + (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
         })

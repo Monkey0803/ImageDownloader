@@ -55,6 +55,8 @@ export class DownloadStore {
   static hdrEnabled: boolean = true;
   /** 智感握姿：主操作是否跟随握持手；开启时同时订阅系统的握持手感知。 */
   static gripEnabled: boolean = false;
+  static appLockEnabled: boolean = false;
+  static autoLockMinutes: number = 1;
   /** 防窥保护：开启时订阅系统窥视状态，检测到窥视就遮罩内容。 */
   static antiPeepEnabled: boolean = false;
   /**
@@ -289,6 +291,8 @@ export class DownloadStore {
     DownloadStore.lightEffect = safe.lightEffect;
     DownloadStore.hdrEnabled = safe.hdrEnabled;
     DownloadStore.gripEnabled = safe.gripEnabled;
+    DownloadStore.appLockEnabled = safe.appLockEnabled;
+    DownloadStore.autoLockMinutes = safe.autoLockMinutes;
     DownloadStore.antiPeepEnabled = safe.antiPeepEnabled;
     DownloadStore.pictureQuality = safe.pictureQuality;
     DownloadStore.editQuality = safe.editQuality;
@@ -379,6 +383,8 @@ export class DownloadStore {
     state.lightEffect = DownloadStore.lightEffect;
     state.hdrEnabled = DownloadStore.hdrEnabled;
     state.gripEnabled = DownloadStore.gripEnabled;
+    state.appLockEnabled = DownloadStore.appLockEnabled;
+    state.autoLockMinutes = DownloadStore.autoLockMinutes;
     state.antiPeepEnabled = DownloadStore.antiPeepEnabled;
     state.pictureQuality = DownloadStore.pictureQuality;
     state.editQuality = DownloadStore.editQuality;
@@ -751,6 +757,17 @@ export class DownloadStore {
   static setGripEnabled(value: boolean): void {
     DownloadStore.gripEnabled = value;
     GripSensor.setEnabled(value);
+    DownloadStore.notify();
+  }
+
+  static setAppLockEnabled(value: boolean): void {
+    DownloadStore.appLockEnabled = value;
+    DownloadStore.notify();
+  }
+
+  static setAutoLockMinutes(minutes: number): void {
+    if (minutes !== 0 && minutes !== 1 && minutes !== 5 && minutes !== 15) { return; }
+    DownloadStore.autoLockMinutes = minutes;
     DownloadStore.notify();
   }
 

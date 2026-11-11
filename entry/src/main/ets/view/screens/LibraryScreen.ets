@@ -468,11 +468,11 @@ export struct LibraryScreen {
       .height('100%')
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
+      .contentStartOffset(ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true))
+      .contentEndOffset(SCREEN_INSETS.contentBottomInsetVp + Space.s12)
       .padding({
         left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
         right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
-        top: Space.s12,
-        bottom: ScreenMetrics.bottomInset(SCREEN_INSETS.safeBottom, 0)
       })
       .onDidScroll((): void => { this.library.markScrolled(); })
       .onScrollIndex((first: number, last: number): void => { this.library.markScrolled(first); })

@@ -76,12 +76,13 @@ export class DeviceViewModel {
    *
    * 防窥：文档要求必须 `off('dlpAntiPeep')`，否则回调会打到已销毁的组件上；
    * 先 detach 再 stop（`stop()` 结尾会 `notify()`，那时监听者已经摘掉了）。
-   * 握姿：同样要摘回调 —— 订阅本身留着（跟着持久化开关走，见 `GripSensor.detach`）。
+   * 握姿：先摘回调再退订；下次页面初始化会按持久化开关恢复。
    */
   stop(): void {
     AntiPeep.detach();
     AntiPeep.stop();
     GripSensor.detach();
+    GripSensor.unsubscribe();
   }
 
   /** 把落盘的开关与传感器的当前状态拉回界面。 */
