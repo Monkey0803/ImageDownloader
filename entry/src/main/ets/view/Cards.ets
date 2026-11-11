@@ -52,26 +52,31 @@ export struct SelectTile {
     (uid: string, url: string, uri: string): void => {};
 
   /**
-   * 发现页的角标：实况照片包写「实况」，GIF / WebP 写格式名。
+   * 发现页的角标：实况照片包用 HMSymbol 的实况图标，GIF / WebP 写格式名。
    *
    * 这里只能读**远程地址的扩展名**（图片还没下载，拿不到字节），所以只说「这是 GIF」，
    * 不断言「它会动」—— 是否动图要下完读文件头才知道，图库那边标的才是「动图」。
    */
+  private isLiveBadge(): boolean {
+    return this.picture.kind === 'livephoto' || MediaFormat.isLivepicStill(this.picture.url);
+  }
+
   private badge(): string {
-    if (this.picture.kind === 'livephoto') {
-      return '实况';
-    }
-    if (MediaFormat.isLivepicStill(this.picture.url)) {
-      return '实况静图';
+    if (this.isLiveBadge()) {
+      return '';
     }
     const extension: string = MediaFormat.extensionOf(this.picture.url);
     return MediaFormat.isAnimatedExt(extension) ? extension.toUpperCase() : '';
   }
 
+  private badgeGlyph(): string {
+    return this.isLiveBadge() ? 'livephoto' : '';
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Thumb({ src: this.thumbnailSource || this.picture.url, referer: this.sourcePage,
-        label: kindOf(this.picture.name), badge: this.badge(),
+        label: kindOf(this.picture.name), badge: this.badge(), badgeGlyph: this.badgeGlyph(),
         fallbackText: '预览不可用',
         onDimensions: (url: string, width: number, height: number): void => {
           if (url === (this.thumbnailSource || this.picture.url)) {
@@ -176,15 +181,18 @@ export struct ShotTile {
     return this.image.status === 'completed' && !DownloadStore.exists(this.image.path);
   }
 
+  private isLiveBadge(): boolean {
+    return this.image.kind === 'livephoto' || MediaFormat.isLivepicStill(this.image.url);
+  }
+
   private badge(): string {
-    if (this.image.kind === 'livephoto') {
-      return '实况';
-    }
-    if (MediaFormat.isLivepicStill(this.image.url)) {
-      return '实况静图';
-    }
+    if (this.isLiveBadge()) { return ''; }
     if (this.image.animated) { return '动图'; }
     return this.image.hdr ? 'HDR' : '';
+  }
+
+  private badgeGlyph(): string {
+    return this.isLiveBadge() ? 'livephoto' : '';
   }
 
   /** 预览不可用时仍按真实比例占位，避免整行高度跳动。 */
@@ -209,6 +217,7 @@ export struct ShotTile {
             label: kindOf(this.image.name),
             firstFramePath: this.firstFramePath(),
             badge: this.badge(),
+            badgeGlyph: this.badgeGlyph(),
             badgeTopLeft: true,
             preferredAspect: this.previewAspect()
           })
@@ -375,15 +384,27 @@ export struct TaskCard {
           Thumb({ src: this.thumbnailSource, firstFramePath: this.firstFramePath,
             label: kindOf(this.task.name) })
 
-          Text(kindOf(this.task.name))
-            .fontSize(9)
-            .lineHeight(14)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Palette.white)
+          if (this.task.kind === 'livephoto') {
+            Row() {
+              Glyph({ glyph: 'livephoto', glyphSize: 12, glyphTone: Palette.white, glyphWeight: 2.4 })
+            }
+            .height(15)
+            .padding({ left: 3, right: 3 })
             .backgroundColor('#8C000000')
             .borderRadius(4)
-            .padding({ left: 4, right: 4 })
             .margin({ right: 3, bottom: 3 })
+            .accessibilityText('实况照片')
+          } else {
+            Text(kindOf(this.task.name))
+              .fontSize(9)
+              .lineHeight(14)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Palette.white)
+              .backgroundColor('#8C000000')
+              .borderRadius(4)
+              .padding({ left: 4, right: 4 })
+              .margin({ right: 3, bottom: 3 })
+          }
         }
         .width(52)
         .height(52)

@@ -1,10 +1,11 @@
 import { TransparentGlass } from '../theme/TransparentGlass';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { CollectionSummary } from '../service/CollectionGroups';
-import { Font, Space } from '../theme/Tokens';
+import { Font, Palette, Radius, Space } from '../theme/Tokens';
 import { PillButton, SettingSelect } from './Widgets';
 import { AppSegmentButton, segmentCapsuleWidth } from './AppSegmentButton';
 import { AppSearch } from './AppSearch';
+import { Glyph } from './Icons';
 
 const SORT_IDS: string[] = ['newest', 'name', 'size'];
 const SORT_LABELS: string[] = ['时间', '名称', '大小'];
@@ -14,17 +15,27 @@ const FORMAT_LABELS: string[] = ['全部格式', 'JPEG', 'PNG', 'GIF', 'WebP', '
 const FORMAT_OPTIONS: SelectOption[] = FORMAT_LABELS.map((label: string): SelectOption => ({ value: label }));
 const SEARCH_SCOPES: string[] = ['all', 'name', 'text', 'tags'];
 const SEARCH_LABELS: string[] = ['全部', '文件名', '图片文字', '标签'];
-const DENSITY_LABELS: string[] = ['两列', '三列'];
+const LAYOUT_LABELS: string[] = ['瀑布流', '三列方形'];
 
 /** 图库的次级筛选项；搜索关键词仍留在首页。 */
 @ComponentV2
 export struct LibraryFilterSheet {
   @Require @Param library: LibraryViewModel;
+  /** 相册 / 最近删除 / 查找与整理：都只是换面板内容，由页面持有 sheet 状态。 */
+  @Event onOpenAlbums: () => void = (): void => {};
+  @Event onOpenTrash: () => void = (): void => {};
+  @Event onOpenOrganize: () => void = (): void => {};
 
   private collectionOptions(): SelectOption[] {
     const options: SelectOption[] = [{ value: '全部来源' }];
-    for (const group of this.library.collections) { options.push({ value: group.name }); }
+    for (const group of this.library.collections) { options.push({ value: this.library.collectionLabel(group) }); }
     return options;
+  }
+
+  private selectedCollectionLabel(): string {
+    const current: CollectionSummary | undefined = this.library.collections.find(
+      (group: CollectionSummary): boolean => group.id === this.library.collectionFilter);
+    return current === undefined ? '全部来源' : this.library.collectionLabel(current);
   }
 
   private sortFieldIndex(): number {
@@ -56,8 +67,33 @@ export struct LibraryFilterSheet {
     }
   }
 
+  /** 面板内的跳转行：把原来占首页一整排的入口收进来。 */
+  @Builder
+  private navRow(glyph: string, label: string, value: string, action: () => void) {
+    Row({ space: Space.s10 }) {
+      Stack() {
+        Glyph({ glyph: glyph, glyphSize: 18, glyphTone: Palette.brand, glyphWeight: 1.7 })
+      }
+      .width(32).height(32).borderRadius(Radius.r8).backgroundColor(Palette.brandFaint)
+      Text(label).fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
+      Text(value).fontSize(Font.caption).fontColor(Palette.fontTertiary).maxLines(1)
+      Glyph({ glyph: 'chevronRight', glyphSize: 16, glyphTone: Palette.fontTertiary })
+    }
+    .width('100%')
+    .height(44)
+    .onClick((): void => { action(); })
+    .accessibilityText(label + '，' + value)
+  }
+
   build() {
     Column({ space: Space.s16 }) {
+      this.navRow('image', '相册', this.library.albums.length.toString() + ' 个',
+        (): void => { this.onOpenAlbums(); })
+      this.navRow('trash', '最近删除', this.library.trashEntries.length.toString() + ' 项',
+        (): void => { this.onOpenTrash(); })
+      this.navRow('list', '查找与整理', '文字索引 · 重复 · 相似',
+        (): void => { this.onOpenOrganize(); })
+
       Row({ space: Space.s8 }) {
         Text('排序').fontSize(Font.body).fontColor(TransparentGlass.foreground()).layoutWeight(1)
         SettingSelect({
@@ -77,8 +113,7 @@ export struct LibraryFilterSheet {
           selectedIndex: this.library.collectionFilter === '*' ? 0
             : this.library.collections.findIndex((group: CollectionSummary): boolean =>
               group.id === this.library.collectionFilter) + 1,
-          label: this.library.collections.find((group: CollectionSummary): boolean =>
-            group.id === this.library.collectionFilter)?.name ?? '全部来源',
+          label: this.selectedCollectionLabel(),
           onPick: (index: number): void => {
             this.library.collectionFilter = index === 0 ? '*' : this.library.collections[index - 1].id;
           }
@@ -117,12 +152,13 @@ export struct LibraryFilterSheet {
           PillButton({ label: this.library.favoritesOnly ? '仅收藏 ✓' : '仅收藏', small: true,
             variant: this.library.favoritesOnly ? 'primary' : 'ghost',
             onAction: (): void => { this.library.favoritesOnly = !this.library.favoritesOnly; } })
+          Blank()
           AppSegmentButton({
-            labels: DENSITY_LABELS,
-            selectedIndex: this.library.density === 2 ? 0 : 1,
-            config: { dense: true, width: segmentCapsuleWidth(DENSITY_LABELS, Font.caption, Space.s12) },
+            labels: LAYOUT_LABELS,
+            selectedIndex: this.library.squareTiles() ? 1 : 0,
+            config: { dense: true, width: segmentCapsuleWidth(LAYOUT_LABELS, Font.caption, Space.s12) },
             onSelectedIndexChange: (index: number): void => {
-              this.library.setDensity(index === 0 ? 2 : 3);
+              this.library.setGridStyle(index === 0 ? 'masonry' : 'square');
             }
           })
         }.width('100%')

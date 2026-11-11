@@ -8,6 +8,7 @@ import { AnalysisProgress, AnalysisToken, LibrarySearchEntry, LibrarySearchOptio
 import { LIBRARY_CATALOG } from '../service/LibraryCatalog';
 import { LibraryAnalysis } from '../service/LibraryAnalysis';
 import { LibraryText } from '../util/LibraryText';
+import { LibraryDates } from '../util/LibraryDates';
 import { ContentScanResult, DuplicateFinder, DuplicateGroup } from '../service/DuplicateFinder';
 import { ScreenMetrics } from '../theme/Metrics';
 import { ZipArchiveService, ZipExtractResult } from '../service/ZipArchiveService';
@@ -17,6 +18,9 @@ import { TapShare } from '../service/TapShare';
 import { LibraryFlowRow, LibraryFlowRows } from './LibraryFlowRows';
 
 export class LibraryDateGroup {
+  /** 分组键（YYYY-MM-DD），只用于稳定标识，不直接显示。 */
+  key: string = '';
+  /** 展示标题（今天 / 昨天 / 11月10日…）。 */
   label: string = '';
   items: DownloadItem[] = [];
 }
@@ -66,7 +70,8 @@ export class LibraryViewModel {
   @Trace collectionFilter: string = '*';
   @Trace formatFilter: string = '';
   @Trace sortOrder: string = 'newest';
-  @Trace density: number = 2;
+  /** 'masonry' = 两列瀑布流（原始比例）；'square' = 三列方形裁切。 */
+  @Trace gridStyle: string = 'masonry';
   /** 'images' | 'zips' */
   @Trace segment: string = LIBRARY_IMAGES;
   @Trace tapSharing: boolean = false;
@@ -75,6 +80,13 @@ export class LibraryViewModel {
   @Trace extractEncrypted: boolean = false;
   @Trace extractPassword: string = '';
   @Trace extractBusy: boolean = false;
+  /**
+   * 当前打开的面板名：`filter` / `albums` / `trash` / `organize`。
+   *
+   * 图库的分段与筛选按钮挂在标题栏里（`Index` 的 bottomBuilder），面板却画在页面内，
+   * 两边都要读写它，所以状态放在 ViewModel 而不是页面组件的 `@Local`。
+   */
+  @Trace sheet: string = '';
   @Trace scrolled: boolean = false;
   @Trace selecting: boolean = false;
   @Trace selectedIds: string[] = [];
@@ -93,15 +105,19 @@ export class LibraryViewModel {
 
   @Monitor('downloads', 'zips', 'query', 'searchScope', 'favoritesOnly', 'tagFilter',
     'catalogEntries', 'albums', 'albumFilter', 'sourceQuery', 'collectionFilter', 'formatFilter',
-    'sortOrder', 'density', 'segment', 'focusedIds', 'selecting', 'selectedIds', 'catalogReady')
+    'sortOrder', 'gridStyle', 'segment', 'focusedIds', 'selecting', 'selectedIds', 'catalogReady')
   private onFlowInputsChanged(monitor: IMonitor): void { this.updateFlowRows(); }
 
   private updateFlowRows(): void {
     const rows: LibraryFlowRow[] = [];
     const sections: SectionOptions[] = [];
-    const controls: LibraryFlowRow = new LibraryFlowRow();
-    controls.key = 'controls'; controls.kind = 'controls'; rows.push(controls);
-    sections.push({ itemsCount: 1, crossCount: 1 });
+    // 分段 / 搜索 / 筛选按钮已经搬到标题栏，网格第一行只剩「筛选摘要」（真有筛选时才有）。
+    if (this.query.length > 0 || this.filterCount() > 0) {
+      const summary: LibraryFlowRow = new LibraryFlowRow();
+      summary.key = 'summary'; summary.kind = 'summary';
+      rows.push(summary);
+      sections.push({ itemsCount: 1, crossCount: 1 });
+    }
     if (this.isZips()) {
       if (this.archives.length === 0) {
         const empty: LibraryFlowRow = new LibraryFlowRow();
@@ -121,10 +137,12 @@ export class LibraryViewModel {
       empty.key = 'empty|images'; empty.kind = 'empty'; rows.push(empty);
       sections.push({ itemsCount: 1, crossCount: 1 });
     } else {
+      const crossCount: number = this.squareTiles() ? 3 : 2;
+      const gridGap: number = this.squareTiles() ? 6 : 12;
       for (const group of this.imageDateGroups()) {
         if (group.label.length > 0) {
           const heading: LibraryFlowRow = new LibraryFlowRow();
-          heading.key = 'heading|' + group.label; heading.kind = 'heading';
+          heading.key = 'heading|' + group.key; heading.kind = 'heading';
           heading.title = group.label; heading.count = group.items.length; rows.push(heading);
           sections.push({ itemsCount: 1, crossCount: 1, margin: { top: 16 } });
         }
@@ -136,12 +154,12 @@ export class LibraryViewModel {
             + '|' + image.imageHeight.toString() + '|' + this.selecting.toString()
             + '|' + this.isSelected(image.id).toString(); rows.push(row);
         }
-        sections.push({ itemsCount: group.items.length, crossCount: this.density,
-          columnsGap: this.density === 3 ? 6 : 12, rowsGap: this.density === 3 ? 6 : 12,
+        sections.push({ itemsCount: group.items.length, crossCount: crossCount,
+          columnsGap: gridGap, rowsGap: gridGap,
           margin: { top: group.label.length > 0 ? 8 : 16 } });
       }
     }
-    const signature: string = sections.map((section: SectionOptions): string =>
+    const signature: string = this.gridStyle + '#' + sections.map((section: SectionOptions): string =>
       section.itemsCount.toString() + ':' + section.crossCount?.toString() + ':'
         + section.columnsGap?.toString() + ':' + section.rowsGap?.toString()).join('|');
     if (signature !== this.flowSectionSignature) {
@@ -406,7 +424,6 @@ export class LibraryViewModel {
     this.favoritesOnly = false;
     this.tagFilter = '';
     this.sortOrder = 'newest';
-    this.density = 2;
     this.focusedIds = [];
   }
 
@@ -480,14 +497,16 @@ export class LibraryViewModel {
       const group: LibraryDateGroup = new LibraryDateGroup(); group.items = this.images; return [group];
     }
     const groups: LibraryDateGroup[] = [];
+    const now: number = Date.now();
     for (const item of this.images) {
       const timestamp: number = item.finishedAt > 0 ? item.finishedAt : item.createdAt;
-      const moment: Date = new Date(timestamp);
-      const key: string = timestamp <= 0 ? '日期未知' : moment.getFullYear().toString() + '-'
-        + (moment.getMonth() + 1).toString().padStart(2, '0') + '-'
-        + moment.getDate().toString().padStart(2, '0');
-      let group: LibraryDateGroup | undefined = groups.find((value: LibraryDateGroup): boolean => value.label === key);
-      if (group === undefined) { group = new LibraryDateGroup(); group.label = key; groups.push(group); }
+      const key: string = LibraryDates.keyOf(timestamp);
+      let group: LibraryDateGroup | undefined = groups.find((value: LibraryDateGroup): boolean => value.key === key);
+      if (group === undefined) {
+        group = new LibraryDateGroup();
+        group.key = key; group.label = LibraryDates.labelOf(key, now);
+        groups.push(group);
+      }
       group.items.push(item);
     }
     return groups;
@@ -611,8 +630,42 @@ export class LibraryViewModel {
     this.query = value;
   }
 
-  setDensity(value: number): void {
-    this.density = value;
+  setGridStyle(value: string): void {
+    const next: string = value === 'square' ? 'square' : 'masonry';
+    if (this.gridStyle === next) { return; }
+    this.gridStyle = next;
+    this.ui.say(next === 'square' ? '已切换为三列方形' : '已切换为瀑布流');
+  }
+
+  /** 布局开关：瀑布流（两列原始比例）↔ 三列方形裁切。 */
+  toggleGridStyle(): void {
+    this.setGridStyle(this.gridStyle === 'square' ? 'masonry' : 'square');
+  }
+
+  squareTiles(): boolean {
+    return this.gridStyle === 'square';
+  }
+
+  /** 筛选面板里的来源名；同名来源（不同页面标题相同）追加数量以便区分。 */
+  collectionLabel(group: CollectionSummary): string {
+    const sameName: number = this.collections.filter((item: CollectionSummary): boolean =>
+      item.name === group.name).length;
+    return sameName > 1 ? group.name + ' · ' + group.completed.toString() : group.name;
+  }
+
+  /** 摘要行里的条件数量：只算筛选，不算布局偏好与搜索关键词。 */
+  filterCount(): number {
+    let count: number = this.sortOrder === 'newest' ? 0 : 1;
+    if (this.collectionFilter !== '*') { count++; }
+    if (this.albumFilter !== '*') { count++; }
+    if (this.isZips()) { return count; }
+    if (this.formatFilter.length > 0) { count++; }
+    if (this.sourceQuery.length > 0) { count++; }
+    if (this.favoritesOnly) { count++; }
+    if (this.tagFilter.length > 0) { count++; }
+    if (this.searchScope !== 'all') { count++; }
+    if (this.focusedIds.length > 0) { count++; }
+    return count;
   }
 
   setSegment(value: string): void {

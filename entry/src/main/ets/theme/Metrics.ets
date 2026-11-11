@@ -34,6 +34,16 @@ export class ScreenMetrics {
     return safeTop + (tall ? Layout.tbLayerSecondary : Layout.tbLayerNormal) + Layout.tbGap;
   }
 
+  /**
+   * 标题栏里还挂了一层自定义控件（图库页的分段 + 搜索）时的上内边距。
+   *
+   * 标题栏是覆盖在内容之上的浮层，多出来的这段高度不会自动把滚动内容推下去，
+   * 只能由页面的 `contentStartOffset` 让出来。
+   */
+  static topInsetWithHeader(safeTop: number, header: number): number {
+    return ScreenMetrics.topInset(safeTop, true) + header + Layout.tbGap;
+  }
+
   /** 浮动页签栏连安全区一共占掉多少高度。 */
   static tabBarSpace(safeBottom: number): number {
     return SafeAreaController.contentBottom(Layout.tabBarHeight + Layout.tabBarTopPad, safeBottom);

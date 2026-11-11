@@ -2,6 +2,7 @@ import { image } from '@kit.ImageKit';
 import { StillFrames } from '../service/StillFrames';
 import { ThumbnailImages, ThumbnailRequest, ThumbnailResult } from '../service/ThumbnailImages';
 import { Palette, Radius, Space } from '../theme/Tokens';
+import { Glyph } from './Icons';
 
 /** Image with a type-badge fallback, mirroring the prototype's <Img>. */
 @ComponentV2
@@ -25,8 +26,10 @@ export struct Thumb {
    * 同时动画既费电又晃眼。所以动图格子把解码好的首帧交给这里静态绘制（见 service/StillFrames）。
    */
   @Param firstFramePath: string = '';
-  /** 类型角标（「动图」「实况」「GIF」…）；空串不画。 */
+  /** 类型角标（「动图」「GIF」…）；空串不画。 */
   @Param badge: string = '';
+  /** 实况照片等有 HMSymbol 的类型用图标角标，优先于 `badge` 文字。 */
+  @Param badgeGlyph: string = '';
   /** 图库将类型角标放在左上角，其他缩略图保持原位置。 */
   @Param badgeTopLeft: boolean = false;
   @Param fit: ImageFit = ImageFit.Cover;
@@ -143,17 +146,24 @@ export struct Thumb {
           .fontColor(Palette.fontTertiary)
       }
 
-      if (this.badge.length > 0) {
+      if (this.badge.length > 0 || this.badgeGlyph.length > 0) {
         Column() {
-          Text(this.badge)
-            .fontSize(10)
-            .lineHeight(17)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Palette.white)
-            .height(17)
-            .padding({ left: Space.s6, right: Space.s6 })
-            .borderRadius(Radius.full)
-            .backgroundColor('#6B000000')
+          Row() {
+            if (this.badgeGlyph.length > 0) {
+              Glyph({ glyph: this.badgeGlyph, glyphSize: 13, glyphTone: Palette.white, glyphWeight: 2.4 })
+            } else {
+              Text(this.badge)
+                .fontSize(10)
+                .lineHeight(17)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Palette.white)
+            }
+          }
+          .height(17)
+          .padding({ left: Space.s6, right: Space.s6 })
+          .borderRadius(Radius.full)
+          .backgroundColor('#6B000000')
+          .accessibilityText(this.badgeGlyph.length > 0 ? '实况照片' : this.badge)
         }
         .width('100%')
         .height('100%')

@@ -110,6 +110,11 @@ export class Layout {
   /** Text layer with a subtitle (title 35 + 1 + subtitle 19 + 12). */
   static readonly tbLayerNormal: number = 52;
   static readonly tbLayerSecondary: number = 67;
+  /**
+   * 图库页挂在标题栏 bottomBuilder 里的控件层：40 的分段行 + 12 间距 + 48 的搜索框。
+   * 标题栏变高后，内容区的 contentStartOffset 必须同步让出这一段（见 ScreenMetrics.topInsetWithHeader）。
+   */
+  static readonly tbLibraryHeader: number = 100;
 
   /** Bottom tab: 16 clearance + 56 pill + the home-indicator zone. */
   static readonly tabBarHeight: number = 56;
