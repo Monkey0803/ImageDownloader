@@ -1,10 +1,11 @@
 import { DiscoverViewModel } from '../../viewmodel/DiscoverViewModel';
 import { DeviceViewModel } from '../../viewmodel/DeviceViewModel';
+import { MaterialController } from '../../service/MaterialController';
 import { Font, Layout, Palette, Radius, Shadow, Space } from '../../theme/Tokens';
 import { ScreenMetrics } from '../../theme/Metrics';
 import { Glyph } from '../Icons';
 import { AppSheet } from '../AppSheet';
-import { IconButton, MODE_LABELS, PillButton } from '../Widgets';
+import { MODE_LABELS, PillButton } from '../Widgets';
 import { AppSegmentButton, segmentCapsuleWidth } from '../AppSegmentButton';
 import { SCREEN_INSETS } from '../../theme/Metrics';
 
@@ -236,34 +237,57 @@ export struct PrivacyVeil {
 }
 
 /**
- * 「返回顶部」按钮。
+ * 「回到顶部」按钮。
  *
  * 这一层横跨整屏、只为一颗按钮存在：让空白处退出命中测试（`HitTestMode.Transparent`），
  * 否则它会盖住下面那一条内容（浮动的下载条、页签栏）点不动。
+ *
+ * 图标是 HM Symbol（`chevron_up`），外观是沉浸光感玻璃：
+ * - `glass` 由 Index 传入，与浮动页签栏是否挂材质同源（`shellPlan().tabMaterial`）；
+ * - 开启时用 `glassStrong` 半透明底 + 背景模糊 + 0.5vp 高光描边，关闭时回退不透明卡片底。
+ *
+ * **注意**：页面内容区的组件级 `systemMaterial` 目前不渲染（同 `view/AppSearch.ets`
+ * 的说明与 AGENT.md 坑 10），所以可见的玻璃观感必须由上面的底色 / 模糊 / 描边承担，
+ * `systemMaterial` 只是能力就绪时的叠加项 —— 不要把底色删成「只留 systemMaterial」，
+ * 否则在不渲染的机器上按钮会变成透明、看不见。
  */
 @ComponentV2
 export struct ToTopButton {
   /** 智感握姿的左手镜像：按钮贴左上而不是右上。 */
   @Param mirror: boolean = false;
-  /** 离底边的距离，由 Index 按当前页签与浮层情况算好。 */
+  /** 与标题栏 / 页签栏共用的页边距口径，由 Index 传入。 */
+  @Param sideSpace: number = Layout.pagePad;
+  /** 离底边的距离，由 Index 按页签栏几何算好。 */
   @Param bottomSpace: number = 0;
+  /** 沉浸光感开启且设备支持时为 true；关闭时回退不透明卡片底。 */
+  @Param glass: boolean = true;
   @Event onTap: () => void = (): void => {
   };
 
   build() {
     Column() {
-      IconButton({
-        glyph: 'chevronUp', glyphSize: 21, diameter: 42,
-        onAction: (): void => {
-          this.onTap();
-        }
+      Stack() {
+        Glyph({ glyph: 'chevronUp', glyphSize: 22, glyphWeight: 1.9, glyphTone: Palette.fontPrimary })
+      }
+      .width(42)
+      .height(42)
+      .borderRadius(Radius.full)
+      .backgroundColor(this.glass ? Palette.glassStrong : Palette.card)
+      .backdropBlur(this.glass ? 30 : 0)
+      .borderWidth(this.glass ? 0.5 : 0)
+      .borderColor(Palette.sheen)
+      .shadow(this.glass ? Shadow.action() : Shadow.card())
+      .systemMaterial(MaterialController.glassMaterial(this.glass))
+      .accessibilityText('回到顶部')
+      .onClick((): void => {
+        this.onTap();
       })
     }
     .width('100%')
     .alignItems(this.mirror ? HorizontalAlign.Start : HorizontalAlign.End)
     .padding({
-      left: Layout.pagePad,
-      right: Layout.pagePad,
+      left: this.sideSpace,
+      right: this.sideSpace,
       bottom: this.bottomSpace
     })
     .hitTestBehavior(HitTestMode.Transparent)

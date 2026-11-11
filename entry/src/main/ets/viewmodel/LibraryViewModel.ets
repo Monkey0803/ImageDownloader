@@ -585,11 +585,9 @@ export class LibraryViewModel {
   }
 
   scrollToTop(): void {
-    this.scroller.scrollTo({
-      xOffset: 0,
-      yOffset: 0,
-      animation: { duration: 320, curve: Curve.FastOutSlowIn }
-    });
+    // 同 TasksViewModel：图库的 WaterFlow 也用 `contentStartOffset` 让开标题栏 + 分段行，
+    // scrollTo(0) 会绕过这段让位、把首行糊到标题下面。
+    this.scroller.scrollEdge(Edge.Top);
   }
 
   sync(): void {

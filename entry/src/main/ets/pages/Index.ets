@@ -385,11 +385,13 @@ struct Index {
 
   // ------------------------------------------------------------------ 返回顶部
 
-  /** 当前页签自己的「滚远了没有」；设置页没有列表，永远 false。 */
+  /**
+   * 当前页签自己的「滚远了没有」。
+   *
+   * 只有任务 / 图库挂这颗按钮：发现页的浏览结果没有浮动页签栏可依附，
+   * 滚动状态仍由 DiscoverViewModel 维护（扫图、结果切换要用），只是不再驱动按钮。
+   */
   private topVisible(): boolean {
-    if (this.currentTab === TAB_DISCOVER && !this.browserOpen && !this.discover.batchOpen) {
-      return this.discover.scrolled;
-    }
     if (this.currentTab === TAB_TASKS) {
       return this.tasks.scrolled;
     }
@@ -406,23 +408,29 @@ struct Index {
     }
     if (this.currentTab === TAB_LIBRARY) {
       this.library.scrollToTop();
-      return;
     }
-    this.discover.scrollToTop();
   }
 
   /**
-   * 返回顶部按钮离底边的距离。
+   * 返回顶部按钮离底边的距离：紧贴浮动页签栏上沿再往上 8vp。
    *
-   * 图片结果页底部还叠着握姿胶囊和选择条，按钮得排在它们上面。
+   * 不能按 `tabBarSpace()` 算 —— 那是「滚动内容要为页签栏让出的高度」
+   * （页签 56 + 16 间距 + 安全区），和浮动页签栏的实际上边差一个 16，
+   * 按钮会飘在半空，且带不带手势条的设备上间距还不一样。这里直接读页签栏自己的几何。
    */
   private toTopBottomInset(): number {
-    const extra: number = this.currentTab === TAB_DISCOVER
-      ? (this.discover.selectedTotal > 0 ? 68 : 0) + (this.device.gripChipVisible() ? 40 : 0)
-      : 0;
-    const bottom: number = this.currentTab === TAB_DISCOVER
-      ? SCREEN_INSETS.safeBottom : ScreenMetrics.tabBarSpace(SCREEN_INSETS.safeBottom);
-    return bottom + Space.s12 + extra;
+    const plan: HdsShellPlan = this.shellPlan();
+    return plan.bottomMargin + Layout.tabBarHeight + Space.s8;
+  }
+
+  /**
+   * 按钮的左右页边距：与标题栏 / 页签栏共用同一套口径，顺带让开挖孔与侧边安全区。
+   *
+   * 注意 HDS 浮动页签栏的宽度由它自己按屏宽和页签数决定（默认比「满宽减页边距」窄），
+   * 所以这里对齐的是**页面内容边距**，不是页签胶囊的左右边缘。
+   */
+  private toTopSideInset(): number {
+    return Math.max(Layout.pagePad, SCREEN_INSETS.safeLeft, SCREEN_INSETS.safeRight);
   }
 
   private browserSheetHeight(): number {
@@ -667,11 +675,13 @@ struct Index {
       // 图库预览使用独立页面；发现页预览留在 Index 中复用当前扫描状态，
       // onBackPress 会优先关闭它，避免系统返回直接退出应用。
 
-      if (!this.device.peeking && !this.discover.batchOpen && this.topVisible()
+      if (!this.device.peeking && this.topVisible()
         && !(this.currentTab === TAB_LIBRARY && this.library.selecting)) {
         ToTopButton({
           mirror: this.device.gripLeft(),
+          sideSpace: this.toTopSideInset(),
           bottomSpace: this.toTopBottomInset(),
+          glass: this.shellPlan().tabMaterial,
           onTap: (): void => {
             this.scrollToTop();
           }

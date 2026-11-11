@@ -170,11 +170,9 @@ export class TasksViewModel {
   }
 
   scrollToTop(): void {
-    this.scroller.scrollTo({
-      xOffset: 0,
-      yOffset: 0,
-      animation: { duration: 320, curve: Curve.FastOutSlowIn }
-    });
+    // 用 scrollEdge 而不是 scrollTo(0)：列表用 `contentStartOffset` 给浮动标题栏让位，
+    // scrollTo(0) 会把内容顶到容器上沿、绕过这段让位（标题栏压住筛选行）。
+    this.scroller.scrollEdge(Edge.Top);
   }
 
   focusFromWidget(id: string, kind: string): void {
