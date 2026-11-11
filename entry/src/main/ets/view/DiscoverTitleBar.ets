@@ -1,6 +1,6 @@
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DiscoverViewModel } from '../viewmodel/DiscoverViewModel';
-import { Font, Palette, Radius, Shadow, Space } from '../theme/Tokens';
+import { Font, Layout, Palette, Radius, Shadow, Space } from '../theme/Tokens';
 import { Glyph } from './Icons';
 import { IconButton, PillButton } from './Widgets';
 import { SCREEN_INSETS, ScreenMetrics } from '../theme/Metrics';
@@ -44,7 +44,7 @@ export struct DiscoverTitleBar {
         active: this.discover.address.trim().length > 0,
         onAction: (): void => { this.discover.visit(); } })
     }
-    .width('100%').height(44)
+    .width('100%').height(Layout.tbAddressBar)
     .padding({ left: Space.s14, right: Space.s4 })
     .borderRadius(Radius.full)
     .backgroundColor(Palette.card)
@@ -66,7 +66,8 @@ export struct DiscoverTitleBar {
         Text('查看图片').fontSize(Font.body).fontWeight(FontWeight.Bold).fontColor(Palette.fontPrimary)
       }
     }
-    .width('100%').padding({ left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
+    .width('100%').height(Layout.tbAddressBar)
+    .padding({ left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
       right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight) })
   }
 }

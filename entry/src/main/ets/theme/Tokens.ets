@@ -115,6 +115,13 @@ export class Layout {
    * 标题栏变高后，内容区的 contentStartOffset 必须同步让出这一段（见 ScreenMetrics.topInsetWithHeader）。
    */
   static readonly tbLibraryHeader: number = 100;
+  /**
+   * 发现页标题栏里挂的是地址胶囊，不是标题 + 副标题。
+   * 胶囊自己就 44 高（见 DiscoverTitleBar.addressEntry），标题栏上下各留 12，
+   * 页面顶部占位由 ScreenMetrics.topInsetForDiscover 统一算，别在页面里另写数字。
+   */
+  static readonly tbAddressBar: number = 44;
+  static readonly tbTitlePad: number = 12;
 
   /** Bottom tab: 16 clearance + 56 pill + the home-indicator zone. */
   static readonly tabBarHeight: number = 56;

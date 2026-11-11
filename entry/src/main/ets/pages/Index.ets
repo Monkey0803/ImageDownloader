@@ -1,9 +1,11 @@
 import { PreviewOverlayState } from '../model/PreviewOverlayState';
 import { PREVIEW_LIFECYCLE } from '../model/PreviewLifecycle';
 import { common } from '@kit.AbilityKit';
+import { LengthMetrics } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { HdsNavDestination, HdsNavigation, HdsNavigationTitleBarStyle, HdsTabs,
   HdsTabsController, HdsTabsFloatingStyle, HdsNavigationTitleBarOptions, HdsNavigationTitleMode,
+  HdsTitleBarContentStyle, SystemMaterialParams,
   TitleBarContentOptions,
   TitleBarStyleOptions, TextStyleMode, ScrollEffectType, BottomBuilderShowType, hdsMaterial } from '@kit.UIDesignKit';
 import { DownloadItem } from '../model/Models';
@@ -63,6 +65,15 @@ struct Index {
   private tabs: HdsTabsController = new HdsTabsController();
   private tabsReady: boolean = false;
   private settingsScroller: Scroller = new Scroller();
+  /**
+   * 交给 `HdsNavigation.bindToScrollable` 的整组滚动容器。
+   *
+   * 必须**一次性、常驻**地交出四个页签的 Scroller：HDS 的滚动联动是挂载期接线，
+   * 按「当前页签」现算数组（首帧 `browserOpen=true` 时甚至是空数组、之后每次切页签又换新数组）
+   * 会让标题栏的滚动渐变模糊在四个页签里都接不上，只剩页签栏自己有材质效果。
+   * 四个 Scroller 都在 ViewModel / 外壳里常驻，这里只维护这一份引用。
+   */
+  private shellScrollers: Scroller[] = [];
   /** 页面是否在前台：图库预览页盖在上面时不要把这边的提示取走。 */
   @Local private pageVisible: boolean = true;
   /** 提示的定时器与「销毁后不再弹」的守卫都在这里，见 util/Toast.ets。 */
@@ -113,6 +124,11 @@ struct Index {
   private widgetLaunchListener: () => void = (): void => { this.consumeWidgetLaunch(); };
 
   aboutToAppear(): void {
+    // 先把四个页签的滚动容器一次交给 HdsNavigation（见 shellScrollers 的说明）。
+    this.shellScrollers = [
+      this.discover.scrollController(), this.tasks.scrollController(),
+      this.library.scrollController(), this.settingsScroller
+    ];
     const context: common.UIAbilityContext = this.hostContext();
     appLock.attach(context);
     this.toast.bind((text: string): void => {
@@ -482,20 +498,51 @@ struct Index {
     return style;
   }
 
-  private titleStyle(): TitleBarStyleOptions {
-    const bar: HdsNavigationTitleBarStyle = {
-      contentStyle: {
-        titleStyle: { mainTitleColor: Palette.fontPrimary, subTitleColor: Palette.fontSecondary },
-        menuStyle: { textColor: Palette.fontPrimary, iconColor: Palette.fontPrimary },
-        backIconStyle: { iconColor: Palette.fontPrimary, backgroundColor: Palette.card },
-        dividerStyle: { dividerColor: Palette.divider }
-      }
+  /**
+   * 标题栏样式：静止态透明、滚动后露出材质背板。
+   *
+   * 标题栏是浮层（`enableComponentSafeArea: false` + `avoidLayoutSafeArea: true`），四个页面的内容
+   * 本来就从它下方经过。`bindToScrollable` 把整组 Scroller 接上之后，HDS 会在这里的两份样式之间
+   * 按滚动量渐变，并叠一层「沉浸式渐变模糊」——和悬浮页签栏的 glass + gradientMask 是同一套观感。
+   *
+   * 两份样式必须分开写：原来 `originalStyle` 与 `scrollEffectStyle` 指向同一个对象，静止态与滚动态
+   * 没有任何差异，效果也就看不出来。
+   */
+  private titleStyle(scrollEffect: boolean = true): TitleBarStyleOptions {
+    const content: HdsTitleBarContentStyle = {
+      titleStyle: { mainTitleColor: Palette.fontPrimary, subTitleColor: Palette.fontSecondary },
+      menuStyle: { textColor: Palette.fontPrimary, iconColor: Palette.fontPrimary },
+      backIconStyle: { iconColor: Palette.fontPrimary, backgroundColor: Palette.card },
+      dividerStyle: { dividerColor: Palette.divider }
     };
-    const style: TitleBarStyleOptions = { originalStyle: bar, scrollEffectStyle: bar, thermoCtrl: true,
-      scrollEffectOpts: { scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR } };
     const enabled: boolean = this.shellPlan().titleMaterial && !this.device.peeking;
-    style.systemMaterialEffect = MaterialController.hdsParams(this.settings.materialType, enabled);
-    if (!enabled) { bar.backgroundStyle = { backgroundColor: Palette.bg }; }
+    const material: SystemMaterialParams = MaterialController.hdsParams(this.settings.materialType, enabled);
+    // 材质生效时让玻璃材质自己当背板；材质不可用时滚动后补不透明底色，保证标题仍可读。
+    const backdrop: ResourceColor = material.materialType === hdsMaterial.MaterialType.NONE
+      ? Palette.bg : Color.Transparent;
+    const original: HdsNavigationTitleBarStyle = {
+      contentStyle: content, backgroundStyle: { backgroundColor: Color.Transparent }
+    };
+    const scrolled: HdsNavigationTitleBarStyle = {
+      contentStyle: content, backgroundStyle: { backgroundColor: backdrop }
+    };
+    const style: TitleBarStyleOptions = scrollEffect
+      ? {
+        originalStyle: original, scrollEffectStyle: scrolled, thermoCtrl: true,
+        systemMaterialEffect: material,
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR,
+          blurEffectiveStartOffset: LengthMetrics.vp(0),
+          blurEffectiveEndOffset: LengthMetrics.vp(20)
+        }
+      }
+      : {
+        // 没有绑定滚动容器时不要开热控与渐变模糊遮罩：MaskBlur 会越过标题栏下边界
+        // 往内容区多铺一段（实测约 32vp），压在地址栏下方第一个内容上。
+        originalStyle: scrolled, scrollEffectStyle: scrolled, thermoCtrl: false,
+        systemMaterialEffect: material
+      };
     return style;
   }
 
@@ -506,15 +553,6 @@ struct Index {
         : this.library.imageCount.toString() + ' 张图片 · ' + formatBytes(this.library.imageBytes);
     }
     return '';
-  }
-
-  private activeScrollers(): Scroller[] {
-    if (this.currentTab === TAB_DISCOVER) {
-      return this.browserOpen ? [] : [this.discover.scrollController()];
-    }
-    if (this.currentTab === TAB_TASKS) { return [this.tasks.scrollController()]; }
-    if (this.currentTab === TAB_LIBRARY) { return [this.library.scrollController()]; }
-    return [this.settingsScroller];
   }
 
   @Builder
@@ -534,6 +572,10 @@ struct Index {
     if (this.device.peeking) {
       content.title = { mainTitle: $r('app.string.privacy_title_hidden') };
     } else if (this.currentTab === TAB_DISCOVER) {
+      // 发现页的标题栏是自定义地址胶囊（stackBuilder）。HDS 换到 stackBuilder 时不会清掉上一个页签
+      // 留在文本层里的 mainTitle / subTitle，从「任务」切回来能在胶囊左侧看到「任务 / 无进行中」残影，
+      // 这里显式置空，把文本层收掉。
+      content.title = { mainTitle: '', subTitle: '' };
       content.stackBuilder = () => this.discoverTitleContent();
     } else {
       content.title = {
@@ -562,7 +604,8 @@ struct Index {
       }
     }
     return { avoidLayoutSafeArea: true, enableComponentSafeArea: false,
-      style: this.titleStyle(), content: content };
+      style: this.titleStyle(!(this.currentTab === TAB_DISCOVER && this.browserOpen)),
+      content: content };
   }
 
   @Builder
@@ -768,7 +811,7 @@ struct Index {
     .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
     .hideBackButton(true)
     .hideTitleBar(this.previewOpen)
-    .bindToScrollable(this.activeScrollers())
+    .bindToScrollable(this.shellScrollers)
     .width('100%').height('100%')
     if (!appLock.ready || appLock.locked) { AppLockVeil() }
     }

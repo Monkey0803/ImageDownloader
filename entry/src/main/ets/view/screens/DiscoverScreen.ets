@@ -114,6 +114,9 @@ export struct DiscoverScreen {
           } })
         if (this.discover.expansionMessage.length > 0) {
           Text(this.discover.expansionMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
+            .width('100%')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
       }.width('100%').alignItems(HorizontalAlign.Start)
     }
@@ -200,7 +203,7 @@ export struct DiscoverScreen {
     .padding({
       left: ScreenMetrics.sideInset(SCREEN_INSETS.safeLeft),
       right: ScreenMetrics.sideInset(SCREEN_INSETS.safeRight),
-      top: ScreenMetrics.topInset(SCREEN_INSETS.safeTop, true),
+      top: ScreenMetrics.topInsetForDiscover(SCREEN_INSETS.safeTop),
       bottom: SCREEN_INSETS.contentBottomInsetVp + Space.s12
     })
     .backgroundColor(Palette.bg)

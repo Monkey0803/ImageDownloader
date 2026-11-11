@@ -35,6 +35,17 @@ export class ScreenMetrics {
   }
 
   /**
+   * 发现页的上内边距：标题栏里挂的是地址胶囊（`Layout.tbAddressBar`），
+   * 不是「标题 + 副标题」那一层，所以不能沿用 tbLayerSecondary 的 67。
+   *
+   * 标题栏是覆盖在内容之上的浮层，胶囊高度与标题栏自身留白一旦和页面占位对不上，
+   * 紧贴胶囊下方的第一个内容（工具栏、扩张状态文字）就会被压进标题栏覆盖区。
+   */
+  static topInsetForDiscover(safeTop: number): number {
+    return safeTop + Layout.tbAddressBar + Layout.tbTitlePad * 2 + Layout.tbGap;
+  }
+
+  /**
    * 标题栏里还挂了一层自定义控件（图库页的分段 + 搜索）时的上内边距。
    *
    * 标题栏是覆盖在内容之上的浮层，多出来的这段高度不会自动把滚动内容推下去，
