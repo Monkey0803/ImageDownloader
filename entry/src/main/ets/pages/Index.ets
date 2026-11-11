@@ -5,7 +5,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { HdsNavDestination, HdsNavigation, HdsNavigationTitleBarStyle, HdsTabs,
   HdsTabsController, HdsTabsFloatingStyle, HdsNavigationTitleBarOptions, HdsNavigationTitleMode,
   TitleBarContentOptions,
-  TitleBarStyleOptions, TextStyleMode, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+  TitleBarStyleOptions, TextStyleMode, ScrollEffectType, BottomBuilderShowType, hdsMaterial } from '@kit.UIDesignKit';
 import { DownloadItem } from '../model/Models';
 import { TAB_DISCOVER, TAB_LIBRARY, TAB_TASKS, TAB_SETTINGS } from '../model/Navigation';
 import { DownloadStore } from '../service/DownloadStore';
@@ -24,6 +24,7 @@ import { SheetStyle } from '../theme/SheetStyle';
 import { AppSheet } from '../view/AppSheet';
 import { BATCH_PAGE_NAME, BatchPagePanel } from '../view/BatchPagePanel';
 import { DiscoverTitleBar } from '../view/DiscoverTitleBar';
+import { LibraryTitleBar } from '../view/LibraryTitleBar';
 import { ToastLatch } from '../util/Toast';
 import { DiscoverScreen } from '../view/screens/DiscoverScreen';
 import { BrowserLibrarySheet } from '../view/BrowserLibrarySheet';
@@ -443,6 +444,9 @@ struct Index {
         this.library.cancelSimilar();
         this.library.stopTapShare();
       }
+      if (index !== TAB_TASKS) {
+        this.tasks.endSearch();
+      }
       this.currentTab = index;
       if (index === TAB_LIBRARY) {
         this.library.refreshCatalog().catch((): void => this.say('图库整理信息读取失败，请重试'));
@@ -511,6 +515,12 @@ struct Index {
       onOpenBrowser: (): void => { this.browserOpen = true; this.discover.resumeBrowser(); } })
   }
 
+  /** 图库页的分段 / 布局 / 筛选 / 搜索挂在原生标题栏下方（bottomBuilder）。 */
+  @Builder
+  private libraryTitleContent() {
+    LibraryTitleBar({ library: this.library, settings: this.settings })
+  }
+
   private rootTitleBar(): HdsNavigationTitleBarOptions {
     const content: TitleBarContentOptions = { menu: { value: [] } };
     if (this.device.peeking) {
@@ -522,15 +532,25 @@ struct Index {
         mainTitle: this.currentTab === TAB_TASKS ? '任务' : this.currentTab === TAB_LIBRARY ? '图库' : '设置',
         subTitle: this.titleCaption()
       };
-      if (this.currentTab === TAB_TASKS && !this.tasks.isEmpty()) {
-        content.menu = { value: [{ content: { label: '清空', type: TextStyleMode.NORMAL,
-          action: (): void => { this.tasks.confirmClearAll(); } } }] };
+      if (this.currentTab === TAB_TASKS && (!this.tasks.isEmpty() || this.tasks.searching)) {
+        content.menu = { value: [
+          { content: { label: this.tasks.searching ? '取消搜索' : '搜索', type: TextStyleMode.NORMAL,
+            action: (): void => { this.tasks.toggleSearch(); } } },
+          { content: { label: '清空', type: TextStyleMode.NORMAL,
+            action: (): void => { this.tasks.confirmClearAll(); } } }
+        ] };
       } else if (this.currentTab === TAB_LIBRARY) {
         content.menu = { value: [{ content: { label: this.library.selecting ? '完成' : '选择',
           type: TextStyleMode.NORMAL, action: (): void => {
             if (this.library.selecting) { this.library.endSelection(); }
             else { this.library.startSelection(); }
           } } }] };
+        // 分段 + 搜索常驻在标题栏内，不随照片滚走；高度与页面 contentStartOffset 共用同一个常量。
+        content.bottomBuilder = {
+          builder: (): void => { this.libraryTitleContent(); },
+          height: Layout.tbLibraryHeader,
+          showType: BottomBuilderShowType.DIRECTLY_SHOW
+        };
       }
     }
     return { avoidLayoutSafeArea: true, enableComponentSafeArea: false,
@@ -623,8 +643,7 @@ struct Index {
             .tabBar(this.tabLabel(TABS[TAB_TASKS], TAB_TASKS))
           TabContent() {
             Stack() {
-              LibraryScreen({ library: this.library, settings: this.settings,
-                active: this.currentTab === TAB_LIBRARY })
+              LibraryScreen({ library: this.library, active: this.currentTab === TAB_LIBRARY })
               if (this.device.peeking) { PrivacyVeil({ device: this.device }) }
             }.width('100%').height('100%')
           }.tabBar(this.tabLabel(TABS[TAB_LIBRARY], TAB_LIBRARY))
@@ -648,7 +667,8 @@ struct Index {
       // 图库预览使用独立页面；发现页预览留在 Index 中复用当前扫描状态，
       // onBackPress 会优先关闭它，避免系统返回直接退出应用。
 
-      if (!this.device.peeking && !this.discover.batchOpen && this.topVisible()) {
+      if (!this.device.peeking && !this.discover.batchOpen && this.topVisible()
+        && !(this.currentTab === TAB_LIBRARY && this.library.selecting)) {
         ToTopButton({
           mirror: this.device.gripLeft(),
           bottomSpace: this.toTopBottomInset(),

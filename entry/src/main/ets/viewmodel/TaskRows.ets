@@ -7,6 +7,8 @@ export class TaskRow {
   kind: string = '';
   title: string = '';
   count: number = 0;
+  /** 区块标题右侧的文字动作；空串表示不显示。 */
+  actionLabel: string = '';
   state: string = '';
   task: DownloadItem | undefined = undefined;
   batch: BatchView | undefined = undefined;
@@ -32,6 +34,17 @@ export class TaskRows implements IDataSource {
       row.key !== next[index].key)) {
       this.listeners.forEach((listener: DataChangeListener): void => { listener.onDataReloaded(); });
       return;
+    }
+    // LazyForEach 的 onDataChange 不会刷新 SectionHead 的 @Param；标题/计数/动作变化时
+    // 直接整表重建（只发生在筛选、搜索、任务完成这类低频状态切换上）。
+    for (let index: number = 0; index < next.length; index += 1) {
+      const old: TaskRow = previous[index];
+      const current: TaskRow = next[index];
+      if (old.kind === 'heading' && (old.title !== current.title || old.count !== current.count
+        || old.actionLabel !== current.actionLabel)) {
+        this.listeners.forEach((listener: DataChangeListener): void => { listener.onDataReloaded(); });
+        return;
+      }
     }
     for (let index: number = 0; index < next.length; index++) {
       const old: TaskRow = previous[index];

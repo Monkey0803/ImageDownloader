@@ -68,5 +68,80 @@ export default function tasksViewModelTest() {
       model.batchViews = [new BatchView()];
       expect(model.caption()).assertEqual('有打包任务待处理');
     });
+
+    it('hides_zero_counts_in_status_labels', 0, () => {
+      DownloadStore.downloads = [task('a', 'completed'), task('b', 'completed')];
+
+      const model: TasksViewModel = new TasksViewModel();
+      model.sync();
+      expect(model.statusLabels[0]).assertEqual('全部 2');
+      expect(model.statusLabels[1]).assertEqual('进行中');
+      expect(model.statusLabels[2]).assertEqual('已完成 2');
+      expect(model.statusLabels[3]).assertEqual('失败');
+      expect(model.statusLabels[4]).assertEqual('已取消');
+    });
+
+    it('hides_the_summary_when_nothing_is_active', 0, () => {
+      DownloadStore.downloads = [task('done', 'completed')];
+      const model: TasksViewModel = new TasksViewModel();
+      model.sync();
+      expect(model.summaryVisible).assertFalse();
+
+      DownloadStore.downloads = [task('run', 'running')];
+      model.sync();
+      expect(model.summaryVisible).assertTrue();
+    });
+
+    it('settled_heading_follows_status_filter', 0, () => {
+      DownloadStore.downloads = [task('a', 'completed'), task('b', 'failed')];
+      const model: TasksViewModel = new TasksViewModel();
+      model.sync();
+      expect(model.rows.getData(0).title).assertEqual('已结束');
+      expect(model.rows.getData(0).actionLabel).assertEqual('清理');
+
+      model.setStatusFilter('completed');
+      expect(model.rows.getData(0).title).assertEqual('已完成');
+
+      model.setStatusFilter('failed');
+      expect(model.rows.getData(0).title).assertEqual('失败');
+      expect(model.rows.getData(0).actionLabel).assertEqual('');
+    });
+
+    it('search_filters_by_name_and_reports_no_match', 0, () => {
+      const alpha: DownloadItem = task('a', 'completed');
+      alpha.name = 'alpha.jpg';
+      const beta: DownloadItem = task('b', 'completed');
+      beta.name = 'beta.jpg';
+      DownloadStore.downloads = [alpha, beta];
+
+      const model: TasksViewModel = new TasksViewModel();
+      model.sync();
+      model.toggleSearch();
+      expect(model.searching).assertTrue();
+      expect(model.caption()).assertEqual('输入文件名搜索');
+
+      model.setQuery('alpha');
+      expect(model.settled.length).assertEqual(1);
+      expect(model.caption()).assertEqual('搜索到 1 条');
+
+      model.setQuery('zzz');
+      expect(model.isEmpty()).assertTrue();
+      expect(model.caption()).assertEqual('没有匹配的任务');
+
+      model.endSearch();
+      expect(model.searching).assertFalse();
+      expect(model.settled.length).assertEqual(2);
+    });
+
+    it('marks_settled_rows_as_mixed_only_when_statuses_differ', 0, () => {
+      DownloadStore.downloads = [task('a', 'completed'), task('b', 'completed')];
+      const model: TasksViewModel = new TasksViewModel();
+      model.sync();
+      expect(model.settledMixed).assertFalse();
+
+      DownloadStore.downloads = [task('a', 'completed'), task('b', 'failed')];
+      model.sync();
+      expect(model.settledMixed).assertTrue();
+    });
   });
 }

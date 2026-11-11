@@ -146,6 +146,8 @@ export struct ShotTile {
   @Require @Param image: DownloadItem;
   @Param selecting: boolean = false;
   @Param selected: boolean = false;
+  /** 三列方形裁切：忽略原始比例，统一 1:1 并按方形中心裁切缩略图。 */
+  @Param square: boolean = false;
   @Event onOpen: (image: DownloadItem) => void = () => {
   };
 
@@ -185,6 +187,15 @@ export struct ShotTile {
     return this.image.hdr ? 'HDR' : '';
   }
 
+  /** 预览不可用时仍按真实比例占位，避免整行高度跳动。 */
+  private tileRatio(): number {
+    return this.square ? 1 : 1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight);
+  }
+
+  private previewAspect(): number {
+    return this.square ? 1 : 1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight);
+  }
+
   build() {
     Column() {
       Stack() {
@@ -199,14 +210,9 @@ export struct ShotTile {
             firstFramePath: this.firstFramePath(),
             badge: this.badge(),
             badgeTopLeft: true,
-            preferredAspect: 1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight)
+            preferredAspect: this.previewAspect()
           })
         }
-        Row()
-          .width('100%')
-          .height('100%')
-          .borderRadius(Radius.r6)
-          .border({ width: 1, color: Palette.divider, radius: Radius.r6 })
         if (this.selecting) {
           Column() {
             Stack() {
@@ -224,8 +230,8 @@ export struct ShotTile {
         }
       }
       .width('100%')
-      .aspectRatio(1 / GalleryAspect.heightRatio(this.image.imageWidth, this.image.imageHeight))
-      .borderRadius(Radius.r6)
+      .aspectRatio(this.tileRatio())
+      .borderRadius(Radius.r8)
       .clip(true)
       .accessibilityText(this.image.name)
       .accessibilitySelected(this.selecting && this.selected)
@@ -245,6 +251,8 @@ export struct TaskCard {
   @Require @Param task: DownloadItem;
   @Param thumbnailSource: string = '';
   @Param firstFramePath: string = '';
+  /** 同质列表（筛选到单一状态）不显示重复的状态胶囊。 */
+  @Param showStatus: boolean = true;
   @Event onRetryDelivery: (task: DownloadItem) => void = () => {};
   @Event onPause: (task: DownloadItem) => void = () => {
   };
@@ -256,7 +264,6 @@ export struct TaskCard {
   };
   @Event onLocate: (task: DownloadItem) => void = () => {
   };
-  @Event onHide: (task: DownloadItem) => void = () => {};
   /**
    * 点缩略图看大图。
    *
@@ -270,10 +277,6 @@ export struct TaskCard {
     return this.task.status === 'queued' || this.task.status === 'starting'
       || this.task.status === 'running' || this.task.status === 'waiting' || this.task.status === 'paused'
       || this.task.status === 'packing';
-  }
-
-  private isSettled(): boolean {
-    return this.task.status === 'completed' || this.task.status === 'failed' || this.task.status === 'cancelled';
   }
 
   private meta(): string {
@@ -318,6 +321,53 @@ export struct TaskCard {
     return this.task.receipt.message === '原件保存在应用内' ? '' : this.task.receipt.message;
   }
 
+  /** 把回执说明收成一行，避免每张完成卡多出一行固定文案。 */
+  @Builder
+  private receiptLine(receipt: string) {
+    if (receipt.length > 0) {
+      Text(receipt)
+        .fontSize(Font.caption)
+        .lineHeight(Font.captionLine)
+        .fontColor(Palette.fontSecondary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+  }
+
+  /**
+   * 尺寸 / 时间 / 错误合并为一行。
+   *
+   * 参数在这里传进来（而不是在 builder 里反复调 `meta()`）：一次 build 只格式化一次。
+   */
+  @Builder
+  private infoRow(meta: string) {
+    if (meta.length > 0 || this.task.error.length > 0) {
+      Row({ space: Space.s8 }) {
+        if (meta.length > 0) {
+          Text(meta)
+            .fontSize(Font.caption)
+            .lineHeight(Font.captionLine)
+            .fontColor(Palette.fontTertiary)
+        }
+        if (meta.length > 0 && this.task.error.length > 0) {
+          Text('·')
+            .fontSize(Font.caption)
+            .fontColor(Palette.fontTertiary)
+        }
+        if (this.task.error.length > 0) {
+          Text(this.task.error)
+            .fontSize(Font.caption)
+            .lineHeight(Font.captionLine)
+            .fontColor(Palette.warning)
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+        }
+      }
+      .width('100%')
+    }
+  }
+
   build() {
     Column() {
       Row({ space: Space.s12 }) {
@@ -350,10 +400,12 @@ export struct TaskCard {
               .lineHeight(Font.bodyLine)
               .fontWeight(FontWeight.Medium)
               .fontColor(Palette.fontPrimary)
-              .maxLines(2)
+              .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .layoutWeight(1)
-            StatusChip({ status: this.task.status })
+            if (this.showStatus) {
+              StatusChip({ status: this.task.status })
+            }
           }
           .width('100%')
           .alignItems(VerticalAlign.Top)
@@ -366,10 +418,7 @@ export struct TaskCard {
             Text(this.task.recoveryMessage).fontSize(Font.caption).fontColor(Palette.fontSecondary)
           }
           if (this.task.status === 'completed') {
-            Text('应用内原件可用').fontSize(Font.caption).fontColor(Palette.fontSecondary)
-            if (this.receiptText().length > 0) {
-              Text(this.receiptText()).fontSize(Font.caption).fontColor(Palette.fontSecondary)
-            }
+            this.receiptLine(this.receiptText())
             if (this.task.exportedAt > 0) {
               Text('曾导出 · ' + formatMoment(this.task.exportedAt, Date.now()))
                 .fontSize(Font.caption).fontColor(Palette.fontSecondary)
@@ -381,31 +430,7 @@ export struct TaskCard {
             }
           }
 
-          if (this.meta().length > 0 || this.task.error.length > 0) {
-            Row({ space: Space.s8 }) {
-              if (this.meta().length > 0) {
-                Text(this.meta())
-                  .fontSize(Font.caption)
-                  .lineHeight(Font.captionLine)
-                  .fontColor(Palette.fontTertiary)
-              }
-              if (this.meta().length > 0 && this.task.error.length > 0) {
-                Text('·')
-                  .fontSize(Font.caption)
-                  .fontColor(Palette.fontTertiary)
-              }
-              if (this.task.error.length > 0) {
-                Text(this.task.error)
-                  .fontSize(Font.caption)
-                  .lineHeight(Font.captionLine)
-                  .fontColor(Palette.warning)
-                  .maxLines(2)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .layoutWeight(1)
-              }
-            }
-            .width('100%')
-          }
+          this.infoRow(this.meta())
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -454,16 +479,11 @@ export struct TaskCard {
               }
             })
           }
-          if (this.isSettled()) {
-            IconButton({ glyph: 'close', glyphSize: 18, diameter: 38, plain: true,
-              accessibilityLabel: '移出任务页，保留素材',
-              onAction: (): void => { this.onHide(this.task); } })
-          }
         }
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
-      .padding(Space.s12)
+      .padding(Space.s10)
     }
     .width('100%')
     .borderRadius(Radius.r8)
@@ -614,7 +634,7 @@ export struct BatchCard {
       }
     }
     .width('100%')
-    .padding(Space.s12)
+    .padding(Space.s10)
     .borderRadius(Radius.r8)
     .backgroundColor(Palette.card)
     .shadow(Shadow.card())
